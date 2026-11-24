@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode
 import { createElement } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { api, type BoardData, type BoardRow, type FollowState, type Photo } from "../api";
+import { api, type BoardData, type BoardRow, type FollowState, type Me, type Photo } from "../api";
 import { CloseIcon, ShareIcon } from "../icons";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
@@ -10,7 +10,8 @@ import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, mono } from "../site";
 import type { Fetched } from "../files";
 import { CLIPS, GROUNDS, LENGTHS, STRIP, deck, filmReel, gifReel, shareGif, reelStillUri, reelStripUri, copySticker, shareFilm, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
 import type { Row } from "../store";
-import { C, F, LADDER, fmtInt, lifetimeTag } from "../theme";
+import { C, F, LADDER, fmtClock, fmtInt, fmtPace, lifetimeTag } from "../theme";
+import type { Faked } from "./RowScreen";
 import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad, useModalHold } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
 import { EditRow } from "./EditRow";
@@ -97,9 +98,13 @@ export function RowPage({
   onWho,
   talk,
   onMetric,
+  fake,
 }: {
   id: string;
   fresh?: Fresh;
+  /* A demo row "logged" (RowScreen.tsx Faked): the page is drawn from
+   * what the form had, on the phone, and nothing on it reaches the site. */
+  fake?: Faked;
   rows: Row[];
   localDoc?: TelemetryDoc;
   onRower: (n: number) => void;
@@ -115,7 +120,11 @@ export function RowPage({
   onMetric?: (id: MetricId, mine: RowMeasure) => void;
 }) {
   const path = `/api/row100k/app/row?id=${id}`;
-  const { data, error, reload } = useLoad(() => api<{ row: RowData }>(path), [path], path);
+  const { me } = useSession();
+  const loaded = useLoad(() => (fake ? Promise.resolve(null) : api<{ row: RowData }>(path)), [path, !!fake], fake ? null : path);
+  const pretend = useMemo(() => (fake && fresh ? fakeRow(fake, fresh, localDoc ?? null, me) : null), [fake, fresh, localDoc, me]);
+  const data = pretend ? { row: pretend } : loaded.data;
+  const { error, reload } = loaded;
   const [sharing, setSharing] = useState(false);
   const [talking, setTalking] = useState(!!talk);
   const [said, setSaid] = useState<number | null>(null);
@@ -154,6 +163,7 @@ export function RowPage({
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 140 }}>
+      {fake ? <Text style={[mono(10, true, C.accent, 0.12), { lineHeight: 16, marginBottom: 12 }]}>Demo row · nothing was saved</Text> : null}
       {/* WHO AND WHEN, in two tight lines (owner, 2026-11-21: "the space
           isn't used well up at the top. I feel like we can do the same with
           less vertical space"). The rower's number is in the bar above. */}
@@ -177,7 +187,7 @@ export function RowPage({
           pace is second and no smaller than it needs to be; the time is the
           small one under it. */}
       {fresh && r.meters ? (
-        <Logged fresh={fresh} meters={r.meters} line={figures} onRower={onRower} />
+        <Logged fresh={fresh} meters={r.meters} line={figures} onRower={onRower} pretend={!!fake} />
       ) : (
         <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 16 }}>
           {/* In the ink, not the blue (owner, 2026-11-23: "let's default it
@@ -200,7 +210,7 @@ export function RowPage({
       <PhotoPair
         photos={r.photos}
         style={{ marginTop: 16 }}
-        menu={(close, leave) => (
+        menu={fake ? undefined : (close, leave) => (
           <RowMenu
             row={{ id: r.id, rowerNumber: r.rowerNumber, name: r.name, mine: r.mine, photos: r.photos.length, rel: r.rel ?? { following: "none", bell: false } }}
             onClose={close}
@@ -224,7 +234,7 @@ export function RowPage({
       {/* LIKE, COMMENT, SHARE, under the row as under a post (owner,
           2026-11-22: "that's where that share button can go"). The stickers
           are behind the share mark. */}
-      <PostActions id={r.id} likes={r.likes ?? 0} liked={!!r.liked} comments={said ?? r.comments ?? 0} onComments={() => setTalking(true)} onShare={r.canShare && !r.masked ? () => setSharing(true) : undefined} style={{ marginTop: 12 }} />
+      {fake ? null : <PostActions id={r.id} likes={r.likes ?? 0} liked={!!r.liked} comments={said ?? r.comments ?? 0} onComments={() => setTalking(true)} onShare={r.canShare && !r.masked ? () => setSharing(true) : undefined} style={{ marginTop: 12 }} />}
 
       {/* THE DESCRIPTION, under the marks, the name before it. It is
           written and changed from EDIT ROW behind the three dots, never
@@ -248,7 +258,7 @@ export function RowPage({
           the reel overlays, I want to see the sticker overlays above
           them"). */}
       {mayShare ? <Stickers rowId={r.id} onOpen={() => setSharing(true)} /> : null}
-      {r.canReel && !r.masked ? <Reels rowId={r.id} /> : null}
+      {r.canReel && !r.masked && !fake ? <Reels rowId={r.id} /> : null}
 
       {/* THE MONITOR'S AVERAGES, on ONE line, and only where the read
           below is not shown: the read's own NUMBERS carry the same figures
@@ -275,7 +285,7 @@ export function RowPage({
 
       {/* THE THREE DOTS at the top of the page: the rower's page, follow,
           notifications, mute, report; and, for the owner, his tools. */}
-      {menu && onMenu ? (
+      {menu && onMenu && !fake ? (
         <RowMenu
           row={{ id: r.id, rowerNumber: r.rowerNumber, name: r.name, mine: r.mine, photos: r.photos.length, rel: r.rel ?? { following: "none", bell: false } }}
           onClose={() => onMenu(false)}
@@ -298,6 +308,44 @@ export function RowPage({
       {talking ? <CommentsSheet entryId={r.id} onClose={() => setTalking(false)} onRower={onRower} onCount={setSaid} /> : null}
     </ScrollView>
   );
+}
+
+/* A DEMO ROW'S PAGE, put together on the phone from the form (Faked) and
+ * the signed-in rower, in the shape the site sends a row in. */
+function fakeRow(fake: Faked, fresh: Fresh, doc: TelemetryDoc | null, me: Me): RowData {
+  const now = new Date();
+  const h = now.getHours();
+  const num = me.me?.rowerNumber ?? 0;
+  const [y, mo, d] = (doc?.startedAt.slice(0, 10) ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`).split("-").map(Number);
+  const seconds = fake.seconds;
+  const pace = seconds > 0 && fresh.meters > 0 ? (seconds / fresh.meters) * 500 : 0;
+  return {
+    id: "demo",
+    day: `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+    rowedStr: "Today",
+    dayStr: "Today",
+    clockStr: `${h % 12 || 12}:${String(now.getMinutes()).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`,
+    rowerNumber: num,
+    numStr: String(num).padStart(3, "0"),
+    name: me.me?.displayName || me.name || "You",
+    title: fake.title,
+    caption: fake.caption || undefined,
+    meters: fresh.meters,
+    seconds: seconds || null,
+    metersStr: fmtInt(fresh.meters),
+    durationStr: seconds ? fmtClock(seconds, false) : "",
+    splitStr: pace ? fmtPace(pace) : "",
+    photos: fake.photos,
+    masked: false,
+    elite: false,
+    mine: true,
+    usual: null,
+    canShare: false,
+    canReel: false,
+    avatar: me.avatar ?? null,
+    erg: null,
+    doc,
+  };
 }
 
 /* This row beside the rower's own average, and its place among their rows
@@ -382,7 +430,7 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
 const STEPS = [5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
 const stepFor = (meters: number) => STEPS.find((s) => s >= meters * 4) ?? STEPS[STEPS.length - 1];
 
-function Logged({ fresh, meters, line, onRower }: { fresh: Fresh; meters: number; line: ReactNode; onRower: (n: number) => void }) {
+function Logged({ fresh, meters, line, onRower, pretend }: { fresh: Fresh; meters: number; line: ReactNode; onRower: (n: number) => void; /* A demo row: the board has not had these meters, so the slice adds them. */ pretend?: boolean }) {
   const [go, setGo] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setGo(true), 250);
@@ -497,7 +545,7 @@ function Logged({ fresh, meters, line, onRower }: { fresh: Fresh; meters: number
         </View>
       ) : null}
 
-      {fresh.inMonth ? <Climb meters={meters} word={fresh.monthWord} onRower={onRower} /> : null}
+      {fresh.inMonth ? <Climb meters={meters} word={fresh.monthWord} onRower={onRower} pretend={pretend} /> : null}
     </View>
   );
 }
@@ -542,12 +590,33 @@ const ABOVE = 5;
 const BELOW = 1;
 const VIEW = ABOVE + 1 + BELOW;
 
-function Climb({ meters, word, onRower }: { meters: number; word: string; onRower: (n: number) => void }) {
+function Climb({ meters, word, onRower, pretend }: { meters: number; word: string; onRower: (n: number) => void; pretend?: boolean }) {
   const { data } = useLoad(() => api<BoardData>("/api/row100k/app/board"), []);
-  const rows = data?.rows ?? [];
+  const rows = useMemo(() => (pretend ? withMeters(data?.rows ?? [], meters) : (data?.rows ?? [])), [data, meters, pretend]);
   const at = rows.findIndex((x) => x.me);
   if (!data || at < 0) return null;
   return <Slice rows={rows} at={at} meters={meters} word={word} onRower={onRower} />;
+}
+
+/* The board as it would stand with a demo row's meters on it: the rower's
+ * line takes them and rises over every ranked, unmasked line straight above
+ * it that it now has more than, the way the board would order it. A line
+ * that is masked or carries no place does not move. */
+function withMeters(rows: BoardRow[], meters: number): BoardRow[] {
+  const at = rows.findIndex((x) => x.me);
+  if (at < 0) return rows;
+  const me = rows[at];
+  if (me.unranked || me.blocks !== undefined) return rows;
+  const up = { ...me, meters: me.meters + meters };
+  let to = at;
+  while (to > 0) {
+    const x = rows[to - 1];
+    if (x.unranked || x.blocks !== undefined || x.meters >= up.meters) break;
+    to--;
+  }
+  const out = rows.filter((_, i) => i !== at);
+  out.splice(to, 0, up);
+  return out;
 }
 
 function Slice({ rows, at, meters, word, onRower }: { rows: BoardRow[]; at: number; meters: number; word: string; onRower: (n: number) => void }) {

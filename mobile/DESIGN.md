@@ -934,3 +934,11 @@ His words: "instead of the number that counts up being the 5,000 ... I want it t
 ## Round 47 (2026-11-23): stories by the time rowed
 
 - The stories keep a row for a day from when it was ROWED (lib/rowedAt.ts, as the feed prints it), not from when it was sent, and order and age them by that time (`api/row100k/app/recap`). Site only; no app update needed.
+
+## Round 48 (2026-11-24): a demo row can be logged, pretend
+
+- Owner: "if I submit the demo row, I want to run through like the post screen. Like I want to be able to fake submit a row."
+- A demo row's end buttons are now the real ones: DISCARD and LOG X M, with "Just its analytics" under them (the old end). LOG opens the real form, headed "Demo row · nothing is saved · photos optional"; the photos can be left empty. Its LOG runs the progress bar through the real steps (about three seconds, "A demo: nothing is being sent.") and lands on the page a logged row lands on, headed "Demo row · nothing was saved": all-time count-up, the bars, the month's board with the demo meters added to the rower's line (it climbs over anybody it would pass), the read of the piece, DONE.
+- Nothing leaves the phone: no row, no photos, no recording kept, no read of the session again, no stickers dropped. The page has no like/comment/share, no three dots, no stickers or reels.
+- In development a demo row used to log for real; it is pretend there too now (log by hand for a real one).
+- Seen in the sandbox (1,000 m demo at 40x): form, bar, page, board +1,000. NOT seen on a phone; a demo climb past other rowers not seen (the sandbox rower leads the board).

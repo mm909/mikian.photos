@@ -6,6 +6,7 @@ import { milestone, projectedMeters } from "../erg/milestone";
 import type { Erg } from "../erg/useErg";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
+import { mono } from "../site";
 import { dropPending, loadPending, loadPendingDoc, onPending, type Pending } from "../store";
 import { C, F, MONTHS, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
 import { Btn, Card, Eyebrow, Num, styles } from "../ui";
@@ -48,7 +49,15 @@ import { Produced, useDirector } from "./Produced";
  * the meters left; a set time shows the meters it is on pace for; a plain
  * row shows the four numbers and no line. */
 
-export type Logged = { id: string; meters: number; seconds: number; day: string; doc?: TelemetryDoc; demo: boolean; device: string; strokes: number; avgWatts: number };
+export type Logged = { id: string; meters: number; seconds: number; day: string; doc?: TelemetryDoc; demo: boolean; device: string; strokes: number; avgWatts: number; /* A demo row "logged": what the form had in it, for the page it ends on, which is drawn on the phone. Nothing was sent. */ fake?: Faked };
+
+/* A DEMO ROW GOES THROUGH THE WHOLE LOG (owner, 2026-11-24: "if I submit
+ * the demo row, I want to run through like the post screen. Like I want to
+ * be able to fake submit a row"). Its form is the real form, its bar runs as
+ * if it were sending, and it lands on the page a logged row lands on, with
+ * the all-time meters, the bars and the board moving, but nothing leaves the
+ * phone: no row, no photos, no recording. The page says so at the top. */
+export type Faked = { title: string; caption: string; seconds: number; photos: { full: string; thumb: string | null }[] };
 
 /* The demo row's distance, and how many times faster than a clock it runs. */
 const DEMO_METERS = 5000;
@@ -104,9 +113,10 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
       <LogForm
         fixed={{ meters: snap.meters, seconds: snap.seconds }}
         doc={snap.doc}
+        fake={erg.demo}
         onCancel={() => setForm("none")}
-        onDone={(id, day, meters, seconds, doc) => {
-          const out: Logged = { id, meters, seconds, day, doc, demo: erg.demo, device: erg.name || "PM5", strokes: snap.strokes, avgWatts: snap.avgWatts };
+        onDone={(id, day, meters, seconds, doc, fake) => {
+          const out: Logged = { id, meters, seconds, day, doc, demo: erg.demo, device: erg.name || "PM5", strokes: snap.strokes, avgWatts: snap.avgWatts, fake };
           erg.discard();
           setForm("none");
           onLogged(out);
@@ -310,9 +320,11 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
   const settled = useRef(0);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => w && settled.current === w && setPage(Math.round(e.nativeEvent.contentOffset.x / w));
   const meters = Math.floor(live.meters);
-  /* A demo row is the simulator: it shows the screens, it is never logged
-   * to the board outside development. */
-  const canLog = meters >= 1 && (!demo || __DEV__);
+  /* A demo row is the simulator: it shows the screens, and its LOG walks
+   * through the form and the page a row lands on without sending anything
+   * (Faked, above). It was never logged outside development, and is not
+   * logged in development now either. */
+  const canLog = meters >= 1;
   /* HAS THE ROWER STOPPED (owner, 2026-11-20: "have them only pop up when
    * the rower is either just starting or just finished, prob just
    * finished"). The monitor says so itself when a set piece ends; for a
@@ -348,25 +360,18 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
   const still = at - moved.current.at > IDLE_MS;
   const finished = live.ended && at - endedSince.current >= END_HOLD_MS;
   const over = meters >= 1 && (finished || !!error || still);
-  /* A demo row ends on its analytics: it is not logged, so that is what
-   * there is to see of it. Eight strokes in, there is a piece to read. In
-   * development it can be logged as well, and the read is a second line. */
+  /* A demo row's LOG is a pretend one (Faked); its analytics on their own
+   * are the second line. Eight strokes in, there is a piece to read. */
   const canRead = demo && live.strokes >= 8;
-  const ends =
-    demo && !canLog ? (
+  const ends = (
+    <View>
       <View style={{ flexDirection: "row", gap: 10 }}>
         <Btn label="Discard" quiet onPress={erg.discard} style={{ flex: 1 }} />
-        <Btn label="See its analytics" onPress={onRead} disabled={!canRead} style={{ flex: 2 }} />
+        <Btn label={canLog ? `Log ${fmtInt(meters)} m` : "Log 0 m"} onPress={onLog} disabled={!canLog} style={{ flex: 2 }} />
       </View>
-    ) : (
-      <View>
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <Btn label="Discard" quiet onPress={erg.discard} style={{ flex: 1 }} />
-          <Btn label={canLog ? `Log ${fmtInt(meters)} m` : "Log 0 m"} onPress={onLog} disabled={!canLog} style={{ flex: 2 }} />
-        </View>
-        {demo ? <Btn label="See its analytics, not logged" quiet onPress={onRead} disabled={!canRead} style={{ marginTop: 10 }} /> : null}
-      </View>
-    );
+      {demo ? <Btn label="Just its analytics" quiet onPress={onRead} disabled={!canRead} style={{ marginTop: 10 }} /> : null}
+    </View>
+  );
   /* THE RACE (GhostRace.tsx) IS THE FIRST PAGE of a set distance (owner,
    * 2026-11-22: "let's have that be the main screen"), with the numbers one
    * swipe on. A plain row or a set time has nobody to race, so there the
@@ -479,7 +484,7 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
             {leaf(
               <>
                 <Eyebrow style={{ color: C.ink, marginBottom: 6 }}>End the row</Eyebrow>
-                <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging asks for the two photos next.` : demo && meters >= 1 ? "A demo row is not logged. Its analytics open from here." : "Nothing rowed yet."}</Text>
+                <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? (demo ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)}. A demo: logging it goes through the form and the page after, and nothing is saved.` : `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging asks for the two photos next.`) : "Nothing rowed yet."}</Text>
                 {ends}
               </>,
               { paddingHorizontal: 20, justifyContent: "center" },
@@ -682,7 +687,7 @@ export function parseTime(text: string): number | null {
   return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : null;
 }
 
-function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: number; seconds: number }; doc?: TelemetryDoc; /* The day it was rowed, for a row logged later; today when left out. */ day0?: string; onCancel: () => void; onDone: (id: string, day: string, meters: number, seconds: number, doc?: TelemetryDoc) => void }) {
+function LogForm({ fixed, doc, day0, fake, onCancel, onDone }: { fixed?: { meters: number; seconds: number }; doc?: TelemetryDoc; /* The day it was rowed, for a row logged later; today when left out. */ day0?: string; /* A demo row: the form is the same, the photos are not required, and LOG sends nothing (Faked). */ fake?: boolean; onCancel: () => void; onDone: (id: string, day: string, meters: number, seconds: number, doc?: TelemetryDoc, fake?: Faked) => void }) {
   const today = pacificToday();
   const [meters, setMeters] = useState(fixed ? String(fixed.meters) : "");
   /* The time as ONE entry, as the website takes it (owner, 2026-11-21:
@@ -720,7 +725,7 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
 
   const m = fixed ? fixed.meters : Math.round(Number(meters));
   const s = fixed ? fixed.seconds : (parseTime(time) ?? 0);
-  const ok = m > 0 && s > 0 && photos[0] !== null && photos[1] !== null;
+  const ok = m > 0 && s > 0 && (!!fake || (photos[0] !== null && photos[1] !== null));
 
   /* BOTH PHOTOS IN ONE VISIT to the library: two picked fill both frames;
    * one picked fills the frame that was pressed. The camera takes one, into
@@ -742,7 +747,29 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
   };
   const empty = photos[0] === null ? 0 : 1;
 
+  /* The pretend send: the steps a real one goes through, at about the pace
+   * of a good signal, and then the page. */
+  const pretend = async () => {
+    const wait = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+    const steps: Progress[] = [
+      { at: 0, to: 0.1, word: "Getting photo 1 ready" },
+      { at: 0.1, to: 0.2, word: "Getting photo 2 ready" },
+      { at: 0.2, to: 0.5, word: "Sending photo 1" },
+      { at: 0.5, to: 0.8, word: "Sending photo 2" },
+      { at: 0.8, to: 0.95, word: "Saving the row" },
+      { at: 1, to: 1, word: "Logged" },
+    ];
+    for (const p of steps) {
+      setBusy(p);
+      await wait(p.at === 1 ? 350 : 500);
+    }
+    setBusy(null);
+    const shown = photos.filter((p): p is Picked => p !== null).map((p) => ({ full: p.uri, thumb: null }));
+    onDone("demo", day, m, s, doc, { title, caption, seconds: s, photos: shown });
+  };
+
   const submit = async () => {
+    if (fake) return pretend();
     if (!photos[0] || !photos[1]) return;
     setError("");
     setBusy({ at: 0, to: 0.02, word: "Getting photo 1 ready" });
@@ -758,6 +785,7 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 124 }} keyboardShouldPersistTaps="handled">
+      {fake ? <Text style={[mono(10, true, C.accent, 0.12), { lineHeight: 16, marginBottom: 12 }]}>Demo row · nothing is saved · photos optional</Text> : null}
       {fixed ? (
         <View>
           <Eyebrow>The row</Eyebrow>
@@ -850,7 +878,7 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
 
       {error ? <Text style={[styles.body, { color: C.accent, marginBottom: 12 }]}>{error}</Text> : null}
       {/* While the row is going in, the button gives its place to the bar. */}
-      {busy ? <Sending p={busy} /> : <Btn label={m > 0 ? `Log ${fmtInt(m)} m` : "Log"} onPress={submit} disabled={!ok} />}
+      {busy ? <Sending p={busy} fake={fake} /> : <Btn label={m > 0 ? `Log ${fmtInt(m)} m` : "Log"} onPress={submit} disabled={!ok} />}
       {!ok && !busy ? <Text style={[styles.body, { fontSize: 14, marginTop: 8 }]}>{m > 0 && s > 0 ? "Both photos are needed: you, and the monitor." : "Enter the meters and the time."}</Text> : null}
       <Btn label={fixed ? "Back to the monitor" : "Cancel"} quiet onPress={onCancel} disabled={!!busy} style={{ marginTop: 10 }} />
     </ScrollView>
@@ -871,7 +899,7 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
  * comes in. And a light band crosses the whole bar over and over, which is
  * the sign that it is working while a count is slow to come (a weak signal
  * in a gym). */
-function Sending({ p }: { p: Progress }) {
+function Sending({ p, fake }: { p: Progress; fake?: boolean }) {
   const [shown, setShown] = useState(0);
   const now = useRef(p);
   now.current = p;
@@ -907,7 +935,7 @@ function Sending({ p }: { p: Progress }) {
         <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, shown * 100)}%`, backgroundColor: C.accent }} />
         {w > 0 ? <Animated.View style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: BAND, backgroundColor: C.paper, opacity: 0.38, transform: [{ translateX: band.interpolate({ inputRange: [0, 1], outputRange: [-BAND, w] }) }] }} /> : null}
       </View>
-      <Text style={[styles.body, { fontSize: 13, marginTop: 8 }]}>Keep the app open until this is done.</Text>
+      <Text style={[styles.body, { fontSize: 13, marginTop: 8 }]}>{fake ? "A demo: nothing is being sent." : "Keep the app open until this is done."}</Text>
     </View>
   );
 }

@@ -16,7 +16,7 @@ import { FeedScreen } from "./src/screens/Feed";
 import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
 import { DemoPage, ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
 import type { TelemetryDoc } from "./src/pm5/session";
-import { RowScreen, type Logged } from "./src/screens/RowScreen";
+import { RowScreen, type Faked, type Logged } from "./src/screens/RowScreen";
 import { SettingsScreen, type SettingsPage } from "./src/screens/Settings";
 import { NewsScreen, PeopleScreen, SearchScreen, type PeopleList } from "./src/screens/Social";
 import { StoriesScreen, StoryScreen, type StoryId } from "./src/screens/Stories";
@@ -84,7 +84,7 @@ const TABS: { id: Tab; label: string; Icon: ComponentType<{ color?: string; size
 
 type Over = { k: number } & (
   | { kind: "rower"; num: number }
-  | { kind: "row"; id: string; fresh?: Fresh; doc?: TelemetryDoc; talk?: boolean }
+  | { kind: "row"; id: string; fresh?: Fresh; doc?: TelemetryDoc; talk?: boolean; fake?: Faked }
   | { kind: "news" }
   | { kind: "settings"; page?: SettingsPage }
   | { kind: "stories" }
@@ -414,6 +414,13 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       goal: me.month?.goal ?? 100_000,
       monthWord: me.month?.label.split(" ")[0] ?? "This month",
     };
+    /* A demo row "logged" (RowScreen.tsx Faked): the page it lands on and
+     * nothing else; no recording kept, no read again, no stickers dropped. */
+    if (r.fake) {
+      setLog("closed");
+      setStack([{ k: nextKey++, kind: "row", id: r.id, fresh, doc: r.doc, fake: r.fake }]);
+      return;
+    }
     if (r.doc) {
       const row: Row = { id: r.id, day: r.day, at: Date.now(), meters: r.meters, seconds: r.seconds, strokes: r.strokes, avgWatts: r.avgWatts, source: r.demo ? "demo" : "erg", hasDoc: true, device: r.device };
       try {
@@ -468,7 +475,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
   const press = ({ pressed }: { pressed: boolean }) => ({ width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const, opacity: pressed ? 0.5 : 1 });
-  const dots = !logOn && me.me && ((top?.kind === "rower" && top.num !== mine) || top?.kind === "row");
+  const dots = !logOn && me.me && ((top?.kind === "rower" && top.num !== mine) || (top?.kind === "row" && !top.fake));
 
   const screen = (o: Over): ReactNode =>
     o.kind === "rower" ? (
@@ -502,7 +509,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
         }}
       />
     ) : (
-      <RowPage id={o.id} talk={o.talk} fresh={o.fresh} localDoc={o.doc} rows={rows} onRower={openRower} onDone={drop} menu={menu && top === o} onMenu={setMenu} onWho={(n) => setRowNum((m) => (m[o.id] === n ? m : { ...m, [o.id]: n }))} onMetric={openMetric} />
+      <RowPage id={o.id} talk={o.talk} fresh={o.fresh} localDoc={o.doc} fake={o.fake} rows={rows} onRower={openRower} onDone={drop} menu={menu && top === o} onMenu={setMenu} onWho={(n) => setRowNum((m) => (m[o.id] === n ? m : { ...m, [o.id]: n }))} onMetric={openMetric} />
     );
 
   return (
