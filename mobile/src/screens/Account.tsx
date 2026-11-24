@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { SAME_ORIGIN, SITE, api } from "../api";
 import { useSession } from "../session";
 import { C, F, onLook } from "../theme";
@@ -21,6 +21,21 @@ let field = fieldOf();
 onLook(() => {
   field = fieldOf();
 });
+
+/* SIGNING IN, SAID PLAINLY (owner, 2026-11-24, of the Developer sign-in:
+ * "it just like pauses for a bit. There's no loading animation or
+ * anything"). From the press until the account is read and the app swaps
+ * to it (session.tsx take: the token, then /me), a dark bar with a spinner
+ * in place of the quiet button. The first sign-in of a day is the slow
+ * one: the server copies the sample rower's rows to the Developer then. */
+function Working() {
+  return (
+    <View accessibilityRole="progressbar" accessibilityLabel="Signing in" style={[styles.btn, { backgroundColor: C.ink, borderColor: C.ink, flexDirection: "row", alignItems: "center", justifyContent: "center", columnGap: 10 }]}>
+      <ActivityIndicator color={C.paper} />
+      <Text style={[styles.btnText, { color: C.paper }]}>Signing in…</Text>
+    </View>
+  );
+}
 
 export function SignIn(_props: { why: string }) {
   const { signInDev, signInSite, signInApple, signInReview } = useSession();
@@ -117,7 +132,7 @@ export function SignIn(_props: { why: string }) {
         <View style={{ marginTop: 22 }}>
           <Eyebrow>Developer sign-in</Eyebrow>
           <TextInput style={field} value={pass} onChangeText={setPass} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="Password" placeholderTextColor={C.gray} accessibilityLabel="Developer password" onSubmitEditing={asReviewer} />
-          <Btn label={busy ? "Signing in" : "Sign in"} quiet disabled={busy || pass.length < 8} onPress={asReviewer} />
+          {busy ? <Working /> : <Btn label="Sign in" quiet disabled={pass.length < 8} onPress={asReviewer} />}
         </View>
       ) : (
         <Text accessibilityRole="button" onPress={() => setReview(true)} suppressHighlighting style={[styles.body, { fontSize: 13, marginTop: 18, textDecorationLine: "underline" }]}>
