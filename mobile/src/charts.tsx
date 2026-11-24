@@ -704,9 +704,16 @@ export function PaceLine({ curve, dots, fmt, height = 220 }: { curve: PacePoint[
   const rows = model.rows;
 
   /* A label every ten seconds; fewer when they would sit on each other. */
-  const gap = [10, 20, 30, 60, 120, 300, 600].find((g) => ((H - 2 * PAD_Y) * g) / (hi - lo) >= 15) ?? 600;
+  /* A RULE EVERY FIVE SECONDS (owner, 2026-11-23: "It was only a vertical
+   * marking for y-axis at 2 minutes and at 150, but we should definitely
+   * have at least every 5"): the rules every 5 s while they stand 6 px
+   * apart, the labels on the fewest of them that keep 15 px apart. */
+  const gap = [5, 10, 20, 30, 60, 120, 300, 600].find((g) => ((H - 2 * PAD_Y) * g) / (hi - lo) >= 15) ?? 600;
+  const fine = ((H - 2 * PAD_Y) * 5) / (hi - lo) >= 6 ? 5 : gap;
   const marks: number[] = [];
   for (let v = Math.ceil(lo / gap) * gap; v <= hi + 1e-6; v += gap) marks.push(v);
+  const rules: number[] = [];
+  for (let v = Math.ceil(lo / fine) * fine; v <= hi + 1e-6; v += fine) rules.push(v);
   const axisWord = (s: number) => fmt(s).replace(/\.0$/, "");
 
   /* The date under every few rows, counted back from the newest. */
@@ -748,8 +755,8 @@ export function PaceLine({ curve, dots, fmt, height = 220 }: { curve: PacePoint[
           <View {...touch.pan} collapsable={false} style={{ width: visW }}>
             {/* The rules stand still behind the plot: they are the same at every row. */}
             <Svg width={visW} height={H} style={{ position: "absolute", left: 0, top: 0 }}>
-              {marks.map((v) => (
-                <Line key={v} x1={0} y1={sy(v)} x2={visW} y2={sy(v)} stroke={C.line} strokeWidth={1} strokeDasharray="3 4" />
+              {rules.map((v) => (
+                <Line key={v} x1={0} y1={sy(v)} x2={visW} y2={sy(v)} stroke={C.line} strokeWidth={marks.includes(v) ? 1 : 0.6} strokeDasharray="3 4" />
               ))}
               <Line x1={0} y1={H - 1} x2={visW} y2={H - 1} stroke={C.ink} strokeWidth={2} />
             </Svg>

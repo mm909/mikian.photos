@@ -826,3 +826,13 @@ With Instagram's own held post open beside the app: "give me the ability to have
 - **Search** leaves the Instagram handle off.
 - **The splash's count** springs up as zeros and the M, then counts.
 - SEEN in the browser sandbox: the stats buttons, scrub vs turn on a card, the board's months, the feed's circles and a story. NOT seen: any of it on a phone, the race on the water, sign-in, the lift.
+
+## Round 41 (2026-11-23): centred, wrapped, and the month as a word
+
+- The profile's time frame is the centred caret button the stats tab has; on the stats tab the big number and its line sit centred under the two buttons (`Lead center`).
+- The pace chart rules every 5 s (labels thin to what fits).
+- A field card goes round: a swipe past either face lands on the other (`Flip`, a copy at each end of the strip).
+- On the stats tab, a fastest 5k / 10k or a longest row opens THAT ROW (found in the rower's log by its day); total meters and the biggest day still open the rower.
+- A held photo: a tap on the photo turns to the row's other photo; a tap on the figures opens the row.
+- The 100K tab's month line is the menu (dotted underline, a drop-down of every month); the arrows are gone.
+- SEEN in the browser sandbox: all but the held card's taps and the record tap. NOT seen on a phone.

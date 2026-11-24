@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ComponentRef } from "react";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
 import { AccessibilityInfo, Animated, Easing, Image, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { Photo } from "./api";
 import { buzz } from "./buzz";
@@ -73,7 +73,14 @@ export function whereOnScreen(v: Spot | null | undefined, then: (r: Rect | undef
   v.measureInWindow((x, y, w, h) => then(w > 0 && h > 0 ? { x, y, w, h } : undefined));
 }
 
-export function LiftMenu({ head, photo, figures, from, items, onClose }: { head?: { name: string; sub?: string; avatar?: string | null }; photo: Photo; figures?: Figures; from?: Rect; items: HoldItem[]; onClose: () => void }) {
+/* TWO TAPS ON THE CARD (owner, 2026-11-23: "allow me to tap the photo and
+ * have it swap the photo, but if I tap the stats down at the bottom, take
+ * me to that row"): `photos`, the row's photos from the one held, turn over
+ * on a tap of the photo; `onOpen` is the row, opened from the figures. */
+export function LiftMenu({ head, photo, photos, figures, from, items, onClose, onOpen }: { head?: { name: string; sub?: string; avatar?: string | null }; photo: Photo; photos?: Photo[]; figures?: Figures; from?: Rect; items: HoldItem[]; onClose: () => void; onOpen?: () => void }) {
+  const [turn, setTurn] = useState(0);
+  const many = (photos?.length ?? 0) > 1;
+  const showing = many && photos ? photos[turn % photos.length] : photo;
   useModalHold();
   const win = useWindowDimensions();
   const p = useRef(new Animated.Value(0)).current;
@@ -192,16 +199,30 @@ export function LiftMenu({ head, photo, figures, from, items, onClose }: { head?
             ) : null}
             {/* The small copy the square shows under the whole one, so the
                 photo is there from the first frame of the lift. */}
-            <Animated.View style={{ width: cardW, height: photoH, backgroundColor: C.pale, opacity: fly ? 1 : shown }}>
-              {photo.thumb ? <Image source={{ uri: photo.thumb }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
-              <Image source={{ uri: photo.full }} resizeMode="cover" style={StyleSheet.absoluteFill} />
-            </Animated.View>
-            {figures ? (
-              <Animated.View style={{ height: STATS, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, backgroundColor: C.paper, opacity: late }}>
-                <Figure k="Distance" v={figures.meters} />
-                <Figure k="Pace" v={figures.pace} u="/500m" />
-                <Figure k="Time" v={figures.time} />
+            <Pressable accessibilityRole={many ? "button" : undefined} accessibilityLabel={many ? "The other photo" : undefined} disabled={!many} onPress={() => setTurn((t) => t + 1)}>
+              <Animated.View style={{ width: cardW, height: photoH, backgroundColor: C.pale, opacity: fly ? 1 : shown }}>
+                {showing.thumb ? <Image source={{ uri: showing.thumb }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
+                <Image source={{ uri: showing.full }} resizeMode="cover" style={StyleSheet.absoluteFill} />
               </Animated.View>
+            </Pressable>
+            {figures ? (
+              <Pressable
+                accessibilityRole={onOpen ? "link" : undefined}
+                accessibilityLabel={onOpen ? "Open the row" : undefined}
+                disabled={!onOpen}
+                onPress={() => {
+                  if (gone.current || !onOpen) return;
+                  gone.current = true;
+                  shut.current();
+                  onOpen();
+                }}
+              >
+                <Animated.View style={{ height: STATS, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, backgroundColor: C.paper, opacity: late }}>
+                  <Figure k="Distance" v={figures.meters} />
+                  <Figure k="Pace" v={figures.pace} u="/500m" />
+                  <Figure k="Time" v={figures.time} />
+                </Animated.View>
+              </Pressable>
             ) : null}
           </Pressable>
         </Animated.View>

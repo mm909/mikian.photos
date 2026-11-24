@@ -83,7 +83,7 @@ const num = (v: unknown): v is number => typeof v === "number" && Number.isFinit
  * if it were counted, and never as all or none. */
 const about = (share: number) => `about ${Math.max(1, Math.min(99, Math.round(share * 100)))}%`;
 
-export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n: number) => void; onRankings?: (period: string, rec: string) => void; onScrollDir?: (down: boolean) => void }) {
+export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRower: (n: number) => void; onRow?: (id: string) => void; onRankings?: (period: string, rec: string) => void; onScrollDir?: (down: boolean) => void }) {
   const dir = useScrollDir(onScrollDir);
   const { me } = useSession();
   /* ALL TIME first (owner, 2026-11-22: "on the stats, let's default it to
@@ -158,7 +158,7 @@ export function StatsScreen({ onRower, onRankings, onScrollDir }: { onRower: (n:
         {statWord}
       </View>
 
-      {rec ? <Records key={rec.key} s={s} rec={rec} onRower={onRower} onAll={onRankings ? () => onRankings(period, rec.key) : undefined} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
+      {rec ? <Records key={rec.key} s={s} rec={rec} onRower={onRower} onRow={onRow} onAll={onRankings ? () => onRankings(period, rec.key) : undefined} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
 
       {month ? (
         <>
@@ -391,7 +391,32 @@ function ChartHead({ children }: { children: ReactNode }) {
 }
 
 /* ONE RECORD: the lead, then the men's and the women's five. */
-function Records({ s, rec, onRower, onAll }: { s: Payload; rec: (typeof RECORDS)[number]; onRower: (n: number) => void; onAll?: () => void }) {
+/* A RECORD THAT IS ONE ROW OPENS THAT ROW (owner, 2026-11-23: "I click
+ * on that 5K on that chart on the next table, on the best table, it should
+ * take me to that row, not that rower"). A fastest 5k or 10k and a longest
+ * row are each one row; the board sends its day, not its id, so the row is
+ * found in that rower's log: the day's row that makes the time (a 5k's
+ * time pro-rated from anything at or over the distance), or the day's
+ * longest. Total meters and the biggest day are a sum of rows, and open
+ * the rower, as does a row that cannot be found (a private account). */
+async function recordRow(num: number, key: RecordKey, r: RecordRow): Promise<string | null> {
+  if (!r.day || (key !== "5000" && key !== "10000" && key !== "longest")) return null;
+  const got = await api<{ profile?: { logRows: { id: string; day: string; meters?: number; seconds?: number; masked: boolean }[] } }>(`/api/row100k/app/profile?num=${num}&m=all`);
+  const rows = (got.profile?.logRows ?? []).filter((x) => x.day === r.day && !x.masked && (x.meters ?? 0) > 0);
+  if (key === "longest") return [...rows].sort((a, b) => (b.meters ?? 0) - (a.meters ?? 0))[0]?.id ?? null;
+  const dist = Number(key);
+  const timed = rows.filter((x) => (x.meters ?? 0) >= dist && (x.seconds ?? 0) > 0);
+  return [...timed].sort((a, b) => Math.abs(((a.seconds ?? 0) * dist) / (a.meters ?? 1) - r.value) - Math.abs(((b.seconds ?? 0) * dist) / (b.meters ?? 1) - r.value))[0]?.id ?? null;
+}
+
+function Records({ s, rec, onRower, onRow, onAll }: { s: Payload; rec: (typeof RECORDS)[number]; onRower: (n: number) => void; onRow?: (id: string) => void; onAll?: () => void }) {
+  const open = (r: RecordRow) => {
+    if (!onRow || r.masked) return onRower(r.rowerNumber);
+    recordRow(r.rowerNumber, rec.key, r).then(
+      (id) => (id ? onRow(id) : onRower(r.rowerNumber)),
+      () => onRower(r.rowerNumber),
+    );
+  };
   const rows: RecordRow[] = s.records[rec.key] ?? [];
   const first = rows[0];
   const elite = rec.key === "total" ? rows.filter((r) => r.unranked) : [];
@@ -406,7 +431,7 @@ function Records({ s, rec, onRower, onAll }: { s: Payload; rec: (typeof RECORDS)
         <TableHead>{title}</TableHead>
         {shown.length === 0 ? <Text style={[mono(11, false, C.gray), { paddingVertical: 14 }]}>Nobody on this board yet.</Text> : null}
         {shown.map(({ r, place }) => (
-          <Tr key={r.participantId} place={r.unranked ? null : place} num={r.rowerNumber} name={r.name} me={r.participantId === s.meId} onPress={() => onRower(r.rowerNumber)} label={`${r.unranked ? "" : `Place ${place}, `}${r.name}, ${r.masked ? "hidden" : val(r)}`}>
+          <Tr key={r.participantId} place={r.unranked ? null : place} num={r.rowerNumber} name={r.name} me={r.participantId === s.meId} onPress={() => open(r)} label={`${r.unranked ? "" : `Place ${place}, `}${r.name}, ${r.masked ? "hidden" : val(r)}`}>
             {r.masked ? <Blocks n={r.digits ?? 5} size={13} /> : <Fig>{val(r)}</Fig>}
           </Tr>
         ))}
@@ -418,9 +443,9 @@ function Records({ s, rec, onRower, onAll }: { s: Payload; rec: (typeof RECORDS)
     <View>
       {s.blackout.active ? <Text style={[mono(11, true, C.ink, 0.14), { marginTop: 12 }]}>Lights out{rec.time ? " · times are shown" : ""}</Text> : null}
       {elite.length > 0 ? (
-        <Lead value={<Blocks n={elite.reduce((n, r) => Math.max(n, r.digits ?? String(Math.round(r.value)).length), 1)} size={44} />} unit="m" />
+        <Lead center value={<Blocks n={elite.reduce((n, r) => Math.max(n, r.digits ?? String(Math.round(r.value)).length), 1)} size={44} />} unit="m" />
       ) : first ? (
-        <Lead value={rec.time ? fmtClock(first.value) : fmtInt(first.value)} unit={rec.time ? undefined : "m"}>
+        <Lead center value={rec.time ? fmtClock(first.value) : fmtInt(first.value)} unit={rec.time ? undefined : "m"}>
           {String(first.rowerNumber).padStart(3, "0")} · <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{first.name}</Text>
           {first.day ? ` · ${dayWord(first.day)}` : ""}
           {first.sessions != null ? ` · ${first.sessions} sessions` : ""}
@@ -495,7 +520,7 @@ function ByPeriod({ s, mode, slot, onSlot, onMode, onRower }: { s: Payload; mode
       </View>
 
       {first ? (
-        <Lead value={first.masked ? <Blocks n={first.digits ?? 5} size={44} /> : fmtInt(first.meters)} unit="m">
+        <Lead center value={first.masked ? <Blocks n={first.digits ?? 5} size={44} /> : fmtInt(first.meters)} unit="m">
           {String(first.rowerNumber).padStart(3, "0")} · <Text style={{ fontFamily: F.monoBold, color: C.ink }}>{first.name}</Text> · {first.sessions} {first.sessions === 1 ? "session" : "sessions"}
         </Lead>
       ) : (

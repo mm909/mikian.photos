@@ -78,7 +78,7 @@ export function BoardScreen({ onRower, onScrollDir, look = "bars" }: { onRower: 
     return (
       <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }}>
         <View style={{ paddingHorizontal: look === "sheet" ? 16 : 20 }}>
-          <MonthPick months={months.current} value={shownKey} onPick={pick} />
+          <Dateline left={monthMenu(months.current, shownKey, pick)} right="" />
         </View>
         <Waiting error={error} onRetry={reload} />
       </ScrollView>
@@ -101,15 +101,19 @@ export function BoardScreen({ onRower, onScrollDir, look = "bars" }: { onRower: 
   /* Places count the ranked rows only: the hidden elite carry none. */
   let place = 0;
   const placed = data.rows.map((r) => ({ r, place: r.unranked ? null : ++place }));
-  const head = months.current.length > 1 ? <MonthPick months={months.current} value={data.month.key} onPick={pick} /> : null;
+  /* THE MONTH IS THE MENU (owner, 2026-11-23: "instead of having that
+   * selector up top with the arrows back and forth, let's just make the
+   * November 2026 a link that's selectable that brings that drop down, like
+   * we do in other places ... other than making it underlined"). `head` is
+   * the month line's left end, the menu when there is more than one. */
+  const head = months.current.length > 1 ? monthMenu(months.current, data.month.key, pick) : null;
   if (look === "sheet") return <Sheet data={data} live={live} head={head} placed={placed} loading={loading} reload={reload} onRower={onRower} dir={dir} />;
   const tierOf = (r: BoardRow) => data.tiers.find((t) => r.meters >= t.floor) ?? data.tiers[data.tiers.length - 1];
 
   return (
     <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <View style={{ paddingHorizontal: 20 }}>
-        {head}
-        <Dateline left={data.month.label} right={live ? `Day ${data.month.day} of ${data.month.days}` : "Final standings"} days={data.month.days} day={data.month.day} />
+        <Dateline left={head ?? data.month.label} right={live ? `Day ${data.month.day} of ${data.month.days}` : "Final standings"} days={data.month.days} day={data.month.day} />
         {live && data.me && !data.me.in ? (
           <View style={{ marginTop: 18 }}>
             <Ctl label={busy ? "Opting in" : `Opt in to ${data.month.word}`} disabled={busy} onPress={optIn} />
@@ -203,49 +207,6 @@ function Line({ r, place, delay, onPress }: { r: BoardRow; place: number | null;
   );
 }
 
-/* THE MONTH, AND THE WAY TO ANOTHER (owner, 2026-11-23: "it must be
- * obvious it can be changed"): the month's name big between two boxed
- * arrows, an arrow that has nowhere to go greyed out; the name is a menu
- * of every month there is a board for. Under it, this month or FINAL. */
-function MonthPick({ months, value, onPick }: { months: Months; value: string; onPick: (k: string) => void }) {
-  const at = Math.max(0, months.findIndex((m) => m.key === value));
-  const cur = months[at];
-  const live = at === months.length - 1;
-  const arrow = (step: -1 | 1) => {
-    const to = months[at + step];
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={to ? `${step < 0 ? "Earlier month" : "Later month"}: ${to.label}` : step < 0 ? "No earlier month" : "No later month"}
-        disabled={!to}
-        onPress={() => to && onPick(to.key)}
-        hitSlop={6}
-        style={({ pressed }) => ({ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: to ? C.ink : C.line, backgroundColor: pressed ? C.pale : "transparent" })}
-      >
-        <Text style={{ fontFamily: F.monoBold, fontSize: 22, lineHeight: 26, color: to ? C.ink : C.line }}>{step < 0 ? "‹" : "›"}</Text>
-      </Pressable>
-    );
-  };
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", columnGap: 12, marginBottom: 16 }}>
-      {arrow(-1)}
-      <View style={{ flex: 1, alignItems: "center" }}>
-        <WordMenu
-          ariaLabel="Which month"
-          options={[...months].reverse().map((m) => ({ key: m.key, label: m.name === m.label.split(" ")[0] ? m.label : `${m.name} · ${m.label}` }))}
-          value={value}
-          label={cur?.name ?? ""}
-          onPick={onPick}
-          width={260}
-          textStyle={{ fontFamily: F.black, fontSize: 22, lineHeight: 26, letterSpacing: 0.3, color: C.ink, textTransform: "uppercase" }}
-        />
-        <Text style={[mono(10, true, live ? C.accent : C.gray, 0.14), { marginTop: 4 }]}>{live ? "This month" : "Final"}</Text>
-      </View>
-      {arrow(1)}
-    </View>
-  );
-}
-
 /* ---- THE SHEET: a look being tried ---------------------------------------
  *
  * (owner, 2026-11-22, of the board's bars: "could we do it in a way that's
@@ -305,8 +266,7 @@ function Sheet({ data, live, head, placed, loading, reload, onRower, dir }: { da
   return (
     <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <View style={{ paddingHorizontal: 16 }}>
-        {head}
-        <Dateline left={data.month.label} right={live ? `Day ${data.month.day} of ${data.month.days}` : "Final standings"} days={data.month.days} day={data.month.day} />
+        <Dateline left={head ?? data.month.label} right={live ? `Day ${data.month.day} of ${data.month.days}` : "Final standings"} days={data.month.days} day={data.month.day} />
         {mine && mine.blocks === undefined ? (
           <View style={{ marginTop: 18 }}>
             <Text style={{ fontFamily: F.sans, fontSize: 12.5, color: C.gray }}>Your {data.month.word}</Text>
@@ -369,4 +329,9 @@ function Sheet({ data, live, head, placed, loading, reload, onRower, dir }: { da
       <Text style={{ fontFamily: F.sans, fontSize: 12.5, lineHeight: 18, color: C.gray, paddingHorizontal: 16, paddingTop: 14 }}>{live ? "A box is a day: the seven gone, today, and the three ahead, in thousands of meters. Press one of your own three to plan it. The plan is on this phone only for now." : `A box is a day: the last eight of ${data.month.label}, in thousands of meters.`}</Text>
     </ScrollView>
   );
+}
+
+/* The month line's own words as the menu of months, newest first. */
+function monthMenu(months: Months, value: string, onPick: (k: string) => void): ReactNode {
+  return <WordMenu options={[...months].reverse().map((m) => ({ key: m.key, label: m.label }))} value={value} onPick={onPick} ariaLabel="Which month" textStyle={mono(11, true)} />;
 }

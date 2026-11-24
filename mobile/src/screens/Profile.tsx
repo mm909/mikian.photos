@@ -297,8 +297,11 @@ export function ProfileScreen({
           <>
           {/* WHICH MONTH, and that month's figures, here and not in the
               head (owner, 2026-11-22). The word is the menu. */}
-          <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", columnGap: 10, marginTop: 16, marginBottom: 12 }}>
-            <WordMenu options={p.periodOptions} value={turning && period ? period : p.period.key} onPick={setPeriod} ariaLabel="Which month" />
+          {/* A centred button with a caret, as on the stats tab (owner,
+              2026-11-23: "I just didn't like how the all-time looks on the
+              profile"). */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", columnGap: 10, marginTop: 16, marginBottom: 12 }}>
+            <WordMenu options={p.periodOptions} value={turning && period ? period : p.period.key} onPick={setPeriod} ariaLabel="Which time frame" chip />
             {turning ? <Text style={mono(11, false, C.gray)}>Reading</Text> : null}
           </View>
           {/* The month before, faint, until the one picked is read. */}

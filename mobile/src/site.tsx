@@ -138,10 +138,10 @@ export function Dot({ size = 12 }: { size?: number }) {
 }
 
 /* THE LEAD: the figure, and who holds it. */
-export function Lead({ value, unit, children, size = 56 }: { value: ReactNode; unit?: string; children?: ReactNode; size?: number }) {
+export function Lead({ value, unit, children, size = 56, center = false }: { value: ReactNode; unit?: string; children?: ReactNode; size?: number; /* Centred under centred controls (the stats tab, 2026-11-23). */ center?: boolean }) {
   return (
-    <View style={{ marginTop: 8 }}>
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 10 }}>
+    <View style={{ marginTop: 8, alignItems: center ? "center" : undefined }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 10, justifyContent: center ? "center" : undefined }}>
         {typeof value === "string" ? (
           <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.05), letterSpacing: -0.5, color: C.accent, fontVariant: ["tabular-nums"], flexShrink: 1 }}>
             {value}
@@ -151,7 +151,7 @@ export function Lead({ value, unit, children, size = 56 }: { value: ReactNode; u
         )}
         {unit ? <Text style={{ fontFamily: F.bold, fontSize: Math.round(size * 0.36), color: C.gray }}>{unit}</Text> : null}
       </View>
-      {children ? <Text style={[mono(12, false, C.gray, 0.14), { marginTop: 10, lineHeight: 20 }]}>{children}</Text> : null}
+      {children ? <Text style={[mono(12, false, C.gray, 0.14), { marginTop: 10, lineHeight: 20, textAlign: center ? "center" : undefined }]}>{children}</Text> : null}
     </View>
   );
 }
@@ -206,11 +206,11 @@ export function You() {
 }
 
 /* THE DATELINE: the month, the day of it, and a square a day. */
-export function Dateline({ left, right, days, day }: { left: string; right: string; days?: number; day?: number }) {
+export function Dateline({ left, right, days, day }: { left: ReactNode; right: string; days?: number; day?: number }) {
   return (
     <View>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", borderBottomWidth: 2, borderColor: C.ink, paddingBottom: 8 }}>
-        <Text style={mono(11, true)}>{left}</Text>
+        {typeof left === "string" ? <Text style={mono(11, true)}>{left}</Text> : left}
         <Text style={mono(11, true)}>{right}</Text>
       </View>
       {days ? (

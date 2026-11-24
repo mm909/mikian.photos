@@ -393,7 +393,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : t === "board" ? (
       <BoardScreen key={stamp} look={boardLook} onRower={openRower} onScrollDir={setAway} />
     ) : t === "stats" ? (
-      <StatsScreen onRower={openRower} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} />
+      <StatsScreen onRower={openRower} onRow={openRow} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} />
     ) : (
       <ProfileScreen key={stamp} onPlus={onPlus} onEdit={() => push({ kind: "settings", page: "account" })} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     );

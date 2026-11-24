@@ -204,9 +204,11 @@ function useCards(rows: ReturnType<typeof useRows>, onRower: (n: number) => void
         <LiftMenu
           head={{ name: held.it.name, sub: when(held.it), avatar: held.it.avatar }}
           photo={held.it.photos[held.h.at]}
+          photos={[...held.it.photos.slice(held.h.at, 2), ...held.it.photos.slice(0, held.h.at)]}
           figures={figures(held.it)}
           from={held.h.from}
           onClose={() => setHeld(null)}
+          onOpen={() => onRow(held.it.id)}
           items={[
             ...(held.it.mine && held.it.photos.length > 1 ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: () => swapPhotos(touch, held.it) } as HoldItem] : []),
             { label: "Share link", icon: <LinkIcon />, wait: true, onPress: () => shareRow(held.it) },
@@ -563,9 +565,11 @@ export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boo
         <LiftMenu
           head={{ name: held.name, sub: when(held), avatar: held.avatar }}
           photo={face(held) as NonNullable<ReturnType<typeof face>>}
+          photos={held.photos.slice(0, 2)}
           figures={figures(held)}
           from={heldFrom}
           onClose={() => setHeld(null)}
+          onOpen={() => onRow(held.id)}
           items={[
             ...(held.mine && held.photos.length > 1 ? [{ label: "Swap photo", icon: <SwapIcon />, onPress: () => swapPhotos(touch, held) } as HoldItem] : []),
             { label: "Share link", icon: <LinkIcon />, wait: true, onPress: () => shareRow(held) },
