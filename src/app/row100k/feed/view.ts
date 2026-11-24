@@ -33,6 +33,13 @@ export type FeedItem = {
   dayStr: string;
   /* "3:54 PM" */
   clockStr: string;
+  /* Set only for a row off a monitor that was ROWED ON ANOTHER DAY than it
+   * landed (rowed at 11 pm and sent after midnight, or kept on the phone
+   * and logged the next day): the day and the clock it was rowed
+   * (lib/rowedAt.ts). The three fields above then stay the landing's, so
+   * the day sections of the site's feed hold together; the phone app, which
+   * says the day on every card, prints this one. */
+  rowed?: { dayKey: string; dayStr: string; clockStr: string };
   rowerNumber: number;
   /* "023" */
   numStr: string;
@@ -113,6 +120,21 @@ export function stampParts(createdAt: Date): { dayKey: string; dayStr: string; c
     dayStr: fmtDay(dayKey).toUpperCase(),
     clockStr: `${h}:${min} ${h24 < 12 ? "AM" : "PM"}`,
   };
+}
+
+/* THE STAMP OF A ROW (owner, 2026-11-23: "if it's a PM5 over Bluetooth, we
+ * should set the time as the time rowed, not the time submitted"). `landed`
+ * is when the row was submitted; `rowed` is when its monitor says it
+ * finished, when it has a monitor behind it (lib/rowedAt.ts). Rowed and
+ * landed on the same day, which is nearly every row: the clock printed is
+ * the rowed one. On different days: the landing stamp is kept (it is what
+ * the feed is ordered and sectioned by) and the rowed one rides beside it
+ * as `rowed`. */
+export function rowStamp(landed: Date, rowed?: Date | null): { dayKey: string; dayStr: string; clockStr: string; rowed?: { dayKey: string; dayStr: string; clockStr: string } } {
+  const l = stampParts(landed);
+  if (!rowed) return l;
+  const r = stampParts(rowed);
+  return r.dayKey === l.dayKey ? { ...l, clockStr: r.clockStr } : { ...l, rowed: r };
 }
 
 /* Midnight Pacific of a "YYYY-MM-DD" day as a UTC instant — the lower edge

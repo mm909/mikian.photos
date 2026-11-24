@@ -3,6 +3,7 @@ import { activeBlackout } from "@/lib/blackout";
 import { CHALLENGE, nowMs, pacificDay } from "@/lib/row100k";
 import { maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row100kViewer";
 import { boardView } from "@/app/row100k/boardData";
+import { rowedAtFor } from "@/lib/rowedAt";
 import { no, yes } from "../social";
 
 /* THE QUESTIONS BEHIND THE STATS, for the phone app (owner, 2026-11-21:
@@ -52,7 +53,10 @@ const addDays = (day: string, by: number) => new Date(Date.parse(`${day}T12:00:0
 
 export async function GET() {
   try {
-    const rows = await db.rowEntry.findMany({ where: { challenge: CHALLENGE }, select: { participantId: true, day: true, createdAt: true, meters: true, seconds: true } });
+    const rows = await db.rowEntry.findMany({ where: { challenge: CHALLENGE }, select: { id: true, participantId: true, day: true, createdAt: true, meters: true, seconds: true } });
+    /* The hour of a row off a monitor is the hour it was rowed (owner,
+     * 2026-11-23; lib/rowedAt.ts); of any other, the hour it was sent. */
+    const rowedAt = await rowedAtFor(rows);
     const today = pacificDay(nowMs());
 
     /* Who rowed on each day. */
@@ -70,7 +74,7 @@ export async function GET() {
       m.rowers.add(r.participantId);
       m.rows++;
       m.meters += r.meters;
-      const h = Number(hourOf.format(r.createdAt));
+      const h = Number(hourOf.format(rowedAt.get(r.id) ?? r.createdAt));
       if (h >= 0 && h < 24) hours[h]++;
       weekdays[new Date(`${r.day}T12:00:00Z`).getUTCDay()]++;
     }

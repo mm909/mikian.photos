@@ -348,7 +348,14 @@ async function swapPhotos(touch: (id: string, f: Partial<FeedItem>) => void, it:
 /* WHEN, as Strava says it (owner, 2026-11-22: "how does Strava do their
  * dates? Strava does their dates by yesterday at"): Today at 6:12 AM,
  * Yesterday at 6:12 AM, and before that the day in full. */
-function when(it: FeedItem): string {
+/* WHEN IT WAS ROWED, for a row off a monitor (owner, 2026-11-23: "if it's a
+ * PM5 over Bluetooth, we should set the time as the time rowed, not the
+ * time submitted ... we know what time this was done at"): the site sends
+ * the rowed clock in the stamp itself, and the rowed day beside it as
+ * `rowed` when that is another day than the row was sent (feed/view.ts
+ * rowStamp). */
+function when(row: FeedItem): string {
+  const it = row.rowed ?? row;
   if (it.dayKey === dayKey()) return `Today at ${it.clockStr}`;
   if (it.dayKey === dayKey(new Date(Date.now() - 86_400_000))) return `Yesterday at ${it.clockStr}`;
   const [y, m, d] = it.dayKey.split("-").map(Number);

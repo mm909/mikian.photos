@@ -4,6 +4,7 @@ import { digitCount } from "@/lib/blackoutRules";
 import { CHALLENGE, fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit, plainTitle } from "@/lib/row100k";
 import { maskedIds, previewBlackout, viewOpts, type Viewer } from "@/lib/row100kViewer";
 import { relation } from "@/lib/rowSocial";
+import { rowedAtFor } from "@/lib/rowedAt";
 import { boardView, EMPTY_BOARDS } from "../../../boardData";
 import { stampParts, type FeedItem } from "../../../feed/view";
 import { resolvePhotoMedia } from "../../../photoUrls";
@@ -91,7 +92,9 @@ export async function loadRow(viewer: Viewer, num: number, id: string): Promise<
   const item: FeedItem = {
     id: e.id,
     absIso: e.createdAt.toISOString(),
-    ...stampParts(e.createdAt),
+    /* A row off a monitor: when it was rowed, not when it was sent (owner,
+     * 2026-11-23; lib/rowedAt.ts). */
+    ...stampParts((await rowedAtFor([e])).get(e.id) ?? e.createdAt),
     ...who,
     metersStr: masked ? "" : fmtMeters(e.meters),
     durationStr: masked ? "" : fmtDuration(e.seconds),

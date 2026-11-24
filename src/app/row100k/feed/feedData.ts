@@ -5,8 +5,9 @@ import { resolvePhotoMedia } from "../photoUrls";
 import { CHALLENGE, fmtDay, fmtDuration, fmtMeters, fmtRowerNumber, fmtSplit, nowMs, pacificDay, plainTitle } from "@/lib/row100k";
 import { maskedIds, previewBlackout, viewOpts, type Viewer } from "@/lib/row100kViewer";
 import { followingIds, hiddenRowers, mutedIds } from "@/lib/rowSocial";
+import { rowedAtFor } from "@/lib/rowedAt";
 import { boardView, EMPTY_BOARDS } from "../boardData";
-import { DAY_MS, pacificDayStartMs, stampParts, type DayTotal, type FeedHeadline, type FeedItem } from "./view";
+import { DAY_MS, pacificDayStartMs, rowStamp, stampParts, type DayTotal, type FeedHeadline, type FeedItem } from "./view";
 
 /* THE FEED, COMPUTED (split out of page.tsx 2026-11-20 so the phone app
  * reads the same rows the page prints: api/row100k/app/feed). The rows,
@@ -162,6 +163,10 @@ export async function buildFeed(viewer: Viewer, beforeRaw: string, opts: FeedOpt
     entries.map((e, i) => (hiddenRow[i] ? Promise.resolve([]) : resolvePhotoMedia(e.photos))),
   );
 
+  /* When each row off a monitor was rowed, which is the clock it prints
+   * (owner, 2026-11-23; lib/rowedAt.ts). */
+  const rowedAt = await rowedAtFor(entries);
+
   const items: FeedItem[] = entries.map((e, i) => {
     const masked = hiddenRow[i];
     return {
@@ -173,8 +178,9 @@ export async function buildFeed(viewer: Viewer, beforeRaw: string, opts: FeedOpt
       // UTC fields; the exact UTC instant stays in absIso for the title
       // attribute. One shift for the strips and the day totals: both read
       // stampParts (view.ts), so they can never disagree about which day a
-      // row landed.
-      ...stampParts(e.createdAt),
+      // row landed. A row off a monitor prints the clock it was ROWED
+      // (rowStamp, view.ts); its day section is still the landing's.
+      ...rowStamp(e.createdAt, rowedAt.get(e.id)),
       rowerNumber: e.participant.rowerNumber,
       numStr: fmtRowerNumber(e.participant.rowerNumber),
       name: e.participant.displayName,

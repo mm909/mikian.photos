@@ -8,6 +8,7 @@ import { maskedIds, previewBlackout, resolveViewer, viewOpts } from "@/lib/row10
 import { boardView } from "@/app/row100k/boardData";
 import { stampParts } from "@/app/row100k/feed/view";
 import { avatarsFor, relation } from "@/lib/rowSocial";
+import { rowedAtOf } from "@/lib/rowedAt";
 import { resolvePhotoMedia } from "@/app/row100k/photoUrls";
 import { asRower } from "../social";
 
@@ -82,7 +83,7 @@ export async function GET(req: Request) {
     const t = masked
       ? null
       : await db.rowTelemetry
-          .findFirst({ where: { entryId: e.id }, select: { id: true, device: true, simulated: true, avgWatts: true, avgSpm: true, avgHr: true, dragFactor: true, strokes: true, ...(full ? { data: true } : {}) } })
+          .findFirst({ where: { entryId: e.id }, select: { id: true, device: true, simulated: true, startedAt: true, tenths: true, avgWatts: true, avgSpm: true, avgHr: true, dragFactor: true, strokes: true, ...(full ? { data: true } : {}) } })
           .catch(() => null);
 
     return NextResponse.json(
@@ -92,7 +93,9 @@ export async function GET(req: Request) {
           id: e.id,
           day: e.day,
           rowedStr: fmtDay(e.day),
-          ...stampParts(e.createdAt),
+          /* The clock of a row off a monitor is when it was rowed, not
+           * when it was sent (owner, 2026-11-23; lib/rowedAt.ts). */
+          ...stampParts((t ? rowedAtOf(t, e.createdAt) : null) ?? e.createdAt),
           rowerNumber: e.participant.rowerNumber,
           numStr: fmtRowerNumber(e.participant.rowerNumber),
           name: e.participant.displayName,

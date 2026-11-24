@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { ActivityIndicator, Image, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, Easing, Image, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from "react-native";
 import { useKeepAwake } from "expo-keep-awake";
 import Svg, { Line, Path } from "react-native-svg";
 import { milestone, projectedMeters } from "../erg/milestone";
@@ -9,7 +9,7 @@ import { useSession } from "../session";
 import { dropPending, loadPending, loadPendingDoc, onPending, type Pending } from "../store";
 import { C, F, MONTHS, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
 import { Btn, Card, Eyebrow, Num, styles } from "../ui";
-import { FRAME, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked } from "../upload";
+import { FRAME, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked, type Progress } from "../upload";
 import { SignIn } from "./Account";
 import { GhostRace, useRace } from "./GhostRace";
 import { Produced, useDirector } from "./Produced";
@@ -689,7 +689,9 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
   const [picking, setPicking] = useState(false);
   const [caption, setCaption] = useState("");
   const [photos, setPhotos] = useState<(Picked | null)[]>([null, null]);
-  const [busy, setBusy] = useState("");
+  /* How far the row has got on its way in, while it is going (upload.ts
+   * Progress); null when nothing is being sent. */
+  const [busy, setBusy] = useState<Progress | null>(null);
   const [error, setError] = useState("");
 
   const m = fixed ? fixed.meters : Math.round(Number(meters));
@@ -719,12 +721,13 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
   const submit = async () => {
     if (!photos[0] || !photos[1]) return;
     setError("");
+    setBusy({ at: 0, to: 0.02, word: "Getting photo 1 ready" });
     try {
       const r = await logRow({ day, meters: m, seconds: s, title, caption, photos: [photos[0], photos[1]], doc }, setBusy);
-      setBusy("");
+      setBusy(null);
       onDone(r.id, day, m, s, doc);
     } catch (err) {
-      setBusy("");
+      setBusy(null);
       setError(err instanceof Error ? err.message : "That did not work.");
     }
   };
@@ -822,10 +825,66 @@ function LogForm({ fixed, doc, day0, onCancel, onDone }: { fixed?: { meters: num
       </Card>
 
       {error ? <Text style={[styles.body, { color: C.accent, marginBottom: 12 }]}>{error}</Text> : null}
-      <Btn label={busy || (m > 0 ? `Log ${fmtInt(m)} m` : "Log")} onPress={submit} disabled={!ok || !!busy} />
+      {/* While the row is going in, the button gives its place to the bar. */}
+      {busy ? <Sending p={busy} /> : <Btn label={m > 0 ? `Log ${fmtInt(m)} m` : "Log"} onPress={submit} disabled={!ok} />}
       {!ok && !busy ? <Text style={[styles.body, { fontSize: 14, marginTop: 8 }]}>{m > 0 && s > 0 ? "Both photos are needed: you, and the monitor." : "Enter the meters and the time."}</Text> : null}
       <Btn label={fixed ? "Back to the monitor" : "Cancel"} quiet onPress={onCancel} disabled={!!busy} style={{ marginTop: 10 }} />
     </ScrollView>
+  );
+}
+
+/* THE BAR WHILE A ROW IS SENT (owner, 2026-11-23: "we need like a animation
+ * for loading/sending or a % going up. Whenever we hit the submit row, we
+ * need something to indicate like the progress bar or a % ... it's a little
+ * unclear, like how long does it have left, or is it working"). A big
+ * percentage, the step it is on beside it, and a bar filling under them.
+ *
+ * WHAT MOVES IT. The count comes from upload.ts (Progress): mostly the
+ * bytes of the photos that have left the phone. This draws it so that it
+ * is never standing still and never goes back: the fill runs up to what is
+ * done for certain, then creeps on along the stretch the running step was
+ * given, slower the nearer it gets to the end of it, until the next count
+ * comes in. And a light band crosses the whole bar over and over, which is
+ * the sign that it is working while a count is slow to come (a weak signal
+ * in a gym). */
+function Sending({ p }: { p: Progress }) {
+  const [shown, setShown] = useState(0);
+  const now = useRef(p);
+  now.current = p;
+  useEffect(() => {
+    const id = setInterval(() => {
+      setShown((v) => {
+        const { at, to } = now.current;
+        if (at > v) return Math.min(1, v + Math.max(0.004, (at - v) * 0.35));
+        if (to > v) return v + (to - v) * 0.03;
+        return v;
+      });
+    }, 80);
+    return () => clearInterval(id);
+  }, []);
+  const [w, setW] = useState(0);
+  const band = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.timing(band, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.quad), useNativeDriver: Platform.OS !== "web" }));
+    loop.start();
+    return () => loop.stop();
+  }, [band]);
+  const pct = Math.min(100, Math.floor(shown * 100));
+  const BAND = 90;
+  return (
+    <View accessibilityRole="progressbar" accessibilityLabel={`${p.word}, ${pct} percent`} accessibilityValue={{ min: 0, max: 100, now: pct }} style={{ minHeight: 86 }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+        <Text style={{ fontFamily: F.black, fontSize: 40, lineHeight: 44, color: C.ink, fontVariant: ["tabular-nums"] }}>{pct}%</Text>
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>
+          {p.word.toUpperCase()}
+        </Text>
+      </View>
+      <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={{ height: 16, borderWidth: 2, borderColor: C.ink, overflow: "hidden", backgroundColor: C.paper }}>
+        <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, shown * 100)}%`, backgroundColor: C.accent }} />
+        {w > 0 ? <Animated.View style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: BAND, backgroundColor: C.paper, opacity: 0.38, transform: [{ translateX: band.interpolate({ inputRange: [0, 1], outputRange: [-BAND, w] }) }] }} /> : null}
+      </View>
+      <Text style={[styles.body, { fontSize: 13, marginTop: 8 }]}>Keep the app open until this is done.</Text>
+    </View>
   );
 }
 

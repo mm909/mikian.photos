@@ -68,31 +68,71 @@ async function shrink(p: Picked, edge: number, compress: number, framed = false)
   return (await fetch(out.uri)).blob();
 }
 
-async function put(url: string, blob: Blob): Promise<void> {
-  let res: Response;
-  try {
-    res = await fetch(url, { method: "PUT", headers: { "content-type": "image/jpeg" }, body: blob });
-  } catch {
-    /* No signal, or (in a browser on a laptop) the storage refusing an
-     * address it does not know. Nothing was logged; the form keeps the row. */
-    throw new Error("The photo could not be sent. Check the connection and try again; nothing was logged.");
-  }
-  if (!res.ok) throw new Error(`The photo did not upload (${res.status}). Nothing was logged.`);
+/* One file to storage. `onBytes` hears how many of its bytes have left the
+ * phone, as they leave, which is what the bar under LOG is drawn from; that
+ * count is the reason this is the phone's older way of sending (a request
+ * that reports on its way up) and not `fetch`, which says nothing until the
+ * whole file is there. */
+function put(url: string, blob: Blob, onBytes?: (sent: number) => void): Promise<void> {
+  /* No signal, or (in a browser on a laptop) the storage refusing an
+   * address it does not know. Nothing was logged; the form keeps the row. */
+  const lost = "The photo could not be sent. Check the connection and try again; nothing was logged.";
+  return new Promise<void>((done, fail) => {
+    let x: XMLHttpRequest;
+    try {
+      x = new XMLHttpRequest();
+      x.open("PUT", url);
+      x.setRequestHeader("content-type", "image/jpeg");
+    } catch {
+      fail(new Error(lost));
+      return;
+    }
+    if (onBytes) x.upload.onprogress = (e) => onBytes(Math.max(0, Math.min(blob.size, e.loaded || 0)));
+    x.onload = () => {
+      if (x.status >= 200 && x.status < 300) {
+        onBytes?.(blob.size);
+        done();
+      } else fail(new Error(`The photo did not upload (${x.status}). Nothing was logged.`));
+    };
+    x.onerror = () => fail(new Error(lost));
+    x.ontimeout = () => fail(new Error(lost));
+    x.onabort = () => fail(new Error(lost));
+    x.send(blob);
+  });
 }
 
-/* One photo up; answers its key. The thumb is best effort, as on the site. */
-export async function uploadPhoto(p: Picked): Promise<string> {
+/* A photo cut and shrunk, ready to go: the picture and its small copy. The
+ * small copy is best effort, as on the site: a row without one shows its
+ * full photo. */
+type Ready = { main: Blob; thumb: Blob | null };
+async function ready(p: Picked): Promise<Ready> {
   const main = await shrink(p, 1600, 0.82, true);
-  const signed = await api<{ key: string; url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: main.size } });
-  await put(signed.url, main);
-  try {
-    const thumb = await shrink(p, 320, 0.7, true);
-    const t = await api<{ url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: thumb.size, thumbFor: signed.key } });
-    await put(t.url, thumb);
-  } catch {
-    /* A row without a thumb shows its full photo. */
+  const thumb = await shrink(p, 320, 0.7, true).catch(() => null);
+  return { main, thumb };
+}
+const bytesOf = (r: Ready) => r.main.size + (r.thumb?.size ?? 0);
+
+/* Up it goes; answers its key. `onBytes` hears the bytes of the two files
+ * together. */
+async function send(r: Ready, onBytes?: (sent: number) => void): Promise<string> {
+  const signed = await api<{ key: string; url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: r.main.size } });
+  await put(signed.url, r.main, onBytes);
+  if (r.thumb) {
+    const thumb = r.thumb;
+    try {
+      const t = await api<{ url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: thumb.size, thumbFor: signed.key } });
+      await put(t.url, thumb, onBytes ? (n) => onBytes(r.main.size + n) : undefined);
+    } catch {
+      /* A row without a thumb shows its full photo. */
+    }
   }
+  onBytes?.(bytesOf(r));
   return signed.key;
+}
+
+/* One photo up; answers its key. */
+export async function uploadPhoto(p: Picked): Promise<string> {
+  return send(await ready(p));
 }
 
 /* One photo for a face, with the phone's own crop-and-zoom step, square
@@ -114,20 +154,60 @@ export async function setAvatar(p: Picked): Promise<void> {
 
 export type NewRow = { day: string; meters: number; seconds: number; title: string; caption?: string; photos: [Picked, Picked]; doc?: TelemetryDoc };
 
-/* Log it. `step` says where it has got to, for the button. Answers the new
+/* HOW FAR A ROW HAS GOT ON ITS WAY IN (owner, 2026-11-23: "we need like a
+ * animation for loading/sending or a % going up. Whenever we hit the submit
+ * row, we need something to indicate like the progress bar or a % ... Right
+ * now it just goes from like photo 1, photo 2, whatever, but it's a little
+ * unclear, like how long does it have left, or is it working").
+ *
+ * `at` is how much is done for certain, from 0 to 1. `to` is how far the
+ * step now running reaches: a step with no count of its own (cutting a
+ * photo down, asking for an address, the save at the end) gives the bar the
+ * stretch from `at` to `to` to creep along while it waits, so it is never
+ * standing still. `word` is the step, for beside the percentage.
+ *
+ * WHAT THE PERCENTAGE IS MADE OF. Most of the wait is the photos going up,
+ * so most of the bar is theirs, and that part is counted in bytes that have
+ * left the phone out of the bytes of both photos and their small copies: a
+ * big photo takes more of the bar than a small one. Before it, a little for
+ * cutting the photos down (which is what tells us how many bytes there
+ * are); after it, a little for the row itself, and for the monitor's
+ * recording when there is one. */
+export type Progress = { at: number; to: number; word: string };
+
+/* Log it. `step` says where it has got to, for the bar. Answers the new
  * row's id and whether the recording went with it. */
-export async function logRow(row: NewRow, step: (s: string) => void): Promise<{ id: string; recorded: boolean }> {
-  step("Photo 1 of 2");
-  const a = await uploadPhoto(row.photos[0]);
-  step("Photo 2 of 2");
-  const b = await uploadPhoto(row.photos[1]);
-  step("Logging");
+export async function logRow(row: NewRow, step: (p: Progress) => void): Promise<{ id: string; recorded: boolean }> {
+  const PREP = 0.12;
+  const REC = row.doc ? 0.1 : 0;
+  const SAVE = 0.1;
+  const UP = 1 - PREP - SAVE - REC;
+
+  step({ at: 0, to: PREP / 2, word: "Getting photo 1 ready" });
+  const one = await ready(row.photos[0]);
+  step({ at: PREP / 2, to: PREP, word: "Getting photo 2 ready" });
+  const two = await ready(row.photos[1]);
+
+  const all = Math.max(1, bytesOf(one) + bytesOf(two));
+  /* While a photo's address is being asked for nothing is counted yet: the
+   * bar may creep a hair past what has gone, no further. */
+  const up = (sent: number, word: string) => {
+    const at = PREP + UP * Math.min(1, sent / all);
+    step({ at, to: Math.min(PREP + UP, at + 0.015), word });
+  };
+  up(0, "Sending photo 1 of 2");
+  const a = await send(one, (n) => up(n, "Sending photo 1 of 2"));
+  up(bytesOf(one), "Sending photo 2 of 2");
+  const b = await send(two, (n) => up(bytesOf(one) + n, "Sending photo 2 of 2"));
+
+  const saved = PREP + UP;
+  step({ at: saved, to: saved + SAVE * 0.9, word: "Saving the row" });
   const made = await api<{ id: string }>("/api/row100k/rows", { body: { day: row.day, meters: row.meters, seconds: row.seconds, title: row.title, photos: [a, b] } });
   /* The caption goes on once the row exists; a row is not lost for it. */
   if (row.caption?.trim()) await api("/api/row100k/app/row", { body: { id: made.id, caption: row.caption } }).catch(() => null);
   let recorded = false;
   if (row.doc) {
-    step("Saving the recording");
+    step({ at: saved + SAVE, to: saved + SAVE + REC * 0.9, word: "Saving the recording" });
     try {
       await api("/api/row100k/app/erg", { body: { doc: row.doc, entryId: made.id } });
       recorded = true;
@@ -135,6 +215,7 @@ export async function logRow(row: NewRow, step: (s: string) => void): Promise<{ 
       /* The row is logged; the recording stays on the phone for the read. */
     }
   }
+  step({ at: 1, to: 1, word: "Logged" });
   return { id: made.id, recorded };
 }
 
