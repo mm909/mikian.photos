@@ -32,6 +32,7 @@ import { registerPush } from "./src/push";
 import { forgetStickers } from "./src/stickers";
 import { Avatar, modals, scrub, setSideDrag } from "./src/ui";
 import { buzz } from "./src/buzz";
+import { monitorShown } from "./src/orient";
 import { Splash } from "./src/splash";
 
 /* Android pads the app clear of its own bars (src/insets.tsx); required here
@@ -251,6 +252,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const rowing = erg.phase === "live";
   /* The monitor takes the whole screen: no bar, no tabs, its own way out. */
   const monitor = rowing && logOn;
+  /* Upright unless the live row is in front (src/orient.ts); said as the
+   * app opens, too. */
+  useEffect(() => {
+    monitorShown(monitor);
+  }, [monitor]);
   const openLog = () => setLog("shown");
   const openRower = (num: number) => push({ kind: "rower", num });
   const openRow = (id: string, talk?: boolean) => push({ kind: "row", id, talk });

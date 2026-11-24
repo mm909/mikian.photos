@@ -19,6 +19,7 @@ import { Produced, useDirector } from "./Produced";
 import { bindRow } from "../arcade/games";
 import { useShow } from "../arcade/useShow";
 import { ShowPage, overlays } from "./Show";
+import { monitorMounted } from "../orient";
 
 /* LOG A ROW. Two ways in: connect a Concept2 PM5 and row, or by hand.
  * Both end at the same form: two photos, the day, LOG.
@@ -425,6 +426,8 @@ function Monitor({ erg, startPage, onPage, onLog, onAdd, onDone, onRead, onLeave
   /* The screen stays on for as long as the monitor is up: a rower's hands
    * are on the handle, not the phone. */
   useKeepAwake();
+  /* The phone may turn while these pages are up, and only then (orient.ts). */
+  useEffect(() => monitorMounted(), []);
   const win = useWindowDimensions();
   const wide = win.width > win.height;
   const [w, setW] = useState(0);
