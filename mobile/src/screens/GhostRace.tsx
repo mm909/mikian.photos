@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 import type { ReactNode } from "react";
 import { api } from "../api";
-import { DRIVE, ghostClock, ghostDone, ghostMeters, ghostTrend, leadSeconds, nextBoat, oarAngle, phaseOf, pickRivals, rowerKey, trendOf, type Ghost, type Ghosts } from "../erg/ghosts";
+import { DRIVE, PASS_S, ghostClock, ghostDone, ghostMeters, ghostTrend, leadSeconds, nextBoat, oarAngle, phaseOf, pickRivals, rowerKey, trendOf, type Ghost, type Ghosts } from "../erg/ghosts";
 import { useLiveRowers } from "../erg/liveRace";
 import { milestone } from "../erg/milestone";
 import type { Erg } from "../erg/useErg";
@@ -252,7 +252,8 @@ export function useRace(target: number) {
   const bestBorn = useRef(0);
   /* When the lanes were last looked over for a duplicate to hand back. */
   const handedAt = useRef(0);
-  return { field, failed, said, shown, strokes, rate, pulling, rivals, seeded, lineAt, path, bestBorn, handedAt };
+  const swappedAt = useRef(0);
+  return { field, failed, said, shown, strokes, rate, pulling, rivals, seeded, lineAt, path, bestBorn, handedAt, swappedAt };
 }
 export type Race = ReturnType<typeof useRace>;
 
@@ -267,7 +268,7 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   const myName = (me.me?.displayName || "You").toUpperCase();
   const target = live.targetM;
   const own = useRace(race ? 0 : target);
-  const { field, failed, said, shown, strokes, rate, pulling, rivals, seeded, lineAt, path, bestBorn, handedAt } = race ?? own;
+  const { field, failed, said, shown, strokes, rate, pulling, rivals, seeded, lineAt, path, bestBorn, handedAt, swappedAt } = race ?? own;
 
   const ghosts = useMemo(() => field?.ghosts ?? [], [field]);
   /* The rower's fastest row over the distance: it rows in the rower's own
@@ -495,6 +496,31 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
         r.g = next.g;
         r.born = now;
       });
+      /* A BOAT THAT WILL NEVER CROSS THE ROWER GIVES ITS LANE TO ONE THAT
+       * WILL (owner, 2026-11-23: passes are what the race is for). One
+       * that is not closing on the rower, or not inside PASS_S, and is not
+       * right beside them, makes way for a boat that will pass or be
+       * passed inside the next minute. One trade every six seconds at most,
+       * so the water does not churn. */
+      if (now - swappedAt.current > 6000) {
+        const closing = (g: Ghost) => {
+          const d = gapOf(g);
+          const v = (gapOf(g, t + 10, myM + 10 * speed) - d) / 10;
+          return (d > 1 && v < -0.02) || (d < -1 && v > 0.02) ? Math.abs(d) / Math.abs(v) : Infinity;
+        };
+        const idle = rivals.current
+          .filter((r) => r.g.kind !== "live" && !stale.has(r) && Math.abs(gapOf(r.g)) > 12 && closing(r.g) >= PASS_S && (r.born === 0 || now - r.born > 8000))
+          .sort((a, b) => Math.abs(gapOf(b.g)) - Math.abs(gapOf(a.g)))[0];
+        if (idle) {
+          const next = nextBoat({ ghosts: all, meters: target, t, mine: myM, speed, near, water, racing: rivals.current.filter((x) => x !== idle).map((x) => x.g), want: 0, others: true });
+          if (next && next.cross < 60) {
+            swappedAt.current = now;
+            strokes.current.delete(idle.g.id);
+            idle.g = next.g;
+            idle.born = next.on ? now : 0;
+          }
+        }
+      }
     }
     while (rivals.current.length < RIVALS) {
       const next = nextBoat({ ghosts: all, meters: target, t, mine: myM, speed, near, water, racing: rivals.current.map((x) => x.g), want: 0 });

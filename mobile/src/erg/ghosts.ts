@@ -221,10 +221,11 @@ export function crossings(g: Ghost, meters: number, near: number): number {
 /* HOW GOOD A RIVAL A GHOST IS, in seconds, the lower the better: how far
  * its finish is from the finish the rower is headed for; less eight for a
  * recorded row, which is raced stroke for stroke and not as a line ("we
- * should prioritize people with telemetry data"); less two for each time
- * it would trade places with the rower, three at most. */
+ * should prioritize people with telemetry data"); less six for each time
+ * it would trade places with the rower, five at most (2026-11-23: passes
+ * are what the race is graded on). */
 export function rivalCost(g: Ghost, meters: number, near: number): number {
-  return Math.abs(g.seconds - near) - (g.marks.length >= 2 ? 8 : 0) - 2 * Math.min(3, crossings(g, meters, near));
+  return Math.abs(g.seconds - near) - (g.marks.length >= 2 ? 8 : 0) - 6 * Math.min(5, crossings(g, meters, near));
 }
 
 /* THE FOUR TO RACE (owner, 2026-11-22: "these 4 other people need to give
@@ -267,7 +268,12 @@ export function pickRivals(ghosts: Ghost[], meters: number, near: number, n: num
 /* The water in view: how many meters behind the rower and ahead of them a
  * boat can be and still be seen. */
 export type Water = { back: number; front: number };
-export type Next = { g: Ghost; on: boolean };
+/* `cross`: seconds until the boat and the rower change places, Infinity
+ * when they are not closing. */
+export type Next = { g: Ghost; on: boolean; cross: number };
+
+/* A boat that will cross the rower inside this is a pass worth a lane. */
+export const PASS_S = 90;
 
 /* A boat is worth a lane when it is going to be on the water this long. */
 const HOLD_S = 6;
@@ -322,7 +328,8 @@ export function nextBoat(o: { ghosts: Ghost[]; meters: number; t: number; mine: 
     const from = Math.max(-water.back, Math.min(water.front, d));
     const stay = Math.abs(v) < 0.02 ? 600 : v > 0 ? (water.front - from) / v : (from + water.back) / -v;
     if (stay < HOLD_S) return null;
-    return { d, on, stay, side: (d >= 0 ? 1 : -1) as -1 | 1, pass: (d > 1 && v < -0.02) || (d < -1 && v > 0.02) };
+    const pass = (d > 1 && v < -0.02) || (d < -1 && v > 0.02);
+    return { d, on, stay, side: (d >= 0 ? 1 : -1) as -1 | 1, pass, cross: pass ? Math.abs(d) / Math.abs(v) : Infinity };
   };
 
   let best: Next | null = null;
@@ -336,10 +343,18 @@ export function nextBoat(o: { ghosts: Ghost[]; meters: number; t: number; mine: 
       if (g.kind === "pace" || ids.has(g.id) || (g.kind === "me" || keys.has(rowerKey(g))) !== dup || ghostDone(g, t)) continue;
       const s = look(g);
       if (!s) continue;
-      const cost = -Math.min(s.stay, 120) * 0.4 - (s.pass ? 40 : 0) - (want && s.side === want ? 30 : 0) - (g.marks.length >= 2 ? 15 : 0) - (g.kind === "live" ? 1000 : 0) + Math.abs(s.d) * 0.3;
+      /* AS MANY PASSES AS THE WATER WILL GIVE (owner, 2026-11-23: "I want
+       * to optimize the number of people that I'm passing ... I want people
+       * that are passing me and people that I'm passing. I need both ...
+       * number of people that go across that screen, I think I want to
+       * optimize for"). A boat that will cross the rower inside PASS_S
+       * comes first, the sooner the better; one that only keeps the rower
+       * company is the last resort, however long it would stay. */
+      const crossing = s.cross < PASS_S;
+      const cost = (crossing ? -200 + s.cross * 0.8 : -Math.min(s.stay, 120) * 0.2) - (want && s.side === want ? 30 : 0) - (g.marks.length >= 2 ? 15 : 0) - (g.kind === "live" ? 1000 : 0) + Math.abs(s.d) * 0.1;
       if (cost < least) {
         least = cost;
-        best = { g, on: s.on };
+        best = { g, on: s.on, cross: s.cross };
       }
     }
     if (best || others) return best;
@@ -357,7 +372,7 @@ export function nextBoat(o: { ghosts: Ghost[]; meters: number; t: number; mine: 
       const cost = Math.abs(g.seconds - near) + (want && side !== want ? 1000 : 0);
       if (cost < least) {
         least = cost;
-        best = { g, on: s.on };
+        best = { g, on: s.on, cross: s.cross };
       }
     }
     if (best) break;
