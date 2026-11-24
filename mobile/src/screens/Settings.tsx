@@ -47,7 +47,7 @@ const KIND: Record<string, [string, string]> = {
 const WEB_NO_RING = (Platform.OS === "web" ? { outlineStyle: "none" } : {}) as object;
 const PATH = "/api/row100k/app/settings";
 
-export function SettingsScreen({ page, onPage, onPeople, onSignedOut }: { page?: SettingsPage; onPage: (p: SettingsPage) => void; onPeople: (list: PeopleList) => void; onSignedOut: () => void }) {
+export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki }: { page?: SettingsPage; onPage: (p: SettingsPage) => void; onPeople: (list: PeopleList) => void; onSignedOut: () => void; /* The owner's wiki (screens/Wiki.tsx), for an admin only. */ onWiki?: () => void }) {
   const { refresh, signOut, me } = useSession();
   const look = useLookSwitch();
   const { data, error, reload } = useLoad(() => api<{ settings: SocialSettings }>(PATH), [], PATH);
@@ -88,6 +88,9 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut }: { page?:
         <Go label="Privacy" sub={s ? (s.isPrivate ? "Private account" : "Public account") : ""} onPress={() => onPage("privacy")} />
         <Go label="Notifications" sub="What you are told about" onPress={() => onPage("notifications")} />
         <Go label="Appearance" sub={look.dark ? "Dark" : "Light"} onPress={() => onPage("appearance")} />
+        {/* THE WIKI, the owner's plans, for him alone (owner, 2026-11-24:
+            "put it in the settings page"). */}
+        {me.isAdmin && onWiki ? <Go label="Wiki" sub="The plans, the arcade, the order of work. Only you see this." onPress={onWiki} /> : null}
         <View style={{ height: 26 }} />
         {/* What the store asks to be a press away: the policy and the terms. */}
         <Go label="Privacy policy" onPress={() => Linking.openURL(SITE + "/row100k/app-privacy").catch(() => null)} />
