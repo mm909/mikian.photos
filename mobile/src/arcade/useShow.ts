@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { api } from "../api";
 import type { Ghost, Ghosts } from "../erg/ghosts";
 import type { Erg } from "../erg/useErg";
+import { addCoins, loadBoat } from "./boat";
 import { saveGame } from "./games";
 import { loadMode } from "./mode";
 import { grant } from "./locker";
@@ -43,6 +44,16 @@ export type Showed = {
 
 const median = (v: number[]): number => (v.length ? [...v].sort((a, b) => a - b)[v.length >> 1] : 0);
 
+/* The spread of a rower's 5K paces, one standard deviation in seconds
+ * (the profile's "Spread"), once there are five; clamped to 1-8 s. */
+export function spread5k(rows: { meters?: number; seconds?: number; masked?: boolean }[]): number | null {
+  const p = rows.filter((r) => !r.masked && (r.meters ?? 0) >= 4950 && (r.meters ?? 0) <= 5050 && (r.seconds ?? 0) > 600).map((r) => ((r.seconds as number) / (r.meters as number)) * 500);
+  if (p.length < 5) return null;
+  const mean = p.reduce((a, b) => a + b, 0) / p.length;
+  const sd = Math.sqrt(p.reduce((a, b) => a + (b - mean) ** 2, 0) / (p.length - 1));
+  return Math.max(1, Math.min(8, sd));
+}
+
 /* The median 5K pace, whole seconds, of a rower's logged rows. */
 export function median5k(rows: { meters?: number; seconds?: number; masked?: boolean }[]): number | null {
   const p = rows.filter((r) => !r.masked && (r.meters ?? 0) >= 4990 && (r.meters ?? 0) <= 5010 && (r.seconds ?? 0) > 600).map((r) => ((r.seconds as number) / (r.meters as number)) * 500);
@@ -53,7 +64,7 @@ export function useShow(erg: Erg, on: boolean): Showed {
   const show = useRef<Show | null>(null);
   if (!show.current) show.current = createShow(Date.now() % 1_000_000);
   const view = useRef<ShowView | null>(null);
-  const ctx = useRef<ShowCtx>({ solo: true, assigned: null, elo: 1200, xp: 0, lifetime: 0, ghosts: null, ghostM: 5000, loaded: false });
+  const ctx = useRef<ShowCtx>({ solo: true, boat: { dmg: 0, hull: 0, quick: 0 }, assigned: null, elo: 1200, xp: 0, lifetime: 0, ghosts: null, ghostM: 5000, loaded: false });
   const [at, setAt] = useState<{ phase: ShowPhase | null; key: string }>({ phase: null, key: "" });
   const now = useRef(erg);
   now.current = erg;
@@ -69,8 +80,9 @@ export function useShow(erg: Erg, on: boolean): Showed {
     if (!live) return;
     let alive = true;
     const c = ctx.current;
-    Promise.all([loadRating(), loadXp(), loadMode()]).then(([r, xp, mode]) => {
+    Promise.all([loadRating(), loadXp(), loadMode(), loadBoat()]).then(([r, xp, mode, boat]) => {
       if (!alive) return;
+      c.boat = { dmg: boat.dmg, hull: boat.hull, quick: boat.quick };
       c.solo = mode !== "match";
       c.elo = r.elo;
       c.xp = xp;
@@ -81,6 +93,7 @@ export function useShow(erg: Erg, on: boolean): Showed {
         if (!alive || !d.profile) return;
         c.lifetime = d.profile.lifetime?.meters ?? 0;
         c.assigned = median5k(d.profile.logRows ?? []) ?? c.assigned;
+        c.sigma = spread5k(d.profile.logRows ?? []) ?? c.sigma ?? null;
       })
       .catch(() => null);
     return () => {
@@ -145,7 +158,12 @@ export function useShow(erg: Erg, on: boolean): Showed {
         banked.current = v.xpRow;
         if (rest) addXp(rest).catch(() => null);
         grant(v.final.chest.items, true).catch(() => null);
-        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: v.battle ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: v.battle?.kills ?? 0, matches: v.matches, items: v.final.chest.items }).catch(() => null);
+        /* ONE SCREEN PAYS (owner, 2026-11-24: "you only get rewards for the
+         * stuff that's on your screen"): the island's coins, or a match's
+         * rating, never both; the island never touches the rating. */
+        const b = v.battle;
+        if (b) addCoins(b.coins).catch(() => null);
+        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: v.final.chest.items, coins: Math.round(b?.coins ?? 0), bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m) }).catch(() => null);
       }
       const key = `${v.phase}/${v.search}/${v.matches}/${v.ready ? "ready" : ""}`;
       setAt((was) => (was.key === key ? was : { phase: v.phase, key }));

@@ -1,5 +1,20 @@
-import { DMG_LEAST, FILL_S, nearOf } from "./pve";
 import { prng } from "./rng";
+
+/* THE BAR's numbers, the island's first version's (pve.ts moved on to
+ * skills on 2026-11-24 evening; the match keeps these): full in FILL_S
+ * seconds within PLATEAU of the pace given, either way, falling away by e
+ * for every FALL seconds past that, never under FLOOR while moving; a
+ * throw at the worst pace does DMG_LEAST of a full one. */
+export const FILL_S = 3;
+const PLATEAU = 1.5;
+const FALL = 8;
+const FLOOR = 0.2;
+export const DMG_LEAST = 0.4;
+export const nearOf = (pace: number, target: number): number => {
+  if (!Number.isFinite(pace) || pace <= 40 || pace >= 600) return 0;
+  const x = Math.max(0, Math.abs(pace - target) - PLATEAU);
+  return Math.max(FLOOR, Math.exp(-x / FALL));
+};
 
 /* 159, THE MATCH (owner, 2026-11-24, 3 AM: "boats shooting ... until one is
  * out"; 4 AM: "instead of having 3 lives, let's just give us health"). The

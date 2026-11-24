@@ -794,6 +794,8 @@ function GameSummary({ rowId }: { rowId: string }) {
   const was = levelOf(g.xpBefore);
   const now = levelOf(g.xpBefore + g.xp);
   const how = g.mode === "solo" ? `${g.kills} ${g.kills === 1 ? "monster" : "monsters"} down` : `${g.matches} ${g.matches === 1 ? "match" : "matches"}`;
+  /* The course's own lines (games from 2026-11-24 evening on). */
+  const line = g.mode === "solo" && g.coins !== undefined ? [`${fmtInt(g.coins)} coins`, `${g.bosses ?? 0} ${g.bosses === 1 ? "boss" : "bosses"}`, `furthest stage ${g.best ?? 1}`, g.wrecks ? `wrecked ${g.wrecks}×` : "never wrecked"].join(" · ") : "";
   return (
     <>
       <Eye left="The arcade" right={how} />
@@ -804,6 +806,7 @@ function GameSummary({ rowId }: { rowId: string }) {
       <View style={{ height: 8, backgroundColor: C.line, marginTop: 6 }}>
         <View style={{ width: `${Math.round((100 * now.into) / now.need)}%`, height: 8, backgroundColor: C.accent }} />
       </View>
+      {line ? <Text style={[mono(10, true, C.gray, 0.1), { marginTop: 8 }]}>{line.toUpperCase()}</Text> : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 10, marginTop: 14 }}>
         {g.items.map((id, i) => {
           const s = SKIN_BY_ID[id];

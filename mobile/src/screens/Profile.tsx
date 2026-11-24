@@ -17,6 +17,7 @@ import { Lab } from "./reviewBits";
 import { useRating } from "../arcade/rating";
 import { useWallClock } from "../arcade/BoatArt";
 import { useLocker } from "../arcade/locker";
+import { UPGRADES, buy, costOf, useBoat } from "../arcade/boat";
 import { setMode, useMode } from "../arcade/mode";
 import { useProgress } from "../arcade/progress";
 import { levelOf } from "../arcade/score";
@@ -744,6 +745,35 @@ function Hundred({ p }: { p: Profile }) {
  * months, whatever time frame the stats tab is on). A server from before
  * them sends none, and the same rule is run here over the log in hand. A
  * private or masked page never reaches this tab (no tabs are drawn). */
+/* THE BOAT'S UPGRADES, bought with the coins the course gives (owner,
+ * 2026-11-24: "Spend it on boat upgrades: more damage, shorter cooldowns");
+ * here, between rows, never while rowing (arcade/boat.ts). */
+function Upgrades() {
+  const b = useBoat();
+  return (
+    <>
+      <Eye style={{ marginTop: 14 }} left="The boat" right={`${fmtInt(b.coins)} coins`} />
+      {UPGRADES.map((u) => {
+        const lv = b[u.id];
+        const cost = costOf(u.id, lv);
+        const top = lv >= u.max;
+        const can = !top && b.coins >= cost;
+        return (
+          <View key={u.id} style={{ flexDirection: "row", alignItems: "center", columnGap: 10, paddingVertical: 6 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={mono(11, true)}>{`${u.name} · LEVEL ${lv}`}</Text>
+              <Text style={mono(10, false, C.gray, 0.1)}>{u.line}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel={top ? `${u.name} is at the top` : `Buy ${u.name} for ${cost} coins`} disabled={!can} onPress={() => buy(u.id).catch(() => null)} style={({ pressed }) => ({ minWidth: 96, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1.5, borderColor: can ? C.ink : C.line, backgroundColor: can ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+              <Text style={mono(10, true, can ? C.paper : C.gray)}>{top ? "TOP" : `${fmtInt(cost)} COINS`}</Text>
+            </Pressable>
+          </View>
+        );
+      })}
+    </>
+  );
+}
+
 function Ratings({ p, onLocker }: { p: Profile; onLocker?: () => void }) {
   const [w, setW] = useState(0);
   const five = p.fiveK === undefined ? fiveKFrom(p.logRows) : p.fiveK;
@@ -784,6 +814,7 @@ function Ratings({ p, onLocker }: { p: Profile; onLocker?: () => void }) {
               </Pressable>
             ))}
           </View>
+          <Upgrades />
           <Eye style={{ marginTop: 14 }} left="Rating" right="The arcade · only you see this" />
           <View style={{ flexDirection: "row", alignItems: "baseline", gap: 12 }}>
             <Text style={{ fontFamily: F.black, fontSize: 44, lineHeight: 50, color: C.ink, fontVariant: ["tabular-nums"] }}>{String(rating.elo)}</Text>

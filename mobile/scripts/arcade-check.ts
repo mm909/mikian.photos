@@ -19,7 +19,7 @@ import { prng } from "../src/arcade/rng";
 import { CLEAR_END_M, GAME_M, gameMarks } from "../src/arcade/schedule";
 import { DROP, DROPPABLE, LAYERS, RARITIES, SKIN_BY_ID, TRIPLE, rollChest, rollRarity, wear } from "../src/arcade/skins";
 import { HEALTH, HIT_SLACK, THROW, createMatch, holds } from "../src/arcade/match";
-import { FILL_S } from "../src/arcade/pve";
+import { FILL_S } from "../src/arcade/match";
 import { GRID_S, HOME_MIN_S, INTRO_S, FINALE, LAST_MATCH, createShow, healthOf, scaleOf, type ShowCtx, type ShowView } from "../src/arcade/show";
 import { DRAW_XP, ELO_K, WIN_XP, botElo, eloAfter, levelOf, matchXp, needFor } from "../src/arcade/score";
 import type { Ghost } from "../src/erg/ghosts";
@@ -315,7 +315,7 @@ function showIt(target: number, rower: SRower, seed: number, speed = 1, plainTo 
   const rnd = prng(seed);
   const show = createShow(seed);
   const M = target > 0 ? target : 5000;
-  const ctx: ShowCtx = { assigned, elo: 1200, xp: 0, lifetime: 0, ghosts: ghostsOn ? fieldOf(M, seed + 1) : [], ghostM: M, loaded: true };
+  const ctx: ShowCtx = { solo: false, boat: { dmg: 0, hull: 0, quick: 0 }, assigned, elo: 1200, xp: 0, lifetime: 0, ghosts: ghostsOn ? fieldOf(M, seed + 1) : [], ghostM: M, loaded: true };
   const end = target > 0 ? target : plainTo;
   let wall = 1000;
   let t = 0;

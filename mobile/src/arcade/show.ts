@@ -1,6 +1,6 @@
 import type { Ghost } from "../erg/ghosts";
 import { pickBot, type Bot } from "./bots";
-import { createPve, type Pve, type PveView } from "./pve";
+import { NO_UPGRADES, TARGET, createPve, type BoatLv, type Pve, type PveView } from "./pve";
 import { HEALTH, createMatch, holds, paceOf, tenths, type Match, type MatchView } from "./match";
 import { prng, seedOf } from "./rng";
 import { botElo, eloAfter, matchXp } from "./score";
@@ -50,7 +50,7 @@ import { rollChest, type Chest } from "./skins";
  * says on the phone. No React, no clock, so scripts/arcade-check.ts rows
  * whole pieces through it. */
 
-export type ShowPhase = "intro" | "battle" | "home" | "lobby" | "match" | "celebrate" | "levelup" | "finish" | "chest" | "done";
+export type ShowPhase = "intro" | "battle" | "home" | "lobby" | "match" | "celebrate" | "levelup" | "finish" | "chest" | "summary" | "done";
 
 export type STick = { wall: number; t: number; m: number; pace: number; target: number; ended?: boolean };
 
@@ -60,7 +60,8 @@ export type STick = { wall: number; t: number; m: number; pace: number; target: 
  * the saved rows the bots come from (over `ghostM` meters). */
 /* `solo`: the single player island (pve.ts) after the intro, the default
  * from 2026-11-24; off, matchmaking and the match against bots. */
-export type ShowCtx = { solo: boolean; assigned: number | null; elo: number; xp: number; lifetime: number; ghosts: Ghost[] | null; ghostM: number; loaded: boolean };
+/* `boat`: the upgrades bought with coins (boat.ts), for the island. */
+export type ShowCtx = { solo: boolean; boat: BoatLv; sigma?: number | null; assigned: number | null; elo: number; xp: number; lifetime: number; ghosts: Ghost[] | null; ghostM: number; loaded: boolean };
 
 export type Opp = { id: string; name: string; numStr: string; assigned: number; elo: number };
 
@@ -132,6 +133,10 @@ export const LEVELUP_S = 15;
 /* Seconds of the wall a card is held at the least. */
 export const CELEBRATE_WALL_S = 6;
 export const LEVELUP_WALL_S = 6;
+/* THE SUMMARY after the chest (owner, 2026-11-24: "XP gained, item gained,
+ * number of people killed, things like that"): the chest is held this many
+ * seconds of the wall, then the summary stays. */
+export const CHEST_WALL_S = 7;
 export const LAST_MATCH = 0.8;
 export const FINALE = 0.9;
 /* The least share of a 5K a show is cut to, and of its health. */
@@ -303,7 +308,8 @@ export function createShow(seed = 1): Show {
         case "intro":
           if (tick.ended) go("done", tick);
           else if (t >= scaled(INTRO_S) && ctx.solo) {
-            pve = createPve({ t0: t, seed: seedOf(`${seed}/${T}/island`) });
+            /* The skills fill at the rower's own pace: their median 5K. */
+            pve = createPve({ t0: t, seed: seedOf(`${seed}/${T}/island`), own: ctx.assigned ?? TARGET, sigma: ctx.sigma ?? undefined, boat: ctx.boat ?? NO_UPGRADES });
             v.search = "closed";
             v.battle = pve.step(t, tick.pace);
             go("battle", tick);
@@ -422,6 +428,10 @@ export function createShow(seed = 1): Show {
 
         case "finish":
           if (complete || tick.ended) go("chest", tick);
+          break;
+
+        case "chest":
+          if (tick.wall >= v.sinceWall + CHEST_WALL_S) go("summary", tick);
           break;
 
         default:
