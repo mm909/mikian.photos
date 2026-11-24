@@ -18,6 +18,10 @@ import { BAND_MAX, BAND_MIN, BAND_NONE, PLAY_M, REWARD_S, SEG_M, SHOTS, TITLE_S,
 import { prng } from "../src/arcade/rng";
 import { CLEAR_END_M, GAME_M, gameMarks } from "../src/arcade/schedule";
 import { DROP, DROPPABLE, LAYERS, RARITIES, SKIN_BY_ID, TRIPLE, rollChest, rollRarity, wear } from "../src/arcade/skins";
+import { AIM_S, CYCLE_S, HEALTH, HIT_SLACK, LUCK_AT_LINE, createMatch, holds, luckOf } from "../src/arcade/match";
+import { GRID_S, HOME_MIN_S, INTRO_S, FINALE, LAST_MATCH, createShow, healthOf, scaleOf, type ShowCtx, type ShowView } from "../src/arcade/show";
+import { DRAW_XP, ELO_K, WIN_XP, botElo, eloAfter, levelOf, matchXp, needFor } from "../src/arcade/score";
+import type { Ghost } from "../src/erg/ghosts";
 
 let failed = 0;
 const ok = (what: string, pass: boolean, got?: unknown) => {
@@ -225,6 +229,242 @@ ok("every layer has an item of every rarity", LAYERS.every((l) => RARITIES.every
 ok("every item has a name and a unique id", new Set(DROPPABLE.map((s) => s.id)).size === DROPPABLE.length && DROPPABLE.every((s) => s.name.length > 1));
 ok("an unknown id is worn as the stock item", wear({ hull: "gone-for-good" }).hull.fill === "paper");
 console.log(`  ${LAYERS.map((l) => `${l}: ${DROPPABLE.filter((s) => s.layer === l).length}`).join(", ")}`);
+
+/* ==== 159, THE MATCH, and THE SHOW BY THE CLOCK ============================
+ * (owner, 2026-11-24: the show keyed off the row's own seconds; the match
+ * on health, damage the meters rowed in the aim.) */
+console.log("\n---- the match ----");
+
+/* The hit rule: the aim's pace, read in tenths, at the pace given or within
+ * HIT_SLACK of it. */
+ok(`the hit rule: 1:59.9 holds 1:59, 2:00.0 does not, 1:55 does (slack ${HIT_SLACK})`, holds(119.95, 119) && holds(119.9, 119) && !holds(120.0, 119) && holds(115, 119) && !holds(Infinity, 119));
+ok("an off-pace shot lands less the further off it is", luckOf(120.0, 119) > luckOf(122, 119) && luckOf(122, 119) > luckOf(126, 119) && luckOf(118, 119) === LUCK_AT_LINE);
+
+/* Even lines, for the arithmetic. */
+const line = (pace: number) => (t: number) => (t > 0 ? (500 / pace) * t : 0);
+const lines = (a: (t: number) => number, b: (t: number) => number) => (id: string, t: number) => (id === "me" ? a(t) : b(t));
+{
+  /* Both hold their pace: every round both land, and every round cancels. */
+  const m = createMatch({ id: "c", t0: 100, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(125)), seed: 1 });
+  const v = m.step(100 + CYCLE_S * 10 + 0.5);
+  ok("both land at once: they cancel, nobody is hurt (10 rounds)", v.shots.length === 20 && v.shots.every((s) => s.hit && s.cancelled && s.damage === 0) && v.players.every((p) => p.health === HEALTH) && v.phase !== "over", v.players.map((p) => p.health));
+}
+{
+  /* The rower holds 1:59; the bot, given 2:05, rows 2:10 and (all but)
+   * never lands. Damage is the rower's meters in the aim: 3 s at 1:59 is
+   * 12.6 m, so 13 a shot. */
+  const m = createMatch({ id: "d", t0: 0, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(130)), seed: 2 });
+  let v = m.step(0);
+  for (let t = 0; t < 400 && v.phase !== "over"; t += 0.1) v = m.step(t);
+  const mine = v.shots.filter((s) => s.from === "me");
+  const per = Math.round((500 / 119) * AIM_S);
+  const rounds = Math.ceil(HEALTH / per);
+  ok(`damage is the meters rowed in the aim: ${per} a shot at 1:59`, mine.every((s) => s.damage === per || s.cancelled), mine.map((s) => s.damage));
+  ok(`health ${HEALTH}: the bot is out after ${rounds} clean rounds, ${rounds * CYCLE_S} s, and the rower wins`, v.winner === "me" && v.endAt === rounds * CYCLE_S && v.players.find((p) => p.id === "b")?.health === 0, { winner: v.winner, end: v.endAt });
+  ok("a shot that does not land does no damage", v.shots.filter((s) => !s.hit).every((s) => s.damage === 0));
+  ok("the rower's meters in the match are counted", Math.abs((v.players.find((p) => p.id === "me")?.rowed ?? 0) - line(119)(v.endAt)) < 0.01);
+}
+{
+  /* Called: the more health wins; level is a draw. */
+  const m = createMatch({ id: "e", t0: 0, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(130)), seed: 3 });
+  m.step(13);
+  const v = m.call(13);
+  ok("a match called by the show: the more health wins", v.called && v.winner === "me" && v.phase === "over", v);
+  const d = createMatch({ id: "f", t0: 0, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(125)), seed: 4 });
+  d.step(30);
+  ok("called level: a draw", d.call(30).winner === "draw");
+  const late = createMatch({ id: "g", t0: 0, sides: [{ id: "me", name: "You", kind: "me", assigned: 119 }, { id: "b", name: "Bot", kind: "bot", assigned: 125 }], metersAt: lines(line(119), line(125)), seed: 5, late: ["me"] });
+  const lv = late.step(6.5);
+  ok("a rower who failed the ready check loses only the first shot", lv.shots.length === 1 && lv.shots[0].from === "b" && lv.players[0].health === HEALTH - Math.round((500 / 125) * 3), lv.shots);
+}
+
+/* ---- rowers and saved rows for the show ---------------------------------- */
+type SRower = { name: string; pace: number; sd: number; wander?: (t: number) => number };
+const steadyS: SRower = { name: "steady 1:59", pace: 119, sd: 1.8 };
+const wobblyS: SRower = { name: "wobbly 1:59", pace: 119, sd: 2.6, wander: (t) => 4.5 * Math.sin(t / 9) };
+const slowS: SRower = { name: "steady 2:30", pace: 150, sd: 2.2 };
+
+/* A field of saved rows over `M` meters: two a second from 1:48 to 2:45,
+ * every third one logged by hand (no lines), the rest recorded with their
+ * 100 m lines, each with its own spread and a little fade. */
+function fieldOf(M: number, seed: number): Ghost[] {
+  const r = prng(seed);
+  const out: Ghost[] = [];
+  let k = 0;
+  for (let p = 108; p <= 165; p += 0.5) {
+    k++;
+    const recorded = k % 3 !== 0;
+    const marks: number[] = [];
+    let t = 0;
+    for (let m = 100; m <= M; m += 100) {
+      const split = (p + 1.4 * gauss(r) + 1.5 * (m / M - 0.5)) / 5;
+      t += split;
+      marks.push(+t.toFixed(1));
+    }
+    out.push({ id: `g${k}`, kind: "field", name: `Rower ${k}`, numStr: String(k).padStart(3, "0"), day: "NOV 1", seconds: t, spm: 28, marks: recorded ? marks : [] });
+  }
+  return out;
+}
+
+type Rowed = { show: ReturnType<typeof createShow>; phases: { phase: string; t: number; m: number }[]; end: ShowView; wallS: number; rowS: number };
+/* A whole piece through the show: `speed` times a clock, a tick each tenth of
+ * a second of the wall, the monitor's word every half second of the wall as
+ * a PM5 gives it, and 15 s of the wall after the finish. */
+function showIt(target: number, rower: SRower, seed: number, speed = 1, plainTo = 0, assigned: number | null = rower.pace, ghostsOn = true): Rowed {
+  const rnd = prng(seed);
+  const show = createShow(seed);
+  const M = target > 0 ? target : 5000;
+  const ctx: ShowCtx = { assigned, elo: 1200, xp: 0, lifetime: 0, ghosts: ghostsOn ? fieldOf(M, seed + 1) : [], ghostM: M, loaded: true };
+  const end = target > 0 ? target : plainTo;
+  let wall = 1000;
+  let t = 0;
+  let m = 0;
+  let next = 0;
+  let pace = rower.pace;
+  let noise = 0;
+  let saidT = 0;
+  let saidM = 0;
+  let endedAt = -1;
+  let v: ShowView | null = null;
+  for (let i = 0; i < 3_000_000; i++) {
+    wall += 0.1;
+    if (m < end) {
+      const dt = 0.1 * speed;
+      t += dt;
+      if (t >= next) {
+        next += 60 / 28;
+        noise = 0.5 * noise + 0.87 * rower.sd * gauss(rnd);
+        pace = rower.pace + noise + (rower.wander ? rower.wander(t) : 0);
+      }
+      m = Math.min(end, m + (500 / pace) * dt);
+    } else if (endedAt < 0) endedAt = wall;
+    if (endedAt > 0 && wall - endedAt > 15) break;
+    /* The monitor's word, twice a second of the wall. */
+    if (i % 5 === 0 || m >= end) {
+      saidT = t;
+      saidM = m;
+    }
+    v = show.step({ wall, t: saidT, m: saidM, pace, target, ended: target > 0 && m >= end }, ctx);
+    /* What the hook does: the XP and the rating are banked as each match ends. */
+    if (v.phase === "celebrate" && v.result && !banked.has(`${seed}/${v.result.id}`)) {
+      banked.add(`${seed}/${v.result.id}`);
+      ctx.xp += v.result.xp;
+      ctx.elo = v.result.eloAfter;
+    }
+  }
+  return { show, phases: show.log.phases, end: v as ShowView, wallS: wall - 1000, rowS: t };
+}
+const banked = new Set<string>();
+
+const durations = (r: Rowed) => r.show.log.matches.filter((x) => x.result).map((x) => x.end - x.t0);
+const median = (v: number[]) => (v.length ? [...v].sort((a, b) => a - b)[v.length >> 1] : 0);
+const clockOf = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+
+function printShow(title: string, r: Rowed) {
+  console.log(`\n${title}:`);
+  console.log(`  ${r.phases.map((p) => `${p.phase} ${clockOf(p.t)}/${fmt(p.m)}m`).join(" > ")}`);
+  for (const x of r.show.log.matches) {
+    const res = x.result;
+    if (!res) continue;
+    const mv = x.match;
+    const mine = mv.shots.filter((s) => s.from === "me");
+    const theirs = mv.shots.filter((s) => s.from !== "me");
+    console.log(`  ${x.id} vs ${res.opp.name} (given ${pace(res.opp.assigned)}, Elo ${res.opp.elo}): gun ${fmt(x.m0)} m, ${Math.round(x.end - x.t0)} s, ${res.result.toUpperCase()}${res.called ? " (called)" : ""} ${res.health.me}-${res.health.opp} of ${res.health.max}; you landed ${mine.filter((s) => s.hit && !s.cancelled).length}/${mine.length} (lucky ${mine.filter((s) => s.lucky).length}), they ${theirs.filter((s) => s.hit && !s.cancelled).length}/${theirs.length}, cancels ${mine.filter((s) => s.cancelled).length}; +${res.xp} XP, Elo ${res.eloBefore}->${res.eloAfter}`);
+  }
+  if (r.end.final) console.log(`  final chest: ${r.end.final.chest.items.map((id) => SKIN_BY_ID[id].name).join(", ")}; the row's XP ${r.end.xpRow}`);
+}
+
+console.log("\n---- the show ----");
+ok("a 5K's show is the 5K's; a 1K's is cut to a fifth; a plain row's is a 5K's", scaleOf(5000) === 1 && scaleOf(1000) === 0.2 && scaleOf(0) === 1 && scaleOf(500) === 0.2);
+ok(`health: ${HEALTH} m on a 5K, ${healthOf(1000)} m on a 1K, ${healthOf(2000)} m on a 2K`, healthOf(5000) === HEALTH && healthOf(1000) < HEALTH / 2);
+
+const checkPiece = (name: string, r: Rowed, target: number) => {
+  const ph = r.phases;
+  const at = (p: string) => ph.find((x) => x.phase === p);
+  const lv = at("levelup");
+  const fin = at("finish");
+  const ch = at("chest");
+  const starts = r.show.log.matches.map((x) => x.m0);
+  ok(`${name}: starts on the intro, and home follows it at ${clockOf(INTRO_S * scaleOf(target))}`, ph[0].phase === "intro" && ph[1]?.phase === "home" && Math.abs(ph[1].t - INTRO_S * scaleOf(target)) < 1 * r.end.rate + 0.6, ph.slice(0, 2));
+  ok(`${name}: at least one match`, starts.length >= 1, starts);
+  ok(`${name}: no match started past 80% (${fmt(LAST_MATCH * target)} m)`, starts.every((m0) => m0 < LAST_MATCH * target), starts);
+  ok(`${name}: every match has its celebration`, r.show.log.matches.every((x) => !!x.result));
+  /* A match on at 90% is called, and the level up waits for its
+   * celebration: at ten times a clock that hold can run to the line, and
+   * the finish line is then the level up's own. */
+  const before = lv ? ph[ph.indexOf(lv) - 1] : undefined;
+  const onTime = !!lv && lv.m >= FINALE * target - 1 && lv.m < FINALE * target + 0.06 * target;
+  const afterCard = !!lv && before?.phase === "celebrate" && before.m <= FINALE * target + 0.06 * target;
+  ok(`${name}: the level up at 90% (${fmt(FINALE * target)} m), or as the celebration on then ends`, onTime || afterCard, { lv, before });
+  ok(`${name}: then the finish line (unless the level up ran to the line), then the chest at ${fmt(target)} m`, !!ch && ch.m >= target - 0.5 && !!r.end.final && (fin ? fin.t >= (lv?.t ?? 0) : (lv?.m ?? 0) >= target - 0.5), { fin, ch });
+  ok(`${name}: home is a minute at least (its share), every time`, ph.every((p, i) => p.phase !== "home" || !ph[i + 1] || ph[i + 1].phase !== "lobby" || ph[i + 1].t - p.t >= HOME_MIN_S * scaleOf(target) - 1), ph.map((p) => `${p.phase}@${Math.round(p.t)}`));
+  ok(`${name}: every lobby starts on a whole minute (its share) of the row`, ph.filter((p) => p.phase === "lobby").every((p) => { const g = GRID_S * scaleOf(target); return Math.abs(p.t / g - Math.round(p.t / g)) * g < 1.2 * r.end.rate; }), ph.filter((p) => p.phase === "lobby").map((p) => p.t));
+};
+
+const five = showIt(5000, steadyS, 31);
+printShow("A 5K, a steady 1:59 rower against bots", five);
+checkPiece("a 5K", five, 5000);
+ok("a 5K at 1:59 plays two or three matches", five.show.log.matches.length >= 2 && five.show.log.matches.length <= 4, five.show.log.matches.length);
+ok("the row's XP is its matches' XP", five.end.xpRow === five.show.log.matches.reduce((s, x) => s + (x.result?.xp ?? 0), 0));
+
+const fiveDemo = showIt(5000, steadyS, 32, 10);
+printShow("The demo 5K at ten times a clock", fiveDemo);
+checkPiece("the demo 5K at 10x", fiveDemo, 5000);
+const oneDemo = showIt(1000, steadyS, 33, 10);
+printShow("A 1K demo at ten times a clock", oneDemo);
+checkPiece("a 1K demo at 10x", oneDemo, 1000);
+const oneReal = showIt(1000, steadyS, 34, 1);
+printShow("A 1K at a clock's speed", oneReal);
+checkPiece("a 1K", oneReal, 1000);
+const slowFive = showIt(5000, slowS, 35);
+printShow("A 5K, a steady 2:30 rower", slowFive);
+checkPiece("a 2:30 5K", slowFive, 5000);
+const plain = showIt(0, steadyS, 36, 1, 4000);
+printShow("A plain row of 4,000 m", plain);
+ok("a plain row: intro, home and matches, and no finale", plain.show.log.matches.length >= 2 && !plain.phases.some((p) => ["levelup", "finish", "chest"].includes(p.phase)) && !plain.end.final, plain.phases.map((p) => p.phase));
+const noRows = showIt(2000, steadyS, 37, 4, 0, 119, false);
+ok("no saved rows: a pace bot is played", noRows.show.log.matches.length >= 1 && noRows.show.log.matches.every((x) => x.result?.opp.name.startsWith("Pace bot")), noRows.show.log.matches.map((x) => x.result?.opp.name));
+const noPace = showIt(2000, steadyS, 38, 4, 0, null);
+ok("no median known: the pace given is the pace of the row so far (about 1:59)", noPace.show.log.matches.every((x) => Math.abs((x.match.players.find((p) => p.id === "me")?.assigned ?? 0) - 119) <= 2), noPace.show.log.matches.map((x) => x.match.players[0].assigned));
+
+/* ---- many matches: how long, who wins ------------------------------------ */
+function many5k(rower: SRower, n: number) {
+  const d: number[] = [];
+  let won = 0;
+  let games = 0;
+  let draws = 0;
+  for (let i = 0; i < n; i++) {
+    const r = showIt(5000, rower, 500 + i * 7);
+    d.push(...durations(r));
+    for (const x of r.show.log.matches) {
+      if (!x.result) continue;
+      games++;
+      if (x.result.result === "win") won++;
+      if (x.result.result === "draw") draws++;
+    }
+  }
+  const s = [...d].sort((a, b) => a - b);
+  return { games, won, draws, med: median(d), p10: s[Math.floor(s.length * 0.1)], p90: s[Math.floor(s.length * 0.9)], rate: won / Math.max(1, games) };
+}
+const N5 = 40;
+const mSteady = many5k(steadyS, N5);
+const mWobbly = many5k(wobblyS, N5);
+const mSlow = many5k(slowS, N5);
+console.log(`\n${N5} 5Ks each, every match against a bot near the rower's level:`);
+for (const [w, r] of [["steady 1:59", mSteady], ["wobbly 1:59", mWobbly], ["steady 2:30", mSlow]] as const) console.log(`  ${w.padEnd(12)} ${r.games} matches, won ${pct(r.rate).padStart(4)} (${r.draws} drawn), a match lasts ${clockOf(r.med)} (most ${clockOf(r.p10)} to ${clockOf(r.p90)})`);
+ok("evenly matched, a match lasts about 1:30 to 3:00 (the middle one)", mSteady.med >= 90 && mSteady.med <= 180, mSteady.med);
+ok("a steady rower against a bot of their level wins some and loses some (30-80%)", mSteady.rate >= 0.3 && mSteady.rate <= 0.8, mSteady.rate);
+ok("a wobbly rower wins less than a steady one", mWobbly.rate < mSteady.rate, { wobbly: mWobbly.rate, steady: mSteady.rate });
+ok("a 2:30 rower's matches still end (inside 4:30)", mSlow.med > 0 && mSlow.med <= 270, mSlow.med);
+
+/* ---- the score ------------------------------------------------------------ */
+console.log("\n---- the score ----");
+ok(`Elo: an even win is +${ELO_K / 2}, an even loss -${ELO_K / 2}, a draw nothing`, eloAfter(1200, 1200, 1) === 1216 && eloAfter(1200, 1200, 0) === 1184 && eloAfter(1200, 1200, 0.5) === 1200);
+ok("a bot 2 s quicker is rated 80 more, and beating it is worth more", botElo(1200, 119, 117) === 1280 && eloAfter(1200, 1280, 1) - 1200 > 16 && eloAfter(1200, 1120, 1) - 1200 < 16, [eloAfter(1200, 1280, 1), eloAfter(1200, 1120, 1)]);
+ok("the rating moves through a row's matches", five.show.log.matches.every((x) => x.result && (x.result.result === "draw" || x.result.eloAfter !== x.result.eloBefore)));
+ok(`XP: meters rowed plus ${WIN_XP} for a win, ${DRAW_XP} a draw`, matchXp(412.4, "win") === 512 && matchXp(412.4, "draw") === 462 && matchXp(412.4, "loss") === 412);
+ok(`levels: ${needFor(1)} XP to level 2, ${needFor(2)} more to 3`, levelOf(0).level === 1 && levelOf(1499).level === 1 && levelOf(1500).level === 2 && levelOf(3249).level === 2 && levelOf(3250).level === 3 && levelOf(3250).into === 0);
+console.log(`  levels: ${[1, 2, 3, 5, 10].map((l) => `${l}->${l + 1} ${needFor(l)}`).join(", ")} XP; a steady 5K's matches gave ${five.end.xpRow} XP`);
 
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exit(failed ? 1 : 0);

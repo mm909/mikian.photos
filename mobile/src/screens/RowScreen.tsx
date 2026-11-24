@@ -16,8 +16,8 @@ import { FRAME, finishRow, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay
 import { SignIn } from "./Account";
 import { GhostRace, useRace } from "./GhostRace";
 import { Produced, useDirector } from "./Produced";
-import { useArcade } from "../arcade/useArcade";
-import { ArcadeOverlay } from "./ArcadeGame";
+import { useShow } from "../arcade/useShow";
+import { ShowOverlay, ShowPage, overlays } from "./Show";
 
 /* LOG A ROW. Two ways in: connect a Concept2 PM5 and row, or by hand.
  * Both end at the same form: two photos, the day, LOG.
@@ -529,15 +529,21 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
    * it has watched the whole row whichever page was up. MINE: one swipe
    * from the race and not ahead of it, until he has seen it on a phone;
    * the race is the page he said to land on. */
-  const prodPage = raceFirst ? 1 : -1;
-  const directed = useDirector(erg, shared);
-  /* THE ARCADE (owner, 2026-11-24: "159", arcade/game159.ts): a game the
-   * director drops into the row takes the produced page, and is laid over
-   * whichever other page is in view, so it is seen without a swipe. Not on
-   * the way out, and not once the row has stopped. OWNER ONLY for now: the
-   * App Store build has no games. */
+  /* THE SHOW (owner, 2026-11-24, 3 AM: the 5K as a show by the clock, with
+   * 159 as a match against bots; arcade/show.ts, screens/Show.tsx). For the
+   * owner the produced page IS the show, from the intro to the last chest,
+   * and for a plain row too, where it is the page after the numbers. The
+   * ready check, the match and its celebration are laid over whichever
+   * other page is in view, so they are seen without a swipe; not on the way
+   * out, and not once the row has stopped. OWNER ONLY for now: the App
+   * Store build has no games, and everybody else's produced page is as it
+   * was. (The single-player 159 against rocks, arcade/useArcade.ts, is kept
+   * in the code and no longer dropped into the row.) */
   const { me } = useSession();
-  const arcade = useArcade(erg, !!me.isAdmin);
+  const showOn = !!me.isAdmin;
+  const prodPage = raceFirst || showOn ? 1 : -1;
+  const directed = useDirector(erg, shared);
+  const showed = useShow(erg, showOn);
   const upPage = raceFirst && !wide ? 2 : -1;
   const last = LAST + (prodPage > 0 ? 1 : 0) + (upPage > 0 ? 1 : 0);
   /* A PHONE THAT IS TURNED KEEPS ITS PAGE. The pages are as wide as the
@@ -570,8 +576,10 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
       {children}
     </Pressable>
   );
-  const race = leaf(<GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage && page !== prodPage} active={page === (raceFirst ? 0 : 1)} />);
-  const produced = prodPage > 0 ? leaf(<Produced erg={erg} race={shared} directed={directed} width={w} height={h} active={page === prodPage} arcade={arcade.id ? arcade : null} />) : null;
+  /* The show has no race on it, so the race page keeps the race going while
+   * the show is the page in view. */
+  const race = leaf(<GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage && (page !== prodPage || showOn)} active={page === (raceFirst ? 0 : prodPage > 0 ? 2 : 1)} />);
+  const produced = showOn ? leaf(<ShowPage showed={showed} erg={erg} width={w} height={h} active={page === prodPage} />) : prodPage > 0 ? leaf(<Produced erg={erg} race={shared} directed={directed} width={w} height={h} active={page === prodPage} />) : null;
   const raceUp = upPage > 0 ? leaf(<GhostRace erg={erg} width={w} height={h} race={shared} upright drive={page === upPage} active={page === upPage} />) : null;
   const status = error ? "Disconnected" : auto?.state === "saved" ? "Logged" : live.ended ? "Piece finished" : live.awake ? "Live" : "Connected, waiting";
   const piece = live.targetM > 0 ? `${fmtInt(live.targetM)} m` : live.targetS > 0 ? `${fmtClock(live.targetS, false)} piece` : "Just row";
@@ -592,9 +600,10 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
         {w ? (
           <ScrollView ref={pages} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={64}>
             {raceFirst ? race : null}
-            {produced}
+            {raceFirst ? produced : null}
             {raceUp}
             {leaf(<Main erg={erg} wide={wide} width={w - 40} />, { paddingHorizontal: 20 })}
+            {raceFirst ? null : produced}
             {raceFirst ? null : race}
             {leaf(
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -622,9 +631,9 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
             )}
           </ScrollView>
         ) : null}
-        {w && arcade.id && page !== prodPage && page !== last && !over ? (
+        {w && showOn && showed.key && overlays(showed.view.current) && page !== prodPage && page !== last && !over ? (
           <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: w, height: h }}>
-            <ArcadeOverlay arcade={arcade} erg={erg} width={w} height={h} />
+            <ShowOverlay showed={showed} erg={erg} width={w} height={h} />
           </View>
         ) : null}
       </View>

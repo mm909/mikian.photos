@@ -1,7 +1,7 @@
 import { Text, View } from "react-native";
 import Svg, { Circle, G, Line, Path, Rect } from "react-native-svg";
 import { C, F } from "../theme";
-import { BoatArt } from "./BoatArt";
+import { TOKEN_U, TokenArt } from "./Token";
 import { LAYER_WORD, RARITY_COLOR, RARITY_WORD, SKIN_BY_ID, STOCK, bestOf, wear, type Chest } from "./skins";
 
 /* THE CHEST (owner, 2026-11-24: at the end of every game "a treasure chest
@@ -14,8 +14,8 @@ import { LAYER_WORD, RARITY_COLOR, RARITY_WORD, SKIN_BY_ID, STOCK, bestOf, wear,
  *   1.7  the lid flies open and the light comes out in rays, every colour
  *        when there are three;
  *   2.1  what was in it rises out: one card, or three side by side, each
- *        the piece on the stock boat, its name, and its rarity in its
- *        colour. */
+ *        the item worn by the plain piece (Token.tsx), its name, and its
+ *        rarity in its colour. */
 
 const WOOD = "#9A6532";
 const WOOD_DARK = "#6E4420";
@@ -93,7 +93,7 @@ function Items({ ids, e, width, height }: { ids: string[]; e: number; width: num
         const c = RARITY_COLOR[s.rarity];
         return (
           <View key={id} style={{ width: cardW, opacity: k, transform: [{ translateY: (1 - k) * 60 }, { scale: 0.7 + 0.3 * k }], backgroundColor: C.paper, borderWidth: 3, borderColor: c, borderRadius: 10, padding: 8, alignItems: "center" }}>
-            <BoatArt paint={wear({ ...STOCK, [s.layer]: id })} width={cardW - 20} phase={0.9} t={e + 2} uid={`chest${i}`} />
+            <TokenArt paint={wear({ ...STOCK, [s.layer]: id })} size={Math.min(n === 1 ? 110 : 76, ((cardW - 20) * TOKEN_U) / 102)} t={e + 2} trail={s.layer === "aura"} look={0.5} uid={`chest${i}`} />
             <Text numberOfLines={2} style={{ fontFamily: F.black, fontSize: n === 1 ? 24 : 15, lineHeight: n === 1 ? 28 : 18, color: C.ink, marginTop: 2, textAlign: "center" }}>
               {s.name}
             </Text>

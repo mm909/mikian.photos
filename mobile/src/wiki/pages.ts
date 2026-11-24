@@ -23,6 +23,42 @@ export type Page = { id: string; title: string; sub: string; blocks: Block[] };
 
 export const PAGES: Page[] = [
   {
+    id: "overnight",
+    title: "While you slept",
+    sub: "Nov 24, midnight to morning: what shipped, what to try",
+    blocks: [
+      { p: "Everything below is live in the app update (close and reopen the app twice). The arcade is yours only; the App Store build has none of it. None of it has been tried on a phone or a real monitor: that is your job this morning." },
+      { h: "For everybody" },
+      { list: [
+        "The opening screen ends in V1.8.66757: the version made of meters.",
+        "Stories show both photos of a row, one after the other.",
+        "The profile's third tab is Ratings: 5K average and spread with a dot strip. The calendar moved to the profile's stats tab.",
+        "The analytics' cards (and the stats and profile cards) turn on a tap, round and round; a held finger still reads the chart.",
+        "A row's two photos flip on any tap.",
+        "The tab bar's highlight is centred, with air above and below.",
+        "A row off the monitor logs itself when it ends; DONE or ADD PHOTOS after (the other session's work).",
+        "A demo row can be fake-logged all the way to the post-row screen.",
+      ] },
+      { h: "Yours only: the arcade" },
+      { list: [
+        "On any row, tap once from the race: the produced page is now the show.",
+        "Intro, home (your piece wandering the island board), MATCH FOUND, the lobby with the ready check (159 on the flip dots, then your 5K pace), the match against a bot made from another rower's row, the celebration, home again.",
+        "No new match past 80% of the piece; the level up at 90%, the finish line, the chest at the end.",
+        "You are a small line-art box now; Settings, Locker shows your boxes, shots, hats and trails.",
+        "Try it fast: a demo row from the log screen.",
+      ] },
+      { h: "To decide when you have played it" },
+      { list: [
+        "The hit rule: your pace or faster, read in whole seconds (now), or within half a second.",
+        "Health: 65 m on a 5K, about five clean hits, matches of about two minutes. Longer or shorter?",
+        "Failing the ready check costs your first shot. Keep it?",
+        "Bots wear plain coloured pieces, not skins.",
+        "The art: line-art boxes, or a reference for something else.",
+      ] },
+      { link: "today", label: "Today" },
+    ],
+  },
+  {
     id: "start",
     title: "Start here",
     sub: "The three rules, and how this wiki is kept",
@@ -44,8 +80,8 @@ export const PAGES: Page[] = [
       { h: "A successful day is these five" },
       { steps: [
         "Start the App Store submission. Started is the goal, not approved: the production iOS build, then eas submit, with your Apple sign-in in the terminal. Ask me and I will line up every command.",
-        "Row a 5K at about 1:59 with the app open on the monitor. 159 comes up at 1,000, 2,000, 3,000 and 4,000 m. Play it.",
-        "Make the reel straight after the row. 159 on screen is the hook.",
+        "Row a 5K at about 1:59 with the app on the monitor. Tap once from the race to the show and play the matches (built overnight; see While you slept).",
+        "Make the reel straight after the row. The match on screen is the hook.",
         "Post asking Android users to help (the survey and testers).",
         "Stretch. Your knee told you last night.",
       ] },
@@ -74,13 +110,13 @@ export const PAGES: Page[] = [
         "Google Play submission (Wed).",
         "This wiki. Built Nov 24.",
         "159, the hold-a-pace game, with the chest and the boat skins. Built Nov 24; owner only until you say. Play it, then tune it.",
-        "The look: small game pieces in line art instead of the big boat, on a little board with an island. Your call on direction first.",
-        "Home: the steady row as a piece wandering a winding path on that board, with your skins and effects.",
-        "The 5K show by the clock: intro, home, the level up at 4,500, the finish line, the chest at 5,000.",
-        "159 as a match: one against bots made from replayed rows first (no other live rowers needed), with lives, cooldown and aim, and the celebration.",
-        "Ratings: your 5K average and its spread, and an Elo, on the profile's third tab; the calendar goes back to the stats tab.",
+        "The look: small game pieces in line art, on a little board with an island. BUILT overnight Nov 24; your call on it.",
+        "Home: the steady row as a piece wandering a winding path on that board. BUILT overnight Nov 24.",
+        "The 5K show by the clock: intro, home, the level up at 4,500, the finish line, the chest at 5,000. BUILT overnight Nov 24, owner only.",
+        "159 as a match against bots made from replayed rows: health, cooldown and aim, the celebration with XP, level and rating. BUILT overnight Nov 24, owner only. Play it, then tune it.",
+        "Ratings: your 5K average and its spread, and your rating, on the profile's third tab; the calendar on the profile's stats tab. BUILT overnight Nov 24.",
         "Matchmaking and the lobby together, live rowers, up to four.",
-        "Stories show both photos of a row, one after the other.",
+        "Stories show both photos of a row, one after the other. BUILT overnight Nov 24.",
         "More 250 m games: Free Throw (repeat the same pull), with soccer and golf skins of it.",
         "The planner: two dials, meters and average pace. Then The Wake, the red boat at the pace you need.",
         "The Duel: folded into 159 as a match.",
@@ -166,7 +202,7 @@ export const PAGES: Page[] = [
     title: "The 5K show",
     sub: "Row programming, by the clock",
     blocks: [
-      { p: "From the meeting of Nov 24, 3 AM. Not started." },
+      { p: "BUILT overnight Nov 24, owner only: the produced page of a row is now the show (tap once from the race). Matches are against bots made from other rowers' saved rows; no live rowers yet. A 5K demo at 10x plays the whole show in about two minutes." },
       { p: "Inside a 5K some parts are fixed (the intro, the finish line) and the middle is programming. The show runs by the clock, not the meters: a 2:30 rower is 15 seconds a minute behind a 2:00 rower, still rowing, so a game timed in meters would end at different moments for them. The end is the exception, fixed in meters." },
       { draw: "show" },
       { h: "The running order" },
@@ -194,7 +230,7 @@ export const PAGES: Page[] = [
     title: "159, the match",
     sub: "A shot every 6 seconds; damage is your meters",
     blocks: [
-      { p: "From the meeting of Nov 24, 3 AM. Not started; the single-player 159 against rocks is built." },
+      { p: "BUILT overnight Nov 24, owner only, against bots. Health 65 m on a 5K (about five clean hits); a hit does the meters you rowed in its 3 seconds of aim. In testing a steady rower won about two in three against bots of their level, a match lasting about two minutes at 1:59. To confirm with you: the hit rule (your pace or faster, read in whole seconds), and that failing the ready check costs your first shot." },
       { draw: "match" },
       { h: "The ready check, the 12 seconds before" },
       { list: [
@@ -234,7 +270,7 @@ export const PAGES: Page[] = [
     title: "Home",
     sub: "The steady row, your board, the lobby",
     blocks: [
-      { p: "From the meeting of Nov 24, 3 AM. Not started." },
+      { p: "BUILT overnight Nov 24: the board with the island, a dashed loop you wander at your pace (a lap is 125 m), fish, your trail. Room for four." },
       { list: [
         "Between games you go home: your piece wanders a winding path on a small 2D board, like a lazy river. It must move through the board, not sit still the way the race does.",
         "Your skins and effects show there: dust behind you, a pet running alongside.",
@@ -251,6 +287,7 @@ export const PAGES: Page[] = [
     title: "The look",
     sub: "Small game pieces, line art, skins",
     blocks: [
+      { p: "BUILT overnight Nov 24: you are a small line-art box with eyes, shooting circles. Skins: Box (the body), Shot (what it fires), Hat, Trail. Every item you had kept its rarity. The old boat drawing is still in the code if you want it back." },
       { p: "Your note, Nov 24: the first boat art looked bad, too big. Think a chess or Monopoly piece going round a board, not a giant boat. It does not have to be a boat; it has to take skins." },
       { h: "Honestly, what I draw well" },
       { list: [
@@ -268,7 +305,7 @@ export const PAGES: Page[] = [
     title: "Ratings",
     sub: "Your 5K average and spread, and an Elo",
     blocks: [
-      { p: "From the meeting of Nov 24, 3 AM. Not started." },
+      { p: "BUILT overnight Nov 24: the profile's third tab (the bell-curve icon) shows the 5K average and spread with a dot strip; your arcade rating shows on your own page (kept on the phone). The calendar moved to the profile's stats tab. Matchmaking by rating is not built: there are no live rowers to match yet." },
       { list: [
         "On a rower's profile, the third tab: their Elo, their average 5K pace, and the standard deviation of their pace.",
         "The calendar that is on that tab now goes back to the stats tab.",
@@ -379,7 +416,7 @@ export const PAGES: Page[] = [
     sub: "Stories, the version number, the FAQs",
     blocks: [
       { h: "Stories show both photos" },
-      { p: "Stepping through stories, a row shows its first photo, then its second." },
+      { p: "BUILT overnight Nov 24: stepping through stories, a row shows its first photo, then its second." },
       { h: "A version number made of meters" },
       { p: "BUILT Nov 24. Decided at 4 AM: the first number is ours (1), the second is all-time meters in millions, the third is the meters under the million. 8,066,757 m reads V1.8.66757. It is the line at the foot of the opening screen, read live off the total, so it ticks up as people row." },
       { p: "The App Store's own number stays 1.3.0 for the submission on Nov 24: the over-the-air updates are keyed to it, and changing it overnight would cut your phone off from them. At the next store build it can become 1.8.x; Apple only needs it to go up." },

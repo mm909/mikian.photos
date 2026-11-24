@@ -22,7 +22,11 @@
 
 export type Layer = "hull" | "oars" | "rower" | "aura";
 export const LAYERS: Layer[] = ["hull", "oars", "rower", "aura"];
-export const LAYER_WORD: Record<Layer, string> = { hull: "Hull", oars: "Oars", rower: "Rower", aura: "Aura" };
+/* THE PIECE IS A BOX NOW (Token.tsx, 2026-11-24), and the layers keep their
+ * ids so every item won is still worn: the hull is the box, the oars the
+ * circle it shoots, the rower its hat, the aura its trail. These are the
+ * words the locker and the chest say. */
+export const LAYER_WORD: Record<Layer, string> = { hull: "Box", oars: "Shot", rower: "Hat", aura: "Trail" };
 
 export type Rarity = "stock" | "common" | "uncommon" | "rare" | "epic" | "legendary";
 export const RARITIES: Exclude<Rarity, "stock">[] = ["common", "uncommon", "rare", "epic", "legendary"];
@@ -87,7 +91,7 @@ const PURPLE = "#7A3FC4";
 
 export const SKINS: Skin[] = [
   /* ---- the hull -------------------------------------------------------- */
-  { id: "hull-stock", layer: "hull", name: "Stock shell", rarity: "stock", paint: { fill: "paper" } },
+  { id: "hull-stock", layer: "hull", name: "Plain box", rarity: "stock", paint: { fill: "paper" } },
   { id: "hull-red", layer: "hull", name: "Red", rarity: "common", paint: { fill: RED } },
   { id: "hull-yellow", layer: "hull", name: "Yellow", rarity: "common", paint: { fill: YELLOW } },
   { id: "hull-green", layer: "hull", name: "Green", rarity: "common", paint: { fill: GREEN } },
@@ -97,43 +101,43 @@ export const SKINS: Skin[] = [
   { id: "hull-checker", layer: "hull", name: "Checkered", rarity: "rare", paint: { fill: WHITE, second: BLACK, pattern: "checker", gloss: true } },
   { id: "hull-carbon", layer: "hull", name: "Carbon", rarity: "rare", paint: { fill: "#2A2D33", second: "#4A4F58", pattern: "carbon", gloss: true } },
   { id: "hull-chrome", layer: "hull", name: "Chrome", rarity: "rare", paint: { fill: "#C9CED6", pattern: "chrome", gloss: true } },
-  { id: "hull-bird", layer: "hull", name: "Bow bird", rarity: "epic", paint: { fill: "#B5793F", second: "#8A5A2B", pattern: "stripe", bird: true } },
+  { id: "hull-bird", layer: "hull", name: "Shoulder bird", rarity: "epic", paint: { fill: "#B5793F", second: "#8A5A2B", pattern: "stripe", bird: true } },
   { id: "hull-molten", layer: "hull", name: "Molten", rarity: "legendary", paint: { fill: "#2B1A14", second: ORANGE, pattern: "molten", gloss: true } },
 
   /* ---- the oars -------------------------------------------------------- */
-  { id: "oars-stock", layer: "oars", name: "Stock oars", rarity: "stock", paint: { blade: "ink" } },
-  { id: "oars-red", layer: "oars", name: "Red blades", rarity: "common", paint: { blade: RED } },
-  { id: "oars-blue", layer: "oars", name: "Blue blades", rarity: "common", paint: { blade: BLUE } },
-  { id: "oars-orange", layer: "oars", name: "Orange blades", rarity: "common", paint: { blade: ORANGE } },
-  { id: "oars-split", layer: "oars", name: "Split blades", rarity: "uncommon", paint: { blade: WHITE, second: GREEN, pattern: "split" } },
-  { id: "oars-tipped", layer: "oars", name: "Dipped tips", rarity: "uncommon", paint: { blade: NAVY, second: YELLOW, pattern: "tip" } },
-  { id: "oars-gold", layer: "oars", name: "Gold leaf", rarity: "rare", paint: { blade: GOLD, shaft: "#8C6A12", pattern: "gloss" } },
-  { id: "oars-ribbon", layer: "oars", name: "Ribbon oars", rarity: "epic", paint: { blade: PINK, extra: "ribbon" } },
-  { id: "oars-flame", layer: "oars", name: "Flaming oars", rarity: "legendary", paint: { blade: "#3A1A10", extra: "flame" } },
-  { id: "oars-bolt", layer: "oars", name: "Thunder oars", rarity: "legendary", paint: { blade: "#1B2A4A", second: YELLOW, extra: "bolt" } },
+  { id: "oars-stock", layer: "oars", name: "Plain ring", rarity: "stock", paint: { blade: "ink" } },
+  { id: "oars-red", layer: "oars", name: "Red shot", rarity: "common", paint: { blade: RED } },
+  { id: "oars-blue", layer: "oars", name: "Blue shot", rarity: "common", paint: { blade: BLUE } },
+  { id: "oars-orange", layer: "oars", name: "Orange shot", rarity: "common", paint: { blade: ORANGE } },
+  { id: "oars-split", layer: "oars", name: "Split shot", rarity: "uncommon", paint: { blade: WHITE, second: GREEN, pattern: "split" } },
+  { id: "oars-tipped", layer: "oars", name: "Bullseye", rarity: "uncommon", paint: { blade: NAVY, second: YELLOW, pattern: "tip" } },
+  { id: "oars-gold", layer: "oars", name: "Gold shot", rarity: "rare", paint: { blade: GOLD, shaft: "#8C6A12", pattern: "gloss" } },
+  { id: "oars-ribbon", layer: "oars", name: "Ribbon shot", rarity: "epic", paint: { blade: PINK, extra: "ribbon" } },
+  { id: "oars-flame", layer: "oars", name: "Fireball", rarity: "legendary", paint: { blade: "#3A1A10", extra: "flame" } },
+  { id: "oars-bolt", layer: "oars", name: "Ball lightning", rarity: "legendary", paint: { blade: "#1B2A4A", second: YELLOW, extra: "bolt" } },
 
   /* ---- the rower ------------------------------------------------------- */
-  { id: "rower-stock", layer: "rower", name: "Stock kit", rarity: "stock", paint: { kit: "ink" } },
-  { id: "rower-red", layer: "rower", name: "Red kit", rarity: "common", paint: { kit: RED } },
-  { id: "rower-teal", layer: "rower", name: "Teal kit", rarity: "common", paint: { kit: TEAL } },
-  { id: "rower-purple", layer: "rower", name: "Purple kit", rarity: "common", paint: { kit: PURPLE } },
-  { id: "rower-hoops", layer: "rower", name: "Hooped top", rarity: "uncommon", paint: { kit: WHITE, second: BLUE, pattern: "stripe" } },
-  { id: "rower-twotone", layer: "rower", name: "Club colours", rarity: "uncommon", paint: { kit: GREEN, second: YELLOW, pattern: "twotone", hat: "headband" } },
-  { id: "rower-neon", layer: "rower", name: "Neon suit", rarity: "rare", paint: { kit: "#2BD46A", second: BLACK, pattern: "gloss" } },
+  { id: "rower-stock", layer: "rower", name: "Bare head", rarity: "stock", paint: { kit: "ink" } },
+  { id: "rower-red", layer: "rower", name: "Red beanie", rarity: "common", paint: { kit: RED } },
+  { id: "rower-teal", layer: "rower", name: "Teal beanie", rarity: "common", paint: { kit: TEAL } },
+  { id: "rower-purple", layer: "rower", name: "Purple beanie", rarity: "common", paint: { kit: PURPLE } },
+  { id: "rower-hoops", layer: "rower", name: "Hooped beanie", rarity: "uncommon", paint: { kit: WHITE, second: BLUE, pattern: "stripe" } },
+  { id: "rower-twotone", layer: "rower", name: "Club headband", rarity: "uncommon", paint: { kit: GREEN, second: YELLOW, pattern: "twotone", hat: "headband" } },
+  { id: "rower-neon", layer: "rower", name: "Neon beanie", rarity: "rare", paint: { kit: "#2BD46A", second: BLACK, pattern: "gloss" } },
   { id: "rower-cap", layer: "rower", name: "Captain", rarity: "epic", paint: { kit: NAVY, second: WHITE, pattern: "stripe", hat: "cap" } },
   { id: "rower-viking", layer: "rower", name: "Viking", rarity: "epic", paint: { kit: "#6B4A2B", hat: "viking" } },
-  { id: "rower-gold", layer: "rower", name: "Golden rower", rarity: "legendary", paint: { kit: GOLD, hat: "crown", shimmer: true } },
+  { id: "rower-gold", layer: "rower", name: "Golden crown", rarity: "legendary", paint: { kit: GOLD, hat: "crown", shimmer: true } },
 
   /* ---- the aura -------------------------------------------------------- */
-  { id: "aura-none", layer: "aura", name: "Calm water", rarity: "stock", paint: { kind: "none" } },
-  { id: "aura-foam", layer: "aura", name: "Foam wake", rarity: "common", paint: { kind: "foam" } },
+  { id: "aura-none", layer: "aura", name: "No trail", rarity: "stock", paint: { kind: "none" } },
+  { id: "aura-foam", layer: "aura", name: "Foam trail", rarity: "common", paint: { kind: "foam" } },
   { id: "aura-ripples", layer: "aura", name: "Ripples", rarity: "common", paint: { kind: "ripples", color: BLUE } },
   { id: "aura-bubbles", layer: "aura", name: "Bubbles", rarity: "uncommon", paint: { kind: "bubbles", color: TEAL } },
   { id: "aura-speed", layer: "aura", name: "Speed lines", rarity: "uncommon", paint: { kind: "speed", color: RED } },
-  { id: "aura-stars", layer: "aura", name: "Star wake", rarity: "rare", paint: { kind: "stars", color: YELLOW } },
+  { id: "aura-stars", layer: "aura", name: "Star trail", rarity: "rare", paint: { kind: "stars", color: YELLOW } },
   { id: "aura-halo", layer: "aura", name: "Halo", rarity: "epic", paint: { kind: "halo", color: GOLD } },
   { id: "aura-cloud", layer: "aura", name: "Own raincloud", rarity: "epic", paint: { kind: "cloud", color: "#8A96A8" } },
-  { id: "aura-rainbow", layer: "aura", name: "Rainbow wake", rarity: "legendary", paint: { kind: "rainbow" } },
+  { id: "aura-rainbow", layer: "aura", name: "Rainbow trail", rarity: "legendary", paint: { kind: "rainbow" } },
   { id: "aura-starfall", layer: "aura", name: "Starfall", rarity: "legendary", paint: { kind: "starfall", color: YELLOW } },
 ];
 

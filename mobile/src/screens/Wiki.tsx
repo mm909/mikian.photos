@@ -17,9 +17,8 @@ import { PAGES, pageOf, type Block } from "../wiki/pages";
  * them like filled out"). */
 
 const GROUPS: { word: string; ids: string[] }[] = [
-  { word: "Now", ids: ["start", "today", "order"] },
-  { word: "Built, to tune", ids: ["arcade", "g159", "loot"] },
-  { word: "Next: the arcade's world", ids: ["look", "home", "show", "match", "ratings"] },
+  { word: "Now", ids: ["overnight", "today", "start", "order"] },
+  { word: "Built, to play and tune", ids: ["show", "match", "home", "look", "ratings", "arcade", "loot", "g159"] },
   { word: "Then", ids: ["small", "freethrow", "planner"] },
   { word: "Later", ids: ["crawler", "posters", "together", "duel"] },
   { word: "Background", ids: ["business", "research"] },

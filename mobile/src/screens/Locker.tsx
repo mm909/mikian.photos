@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
-import { BoatArt, RowingBoat, useWallClock } from "../arcade/BoatArt";
+import { useWallClock } from "../arcade/BoatArt";
+import { TOKEN_U, TokenArt } from "../arcade/Token";
 import { ChestOpen } from "../arcade/Chest";
 import { REWARD_S } from "../arcade/game159";
 import { equip, grant, seen, useLocker } from "../arcade/locker";
@@ -12,9 +13,11 @@ import { Btn, Eyebrow, styles } from "../ui";
 
 /* THE LOCKER (owner, 2026-11-24: "a locker screen to see what you own and
  * equip one item per layer, with the boat preview drawn with the equipped
- * layers"). At the top the boat as it is now, rowing; under it each layer,
- * HULL, OARS, ROWER and AURA, with every item there is to find: the ones
- * won are drawn and a press puts them on the boat, the ones not won yet are
+ * layers"). The boat became a piece the same night (arcade/Token.tsx: "I
+ * am a box. I am shooting circles"). At the top the piece as it is now,
+ * hopping along; under it each layer, BOX, SHOT, HAT and TRAIL, with every
+ * item there is to find: the ones won are drawn and a press puts them on
+ * the piece, the ones not won yet are
  * a shape and a question mark in the colour of their rarity, so the ladder
  * shows what is still out there. The stock item of each layer is always
  * there to go back to.
@@ -22,6 +25,20 @@ import { Btn, Eyebrow, styles } from "../ui";
  * What is won is kept on this phone (arcade/locker.ts); a server table is
  * the next step. The owner has a TRY A CHEST at the foot, to see a chest
  * open with no row, and what it gives is kept like any other. */
+
+/* A card's piece: as big as the card takes, with room for a trail when it
+ * is the trail that is shown. */
+const cardToken = (cardW: number, trail = false) => Math.min(84, ((cardW - 14) * TOKEN_U) / (trail ? 102 : 78));
+const cardArt = (cardW: number) => Math.round((cardToken(cardW) * 72) / TOKEN_U);
+
+/* The piece as it is now, hopping as it would along its board. */
+function Hopping({ equipped, size }: { equipped: Record<string, string>; size: number }) {
+  const t = useWallClock(true);
+  const beat = (t * 26) / 60;
+  const q = beat - Math.floor(beat);
+  const hop = q < 0.3 ? Math.sin((q / 0.3) * Math.PI) : 0;
+  return <TokenArt paint={wear(equipped)} size={size} t={t} trail hop={hop} look={0.5} uid="locker" />;
+}
 
 const RANK = (r: string) => (r === "stock" ? -1 : RARITIES.indexOf(r as (typeof RARITIES)[number]));
 
@@ -55,15 +72,15 @@ export function LockerScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: 12, paddingBottom: 120, width: W, alignSelf: "center" }}>
         <Eyebrow>The locker</Eyebrow>
         <Text style={{ fontFamily: F.black, fontSize: 32, lineHeight: 36, color: C.ink, marginTop: 4 }}>
-          Your <Text style={{ color: C.accent }}>boat</Text>
+          Your <Text style={{ color: C.accent }}>piece</Text>
         </Text>
         <View style={{ alignItems: "center", marginVertical: 8 }}>
-          <RowingBoat equipped={l.equipped} width={Math.min(W - PAD * 2, 440)} uid="locker" />
+          <Hopping equipped={l.equipped} size={Math.min(150, (W - PAD * 2) * 0.42)} />
         </View>
         <Text style={[styles.body, { marginBottom: 4 }]}>
           {found} of {DROPPABLE.length} found · {l.games.played} {l.games.played === 1 ? "game" : "games"}, {l.games.won} won
         </Text>
-        <Text style={[styles.body, { fontSize: 13, marginBottom: 6 }]}>Every game of the arcade ends on a chest. What comes out goes here; press one to put it on the boat.</Text>
+        <Text style={[styles.body, { fontSize: 13, marginBottom: 6 }]}>Every match of the arcade ends on a chest, and so does every 5K. What comes out goes here; press one to put it on your piece.</Text>
         {/* The ladder, so the colours mean something. */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 12, rowGap: 4, marginBottom: 8 }}>
           {RARITIES.map((r) => (
@@ -105,16 +122,18 @@ function LayerRow({ layer, equipped, owned, fresh, cardW }: { layer: Layer; equi
             <Pressable
               key={s.id}
               accessibilityRole="button"
-              accessibilityLabel={have ? `${s.name}, ${RARITY_WORD[s.rarity]}${isOn ? ", on the boat" : ". Put it on the boat"}` : `Not found yet, ${RARITY_WORD[s.rarity]}`}
+              accessibilityLabel={have ? `${s.name}, ${RARITY_WORD[s.rarity]}${isOn ? ", worn" : ". Put it on"}` : `Not found yet, ${RARITY_WORD[s.rarity]}`}
               disabled={!have || isOn}
               onPress={() => equip(layer, s.id).catch(() => null)}
               style={({ pressed }) => ({ width: cardW, borderWidth: isOn ? 3 : 1.5, borderColor: isOn ? C.ink : have ? c : C.line, borderRadius: 8, padding: 6, opacity: pressed ? 0.6 : 1, backgroundColor: C.paper })}
             >
               <View style={{ height: 4, backgroundColor: c, borderRadius: 2, marginBottom: 4, opacity: have ? 1 : 0.5 }} />
               {have ? (
-                <BoatArt paint={wear({ ...STOCK, [layer]: s.id })} width={cardW - 14} phase={0.9} t={0.6} uid={`l${s.id}`} />
+                <View style={{ height: cardArt(cardW), alignItems: "center", justifyContent: "center" }}>
+                  <TokenArt paint={wear({ ...STOCK, [layer]: s.id })} size={cardToken(cardW, layer === "aura")} t={1.3} trail={layer === "aura"} uid={`l${s.id}`} />
+                </View>
               ) : (
-                <View style={{ width: cardW - 14, height: ((cardW - 14) * 120) / 220, alignItems: "center", justifyContent: "center", backgroundColor: C.tint, borderRadius: 4 }}>
+                <View style={{ width: cardW - 14, height: cardArt(cardW), alignItems: "center", justifyContent: "center", backgroundColor: C.tint, borderRadius: 4 }}>
                   <Text style={{ fontFamily: F.black, fontSize: 26, color: c }}>?</Text>
                 </View>
               )}

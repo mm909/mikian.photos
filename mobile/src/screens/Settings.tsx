@@ -91,7 +91,7 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
         {/* THE WIKI, the owner's plans, for him alone (owner, 2026-11-24:
             "put it in the settings page"). */}
         {me.isAdmin && onWiki ? <Go label="Wiki" sub="The plans, the arcade, the order of work. Only you see this." onPress={onWiki} /> : null}
-        {me.isAdmin && onLocker ? <Go label="Locker" sub="Your boat's skins from the arcade's chests. Only you see this." onPress={onLocker} /> : null}
+        {me.isAdmin && onLocker ? <Go label="Locker" sub="Your piece's skins from the arcade's chests. Only you see this." onPress={onLocker} /> : null}
         <View style={{ height: 26 }} />
         {/* What the store asks to be a press away: the policy and the terms. */}
         <Go label="Privacy policy" onPress={() => Linking.openURL(SITE + "/row100k/app-privacy").catch(() => null)} />
