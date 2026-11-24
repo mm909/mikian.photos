@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
-import { CHALLENGE, MONTH, fmtMeters, fmtSplit, nowMs, pacificDay } from "@/lib/row100k";
+import { CHALLENGE, MONTH, fmtMeters, nowMs, pacificDay, splitSeconds } from "@/lib/row100k";
 import { monthOptIns } from "@/app/row100k/monthOptIn";
 import { blockedIds, notifyOff } from "@/lib/rowSocial";
 
@@ -188,10 +188,21 @@ export async function notifyRowLogged(rower: { id: string; displayName: string }
  * 5,000 m at 1:57.0." It used to carry no metres, so that a rower hidden
  * by lights out stayed hidden. That still holds: while a lights-out window
  * is open, or its run-up is covering digits, the line is the old one,
- * "logged a row.", for everybody (rowedWords, numbersHidden). */
+ * "logged a row.", for everybody (rowedWords, numbersHidden).
+ *
+ * THE PACE DROPS ITS TENTHS, NOT ROUNDED (owner, 2026-11-23: "we want to
+ * drop the decimal place for the pace. We don't want to round it ... if it
+ * was 221.7, it just becomes 221"): 2:21.7 reads 2:21. Only this line; the
+ * row's own page keeps the tenths. */
 export function rowedWords(meters: number, seconds: number): string {
   if (!(meters > 0)) return "logged a row.";
-  return seconds > 0 ? `rowed ${fmtMeters(meters)} at ${fmtSplit(meters, seconds)}.` : `rowed ${fmtMeters(meters)}.`;
+  return seconds > 0 ? `rowed ${fmtMeters(meters)} at ${paceNoTenths(meters, seconds)}.` : `rowed ${fmtMeters(meters)}.`;
+}
+function paceNoTenths(meters: number, seconds: number): string {
+  /* The tiny nudge keeps a split of exactly 2:21 from reading 2:20 when
+   * the division lands a hair under. */
+  const s = Math.floor(splitSeconds(meters, seconds) + 1e-6);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 /* Whether a line about a row may say its numbers right now. */
