@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, type ViewStyle } from "react-native";
 import { useKeepAwake } from "expo-keep-awake";
 import Svg, { Line, Path } from "react-native-svg";
 import { milestone, projectedMeters } from "../erg/milestone";
-import type { Erg } from "../erg/useErg";
+import type { DemoCtl, Erg } from "../erg/useErg";
 import type { TelemetryDoc } from "../pm5/session";
 import { useSession } from "../session";
 import { mono } from "../site";
@@ -18,7 +18,7 @@ import { GhostRace, useRace } from "./GhostRace";
 import { Produced, useDirector } from "./Produced";
 import { bindRow } from "../arcade/games";
 import { useShow } from "../arcade/useShow";
-import { ShowOverlay, ShowPage, overlays } from "./Show";
+import { ShowPage, overlays } from "./Show";
 
 /* LOG A ROW. Two ways in: connect a Concept2 PM5 and row, or by hand.
  * Both end at the same form: two photos, the day, LOG.
@@ -93,6 +93,9 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
    * fresh look at the list whenever the sender has news of any of them. */
   const [sending, setSending] = useState("");
   const [, setNews] = useState(0);
+  /* The page the monitor was on, so a demo scrubbed elsewhere (the monitor
+   * drawn again from nothing) stays on it. */
+  const lastPage = useRef(0);
   useEffect(() => onAuto(() => setNews((n) => n + 1)), []);
   useEffect(() => {
     let on = true;
@@ -227,7 +230,10 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
           </Pressable>
         ) : null}
       <Monitor
+        key={erg.demoCtl?.run ?? 0}
         erg={erg}
+        startPage={erg.demoCtl?.run ? lastPage.current : undefined}
+        onPage={(n) => (lastPage.current = n)}
         onLog={async () => {
           /* A piece too short to have a recording (under 100 m, or a few
            * pulls) goes in the old way: the form first, two photos. */
@@ -280,6 +286,16 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
           <Pressable accessibilityRole="button" accessibilityLabel="Run a demo row" onPress={() => erg.startDemo(DEMO_METERS, DEMO_SPEED)} hitSlop={6} style={({ pressed }) => ({ paddingVertical: 16, opacity: pressed ? 0.5 : 1 })}>
             <Text style={[styles.body, { fontSize: 14 }]}>
               No rowing machine here? <Text style={{ fontFamily: F.bold, color: C.ink, textDecorationLine: "underline" }}>Run a demo row</Text>
+            </Text>
+          </Pressable>
+        ) : null}
+        {/* THE SAME DEMO AT THE SPEED OF A CLOCK (owner, 2026-11-24: "a
+            real-time demo versus sped-up demo row"). Either can be switched
+            to the other as it rows, from the strip under the pages. */}
+        {erg.phase === "idle" ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Run a demo row in real time" onPress={() => erg.startDemo(DEMO_METERS, 1)} hitSlop={6} style={({ pressed }) => ({ paddingBottom: 16, marginTop: -8, opacity: pressed ? 0.5 : 1 })}>
+            <Text style={[styles.body, { fontSize: 14 }]}>
+              Or <Text style={{ fontFamily: F.bold, color: C.ink, textDecorationLine: "underline" }}>a demo row in real time</Text>
             </Text>
           </Pressable>
         ) : null}
@@ -381,14 +397,12 @@ const IDLE_MS = 6000;
 /* How long the monitor has to have called a piece finished before the
  * buttons come up for it. */
 const END_HOLD_MS = 1200;
-/* The monitor's pages count from 0: the race and the numbers (the race
- * first when the piece is a set distance), the four figures, the split,
- * the splits, and the way out, which is the last. A set distance has the
- * produced row after the race, and upright the race up the page after
- * that; those are counted where they are added. */
-const LAST = 5;
+/* The monitor's pages, in their order, are `order` in Monitor: the race and
+ * the numbers (the race first when the piece is a set distance), the show,
+ * upright the race up the page, the four figures, the split, the splits,
+ * and the way out, which is the last. TITLE names each. */
 
-function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* LOG, on a piece that has not logged itself. */ onLog: () => void | Promise<void>; /* The row is logged: on to the form for its photos, or straight to its page. */ onAdd: () => void; onDone: () => void; onRead: () => void; onLeave: () => void }) {
+function Monitor({ erg, startPage, onPage, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* The page to open on, when the monitor is drawn again mid-row (a demo scrubbed). */ startPage?: number; onPage: (n: number) => void; /* LOG, on a piece that has not logged itself. */ onLog: () => void | Promise<void>; /* The row is logged: on to the form for its photos, or straight to its page. */ onAdd: () => void; onDone: () => void; onRead: () => void; onLeave: () => void }) {
   const { live, name, error, demo, auto } = erg;
   /* The row's game (arcade/games.ts) is told the row's id once it has one. */
   const boundRow = useRef<string | null>(null);
@@ -415,7 +429,10 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
   const wide = win.width > win.height;
   const [w, setW] = useState(0);
   const [h, setH] = useState(0);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(startPage ?? 0);
+  useEffect(() => {
+    onPage(page);
+  }, [page, onPage]);
   const onLayout = (e: LayoutChangeEvent) => {
     setW(Math.round(e.nativeEvent.layout.width));
     setH(Math.round(e.nativeEvent.layout.height));
@@ -424,6 +441,8 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
    * is being turned the pages are a new width and the strip is still where
    * the old one left it, and what it says of itself then is not a swipe. */
   const settled = useRef(0);
+  /* Said as it moves and where it comes to rest: the rest is the page,
+   * whatever the last word on the way there was. */
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => w && settled.current === w && setPage(Math.round(e.nativeEvent.contentOffset.x / w));
   const meters = Math.floor(live.meters);
   /* A demo row is the simulator: it shows the screens, and its LOG walks
@@ -502,6 +521,15 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
           <Btn label="Discard" quiet onPress={erg.discard} style={{ flex: 1 }} />
           <Btn label={auto ? "Try again" : canLog ? `Log ${fmtInt(meters)} m` : "Log 0 m"} onPress={log} disabled={!canLog} style={{ flex: 2 }} />
         </View>
+        {/* THE CONNECTION WENT PART WAY (owner, 2026-11-24: "how does
+            progress work when we have to stop in the middle of a row ... we
+            need to be able to still log the meters"). The meters so far are
+            on the phone already (useErg.ts keeps them as it drops), and LOG
+            logs them. RECONNECT finds the monitor again and goes on with the
+            piece: the monitor still has its whole count, so the recording
+            picked up there is the row, and the part before it is kept on the
+            phone, marked as its first half (autolog.ts, NEVER TWICE). */}
+        {error && !demo ? <Btn label="Reconnect and go on" quiet onPress={erg.connect} style={{ marginTop: 10 }} /> : null}
         {analytics}
       </View>
     );
@@ -516,7 +544,10 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
    * race page arrives ahead of the numbers when it does: the pages go back
    * to the first, so the race is what the rower lands on. */
   const pages = useRef<ComponentRef<typeof ScrollView>>(null);
+  const raceWas = useRef(raceFirst);
   useEffect(() => {
+    if (raceWas.current === raceFirst) return;
+    raceWas.current = raceFirst;
     pages.current?.scrollTo({ x: 0, animated: false });
     setPage(0);
   }, [raceFirst]);
@@ -550,11 +581,21 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
    * in the code and no longer dropped into the row.) */
   const { me } = useSession();
   const showOn = !!me.isAdmin;
-  const prodPage = raceFirst || showOn ? 1 : -1;
   const directed = useDirector(erg, shared);
   const showed = useShow(erg, showOn);
-  const upPage = raceFirst && !wide ? 2 : -1;
-  const last = LAST + (prodPage > 0 ? 1 : 0) + (upPage > 0 ? 1 : 0);
+  /* THE PAGES IN THEIR ORDER, each with the name the top bar gives it
+   * (owner, 2026-11-24: "I want the top of each one of these to show me the
+   * title of the screen ... where that live 5000 is, let's show the name of
+   * the screen that I'm looking at"). */
+  const prodOn = raceFirst || showOn;
+  const upOn = raceFirst && !wide;
+  const order: PageKey[] = raceFirst
+    ? ["race", ...(prodOn ? (["show"] as const) : []), ...(upOn ? (["up"] as const) : []), "pace", "figures", "chart", "splits", "end"]
+    : ["pace", ...(prodOn ? (["show"] as const) : []), "race", "figures", "chart", "splits", "end"];
+  const prodPage = order.indexOf("show");
+  const upPage = order.indexOf("up");
+  const racePage = order.indexOf("race");
+  const last = order.length - 1;
   /* A PHONE THAT IS TURNED KEEPS ITS PAGE. The pages are as wide as the
    * screen, so turning it left the strip between two of them, or on the
    * first: nothing to notice while the race was the first page and the
@@ -583,7 +624,7 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
    * intro/show screens, then drop straight into single player"): as the
    * island starts, the pages go to the show, once a row; a swipe away from
    * it after that is the rower's own. */
-  const dropped = useRef(false);
+  const dropped = useRef(startPage !== undefined);
   useEffect(() => {
     if (showed.phase === "intro") dropped.current = false;
     if (showed.phase !== "battle" || dropped.current || !w || prodPage < 0) return;
@@ -592,6 +633,26 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
     pages.current?.scrollTo({ x: n * w, animated: true });
     setPage(n);
   }, [showed.phase, w, prodPage]);
+  /* THE MATCH IS ITS OWN PAGE, AND A SWIPE LEAVES IT (owner, 2026-11-24:
+   * "sometimes like I scroll and the little bar at the bottom changes, but
+   * the actual screen doesn't. It just stays on like the fancy screen"). The
+   * ready check, the match and its celebration used to be laid over
+   * whichever page was in view, the whole screen and opaque, so a swipe
+   * moved the pages and the dots under it and the show stayed on top. Now
+   * the pages go to the show as the ready check starts, once a match, and
+   * the rower can swipe away from it like any other page. */
+  const overNow = showOn && overlays(showed.view.current);
+  const jumped = useRef(false);
+  useEffect(() => {
+    if (!overNow) {
+      jumped.current = false;
+      return;
+    }
+    if (jumped.current || !w || prodPage < 0) return;
+    jumped.current = true;
+    pages.current?.scrollTo({ x: prodPage * w, animated: true });
+    setPage(prodPage);
+  }, [overNow, w, prodPage]);
   const plain = Platform.OS === "web" ? ({ cursor: "auto" } as ViewStyle) : null;
   const leaf = (children: ReactNode, style?: ViewStyle) => (
     <Pressable accessible={false} onPress={next} style={[{ width: w, height: h }, plain, style]}>
@@ -600,76 +661,180 @@ function Monitor({ erg, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* 
   );
   /* The show has no race on it, so the race page keeps the race going while
    * the show is the page in view. */
-  const race = leaf(<GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage && (page !== prodPage || showOn)} active={page === (raceFirst ? 0 : prodPage > 0 ? 2 : 1)} />);
+  const race = leaf(<GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage && (page !== prodPage || showOn)} active={page === racePage} />);
   const produced = showOn ? leaf(<ShowPage showed={showed} erg={erg} width={w} height={h} active={page === prodPage} />) : prodPage > 0 ? leaf(<Produced erg={erg} race={shared} directed={directed} width={w} height={h} active={page === prodPage} />) : null;
   const raceUp = upPage > 0 ? leaf(<GhostRace erg={erg} width={w} height={h} race={shared} upright drive={page === upPage} active={page === upPage} />) : null;
-  const status = error ? "Disconnected" : auto?.state === "saved" ? "Logged" : live.ended ? "Piece finished" : live.awake ? "Live" : "Connected, waiting";
-  const piece = live.targetM > 0 ? `${fmtInt(live.targetM)} m` : live.targetS > 0 ? `${fmtClock(live.targetS, false)} piece` : "Just row";
+  /* At the right of the bar, what is rowing: the demo, or the monitor by
+   * its name; a monitor that has gone says so there, in the red. */
+  const who = error ? "Disconnected" : demo ? "Demo" : live.awake ? name || "PM5" : "Waiting";
+  const padX = wide ? 28 : 20;
+  const node: Record<PageKey, ReactNode> = {
+    race,
+    show: produced,
+    up: raceUp,
+    pace: leaf(<Main erg={erg} wide={wide} width={w - padX * 2} />, { paddingHorizontal: padX }),
+    figures: leaf(
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        <Big k="Strokes a minute" v={live.spm > 0 ? `${live.spm}` : "--"} wide={wide} />
+        <Big k="Watts" v={live.watts > 0 ? fmtInt(live.watts) : "---"} wide={wide} />
+        <Big k="Heart rate" v={live.hr ? `${live.hr}` : "--"} wide={wide} />
+        <Big k="Drag factor" v={live.drag > 0 ? `${live.drag}` : "--"} wide={wide} />
+      </View>,
+      { paddingHorizontal: padX, justifyContent: "center" },
+    ),
+    chart: leaf(<PacePage erg={erg} width={w - padX * 2} height={Math.max(80, Math.min(260, h - (wide ? 96 : 70)))} />, { paddingHorizontal: padX, justifyContent: "center" }),
+    splits: (
+      <ScrollView style={{ width: w, height: h }} contentContainerStyle={{ minHeight: h }}>
+        <Pressable accessible={false} onPress={next} style={[{ flex: 1, minHeight: h, paddingHorizontal: padX, paddingTop: 10 }, plain]}>
+          <SplitsPage erg={erg} />
+        </Pressable>
+      </ScrollView>
+    ),
+    /* THE LAST PAGE: the way out, always a swipe away. Its name is in the
+     * bar now; on its side the words and buttons keep to a column. */
+    end: leaf(
+      <View style={wide ? { width: Math.min(520, w - padX * 2), alignSelf: "center" } : undefined}>
+        <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? (demo ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)}. A demo: logging it goes through the form and the page after, and nothing is saved.` : auto?.state === "saved" ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)}.` : `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging it puts it on the board at once; the two photos can be added after.`) : "Nothing rowed yet."}</Text>
+        {ends}
+      </View>,
+      { paddingHorizontal: padX, justifyContent: "center" },
+    ),
+  };
+
+  const dots = (
+    <View accessibilityLabel={`Page ${page + 1} of ${last + 1}`} style={{ flexDirection: "row", justifyContent: "center", gap: 8 }}>
+      {Array.from({ length: last + 1 }, (_, i) => i).map((i) => (
+        <View key={i} style={{ width: i === page ? 18 : 6, height: 6, backgroundColor: i === page ? C.accent : C.line }} />
+      ))}
+    </View>
+  );
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: wide ? 6 : 12 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to the app. The row keeps recording." onPress={onLeave} hitSlop={10} style={{ minHeight: 40, justifyContent: "center" }}>
-          <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2.2, color: C.ink }}>← APP</Text>
-        </Pressable>
-        <Eyebrow style={{ color: error ? C.accent : C.good }}>
-          {status} · {piece}
-        </Eyebrow>
-        <Eyebrow>{demo ? "Demo" : name}</Eyebrow>
+      {/* THE BAR: the way back, the name of the page in view, and what is
+          rowing. */}
+      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: padX, paddingTop: wide ? 2 : 12 }}>
+        <View style={{ flex: 1, alignItems: "flex-start" }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to the app. The row keeps recording." onPress={onLeave} hitSlop={10} style={{ minHeight: wide ? 34 : 40, justifyContent: "center" }}>
+            <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2.2, color: C.ink }}>← APP</Text>
+          </Pressable>
+        </View>
+        <Text accessibilityRole="header" numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 13, letterSpacing: 2.4, color: C.ink }}>
+          {TITLE[order[Math.min(page, last)]].toUpperCase()}
+        </Text>
+        <View style={{ flex: 1, alignItems: "flex-end" }}>
+          <Eyebrow style={{ color: error ? C.accent : undefined }}>{who}</Eyebrow>
+        </View>
       </View>
 
       <View style={{ flex: 1 }} onLayout={onLayout}>
         {w ? (
-          <ScrollView ref={pages} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} scrollEventThrottle={64}>
-            {raceFirst ? race : null}
-            {raceFirst ? produced : null}
-            {raceUp}
-            {leaf(<Main erg={erg} wide={wide} width={w - 40} />, { paddingHorizontal: 20 })}
-            {raceFirst ? null : produced}
-            {raceFirst ? null : race}
-            {leaf(
-              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                <Big k="Strokes a minute" v={live.spm > 0 ? `${live.spm}` : "--"} wide={wide} />
-                <Big k="Watts" v={live.watts > 0 ? fmtInt(live.watts) : "---"} wide={wide} />
-                <Big k="Heart rate" v={live.hr ? `${live.hr}` : "--"} wide={wide} />
-                <Big k="Drag factor" v={live.drag > 0 ? `${live.drag}` : "--"} wide={wide} />
-              </View>,
-              { paddingHorizontal: 20, justifyContent: "center" },
-            )}
-            {leaf(<PacePage erg={erg} width={w - 40} height={Math.max(90, Math.min(260, h - 70))} />, { paddingHorizontal: 20, justifyContent: "center" })}
-            <ScrollView style={{ width: w, height: h }} contentContainerStyle={{ minHeight: h }}>
-              <Pressable accessible={false} onPress={next} style={[{ flex: 1, minHeight: h, paddingHorizontal: 20, paddingTop: 10 }, plain]}>
-                <SplitsPage erg={erg} />
-              </Pressable>
-            </ScrollView>
-            {/* THE LAST PAGE: the way out, always a swipe away. */}
-            {leaf(
-              <>
-                <Eyebrow style={{ color: C.ink, marginBottom: 6 }}>End the row</Eyebrow>
-                <Text style={[styles.body, { marginBottom: 18 }]}>{canLog ? (demo ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)}. A demo: logging it goes through the form and the page after, and nothing is saved.` : auto?.state === "saved" ? `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)}.` : `${fmtInt(meters)} m in ${fmtClock(live.elapsedS, false)} so far. Logging it puts it on the board at once; the two photos can be added after.`) : "Nothing rowed yet."}</Text>
-                {ends}
-              </>,
-              { paddingHorizontal: 20, justifyContent: "center" },
-            )}
+          <ScrollView ref={pages} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} onMomentumScrollEnd={onScroll} scrollEventThrottle={64}>
+            {order.map((k) => (
+              <Fragment key={k}>{node[k]}</Fragment>
+            ))}
           </ScrollView>
-        ) : null}
-        {w && showOn && showed.key && overlays(showed.view.current) && page !== prodPage && page !== last && !over ? (
-          <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: w, height: h }}>
-            <ShowOverlay showed={showed} erg={erg} width={w} height={h} />
-          </View>
         ) : null}
       </View>
 
-      <View accessibilityLabel={`Page ${page + 1} of ${last + 1}`} style={{ flexDirection: "row", justifyContent: "center", gap: 8, paddingVertical: wide ? 4 : 10 }}>
-        {Array.from({ length: last + 1 }, (_, i) => i).map((i) => (
-          <View key={i} style={{ width: i === page ? 18 : 6, height: 6, backgroundColor: i === page ? C.accent : C.line }} />
-        ))}
-      </View>
-      {error ? <Text style={[styles.body, { color: C.accent, paddingHorizontal: 20, marginBottom: 6 }]}>{error}</Text> : null}
+      {/* On its side a demo's strip and the dots share one line, so the
+          pages keep the height (the race's lanes most of all). */}
+      {wide && erg.demoCtl ? (
+        <DemoBar ctl={erg.demoCtl} meters={live.meters} wide padX={padX} lead={dots} />
+      ) : (
+        <>
+          <View style={{ alignItems: "center", paddingVertical: wide ? 5 : 10 }}>{dots}</View>
+          {erg.demoCtl ? <DemoBar ctl={erg.demoCtl} meters={live.meters} wide={wide} padX={padX} /> : null}
+        </>
+      )}
+      {error ? <Text style={[styles.body, { color: C.accent, paddingHorizontal: padX, marginBottom: 6 }]}>{error}</Text> : null}
       {/* While the rower is rowing the screen is numbers and nothing else.
           The buttons come up by themselves once the piece is over or the
           handle has been down a few seconds. */}
-      {over && page !== last ? <View style={{ paddingHorizontal: 20, paddingBottom: wide ? 8 : 16 }}>{ends}</View> : <View style={{ height: wide ? 4 : 8 }} />}
+      {over && page !== last ? <View style={{ paddingHorizontal: padX, paddingBottom: wide ? 6 : 16 }}>{wide ? <View style={{ width: Math.min(520, w - padX * 2), alignSelf: "center" }}>{ends}</View> : ends}</View> : <View style={{ height: wide ? 4 : 8 }} />}
+    </View>
+  );
+}
+
+/* What each page is called in the bar. */
+type PageKey = "race" | "show" | "up" | "pace" | "figures" | "chart" | "splits" | "end";
+const TITLE: Record<PageKey, string> = {
+  race: "Race",
+  show: "Arcade",
+  up: "Race, upright",
+  pace: "Pace",
+  figures: "Rate · watts · heart",
+  chart: "Split chart",
+  splits: "Splits",
+  end: "End the row",
+};
+
+/* A DEMO ROW'S STRIP, under the dots (owner, 2026-11-24: "can we do like a
+ * real-time demo versus sped-up demo row? ... I would like to be able to
+ * scrub the demo rows, at least for the real-time one for sure"). At the
+ * left the speed: hold, a clock's own, ten times. At the right the piece as
+ * a line, the blue part rowed: a finger put down anywhere on it and slid
+ * shows where it will land, and the row is there when the finger lifts,
+ * forward or back. MINE, the three speeds and the scrub landing on the
+ * lift rather than as it moves (each landing rows the piece again from its
+ * start, which is too much to do under a moving finger). */
+const SPEEDS: { n: number; label: string; say: string }[] = [
+  { n: 0, label: "II", say: "Hold the demo still" },
+  { n: 1, label: "1×", say: "Real time" },
+  { n: 10, label: "10×", say: "Ten times faster" },
+];
+function DemoBar({ ctl, meters, wide, padX, lead }: { ctl: DemoCtl; meters: number; wide: boolean; padX: number; /* The page dots, at the head of the line on its side. */ lead?: ReactNode }) {
+  const [bw, setBw] = useState(0);
+  const [held, setHeld] = useState<number | null>(null);
+  const at = useRef({ bw: 0, ctl });
+  at.current = { bw, ctl };
+  const toM = (x: number) => {
+    const { bw: width, ctl: c } = at.current;
+    return width > 0 ? Math.round((Math.max(0, Math.min(width, x)) / width) * c.distanceM) : 0;
+  };
+  /* Where the finger is along the line: from where it went down and how
+   * far it has moved, which holds when it wanders off the line. */
+  const x0 = useRef(0);
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: (e) => {
+        x0.current = e.nativeEvent.locationX;
+        setHeld(toM(x0.current));
+      },
+      onPanResponderMove: (_e, g) => setHeld(toM(x0.current + g.dx)),
+      onPanResponderRelease: (_e, g) => {
+        const m = toM(x0.current + g.dx);
+        setHeld(null);
+        at.current.ctl.seek(m);
+      },
+      onPanResponderTerminate: () => setHeld(null),
+    }),
+  ).current;
+  const shown = held ?? meters;
+  const frac = ctl.distanceM > 0 ? Math.max(0, Math.min(1, shown / ctl.distanceM)) : 0;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: padX, paddingTop: lead ? 4 : 0, paddingBottom: wide ? 4 : 8 }}>
+      {lead}
+      <View style={{ flexDirection: "row", borderWidth: 1, borderColor: C.line }}>
+        {SPEEDS.map((s, i) => {
+          const on = ctl.speed === s.n;
+          return (
+            <Pressable key={s.n} accessibilityRole="button" accessibilityLabel={s.say} accessibilityState={{ selected: on }} onPress={() => ctl.setSpeed(s.n)} hitSlop={4} style={({ pressed }) => ({ minWidth: 42, height: 30, alignItems: "center", justifyContent: "center", borderLeftWidth: i ? 1 : 0, borderColor: C.line, backgroundColor: on ? C.ink : "transparent", opacity: pressed ? 0.6 : 1 })}>
+              <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, color: on ? C.paper : C.ink }}>{s.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View accessibilityRole="adjustable" accessibilityLabel={`Demo at ${fmtInt(Math.floor(shown))} of ${fmtInt(ctl.distanceM)} meters`} onLayout={(e) => setBw(Math.round(e.nativeEvent.layout.width))} style={{ flex: 1, height: 30, justifyContent: "center" }} {...pan.panHandlers}>
+        <View pointerEvents="none" style={{ height: 4, backgroundColor: C.line }}>
+          <View style={{ width: `${frac * 100}%`, height: 4, backgroundColor: C.accent }} />
+        </View>
+        <View pointerEvents="none" style={{ position: "absolute", left: Math.max(0, frac * bw - 7), top: 8, width: 14, height: 14, borderRadius: 7, backgroundColor: held !== null ? C.accent : C.ink }} />
+      </View>
+      <Text style={{ fontFamily: F.mono, fontSize: 11, color: held !== null ? C.accent : C.soft, fontVariant: ["tabular-nums"], minWidth: 60, textAlign: "right" }}>{fmtInt(Math.floor(shown))} m</Text>
     </View>
   );
 }

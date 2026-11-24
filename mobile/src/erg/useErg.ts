@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import type { TelemetryDoc } from "../pm5/session";
 import * as ble from "./ble";
-import { simulate, type ErgLink, type Found, type Handlers } from "./link";
+import { simulate, type DemoLink, type ErgLink, type Found, type Handlers } from "./link";
 import { EMPTY_LIVE, createLive, type Live } from "./model";
 import { PENDING_MIN_M, dropPending, putPending } from "../store";
 import { armAuto, autoOf, logsItself, onAuto, sendPiece, sweep, type AutoState } from "../autolog";
@@ -81,7 +81,14 @@ export type Erg = {
    * short of logging itself. Null when there is nothing that can be sent
    * (under 100 m, or too few strokes for a recording). */
   logNow: () => Promise<AutoState | null>;
+  /* A DEMO ROW'S CONTROLS (owner, 2026-11-24: real time or sped up, and a
+   * scrubber): null on a real monitor. `run` counts the scrubs, so the
+   * monitor can start its pages' own memory again (a scrub back is the
+   * piece rowed again from the start). */
+  demoCtl: DemoCtl | null;
 };
+
+export type DemoCtl = { speed: number; distanceM: number; run: number; setSpeed: (n: number) => void; seek: (meters: number) => void };
 
 export function useErg(): Erg {
   const [phase, setPhase] = useState<ErgPhase>("idle");
@@ -91,6 +98,8 @@ export function useErg(): Erg {
   const [demo, setDemo] = useState(false);
   const [error, setError] = useState("");
   const [auto, setAuto] = useState<AutoState | null>(null);
+  /* The demo row's distance and speed, and how many times it was scrubbed. */
+  const [demoOpt, setDemoOpt] = useState<{ distanceM: number; speed: number; run: number; real: boolean } | null>(null);
   /* The connection to the monitor has gone: its piece is no longer one the
    * monitor is "still on", and is sent once it has stood long enough. */
   const dropped = useRef(false);
@@ -241,6 +250,7 @@ export function useErg(): Erg {
 
   const fresh = () => {
     setError("");
+    setDemoOpt(null);
     setAuto(null);
     dropped.current = false;
     if (endTimer.current) clearTimeout(endTimer.current);
@@ -305,7 +315,10 @@ export function useErg(): Erg {
     pick,
     startDemo: (distanceM, speed, real) => {
       fresh();
-      begin(simulate(handlers, { distanceM: distanceM ?? 5000, speed }), !(real && __DEV__));
+      const d = distanceM ?? 5000;
+      const sp = speed ?? 12;
+      begin(simulate(handlers, { distanceM: d, speed: sp }), !(real && __DEV__));
+      setDemoOpt({ distanceM: d, speed: sp, run: 0, real: !!real });
     },
     discard: () => {
       const p = piece.current;
@@ -322,6 +335,29 @@ export function useErg(): Erg {
       }
     },
     auto,
+    demoCtl:
+      demoOpt && isDemo.current
+        ? {
+            ...demoOpt,
+            setSpeed: (n) => {
+              (link.current as DemoLink | null)?.setSpeed(n);
+              setDemoOpt((o) => (o ? { ...o, speed: n } : o));
+            },
+            /* The piece from the start, rowed ahead at once to the meters
+             * the scrubber was let go at, then on at the speed it had. All
+             * in one go, so the screen never draws the empty monitor in
+             * between. */
+            seek: (to) => {
+              const o = demoOpt;
+              link.current?.stop();
+              link.current = null;
+              fresh();
+              const m = Math.max(0, Math.min(o.distanceM, to));
+              begin(simulate(handlers, { distanceM: o.distanceM, speed: o.speed, until: () => model.get().meters >= m }), true);
+              setDemoOpt({ ...o, run: o.run + 1 });
+            },
+          }
+        : null,
     logNow: async () => {
       const l = model.get();
       if (isDemo.current) {
