@@ -942,3 +942,10 @@ His words: "instead of the number that counts up being the 5,000 ... I want it t
 - Nothing leaves the phone: no row, no photos, no recording kept, no read of the session again, no stickers dropped. The page has no like/comment/share, no three dots, no stickers or reels.
 - In development a demo row used to log for real; it is pretend there too now (log by hand for a real one).
 - Seen in the sandbox (1,000 m demo at 40x): form, bar, page, board +1,000. NOT seen on a phone; a demo climb past other rowers not seen (the sandbox rower leads the board).
+
+## Round 49 (2026-11-24): the wiki, and the arcade's first game
+
+- THE WIKI (owner: "give me a wiki for the future planning ... just for me ... put it in the settings page"): Settings, Wiki, admins only. screens/Wiki.tsx draws wiki/pages.ts: pages in the order of the work (now, being built, next, later, background), lists, steps, quotes, and two drawings (one 250 m game as a minute; a 5K as twenty blocks). mobile/PLANS.md is the same plan as a file; mobile/ARCADE-RESEARCH.md the research.
+- 159, THE FIRST GAME (arcade/): hold the pace you lock in; every 50 m a shot at the rocks; four hits win, rocks left wipe you out; a wobbly 50 m can still hit, LUCKY. Title card with the flip dots and the briefcase (5 s, or 150 m), band = 1 SD of your own stroke paces (1.5-4 s), chest after every game (one item, or three with the rainbow), 38 skins over hull, oars, rower, aura in five rarities, kept on the phone. Settings, Locker (admins) to wear them. The director's schedule: 5K at 1,000/2,000/3,000/4,000, 2K at 1,000, 1K at 250, every 1,000 m on a plain row. On the produced page it takes the stage; on the other pages it lies over them; never on the last page or once stopped. Admins only: the store build has no games.
+- Pure logic, checked: scripts/arcade-check.ts (steady rower wins ~68%, wobbly ~0%; drops 60/25/10/4/1).
+- Seen in the sandbox: a 1K demo at 10x (title, rocks, HIT, gauge, wipe-out, chest), the wiki and its drawings, the Locker. NOT seen on a phone or a real PM5. Open: play length (200 m, ~48 s, against his 30 s), the race boat wearing the skin, a server table for skins.

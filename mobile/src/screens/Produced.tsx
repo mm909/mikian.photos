@@ -8,6 +8,8 @@ import { milestone } from "../erg/milestone";
 import type { Erg } from "../erg/useErg";
 import { C, F, fmtClock, fmtInt, fmtPace } from "../theme";
 import { Eyebrow, Num } from "../ui";
+import type { Arcaded } from "../arcade/useArcade";
+import { ArcadeStage } from "./ArcadeGame";
 import { BEST, BOAT_M, GhostRace, MID, PX_PER_M, raceWater, type Race } from "./GhostRace";
 
 /* THE PRODUCED ROW: a page of the monitor that is directed while the rower
@@ -126,7 +128,12 @@ function wordOf(cue: Cue, target: number): string {
   }
 }
 
-export function Produced({ erg, race, directed, width, height, active }: { erg: Erg; race: Race; directed: Directed; width: number; height: number; /* The page in view. */ active: boolean }) {
+/* A GAME TAKES THE STAGE (owner, 2026-11-24: "the director drops into a
+ * row" a game of the arcade, screens/ArcadeGame.tsx): `arcade` is set while
+ * one is up. The figures stay; the race goes on under the game, unseen, so
+ * it is where it should be when the chest closes. */
+export function Produced({ erg, race, directed, width, height, active, arcade = null }: { erg: Erg; race: Race; directed: Directed; width: number; height: number; /* The page in view. */ active: boolean; arcade?: Arcaded | null }) {
+  const game = !!arcade?.id;
   const { live } = erg;
   const target = live.targetM;
   const wide = width >= 520;
@@ -194,7 +201,7 @@ export function Produced({ erg, race, directed, width, height, active }: { erg: 
   const time = clock(live.elapsedS);
 
   /* The word after PRODUCED: the cue just taken, for a few seconds. */
-  const said = shot && Date.now() - shot.note.at * 1000 < WORD_MS ? wordOf(shot.note.cue, target) : "";
+  const said = game ? "ARCADE · 159" : shot && Date.now() - shot.note.at * 1000 < WORD_MS ? wordOf(shot.note.cue, target) : "";
   /* Upright the two are on one line over the figures; on its side they are
    * one over the other at the head of the column the curve is in, which
    * is too narrow for YOUR STROKE CHANGED after PRODUCED. */
@@ -250,17 +257,22 @@ export function Produced({ erg, race, directed, width, height, active }: { erg: 
           own few words a second) while another scene is up, and drawn
           thirty times a second only while it shows. */}
       <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: stageW, height: stageH, opacity: o.race }}>
-        <GhostRace erg={erg} width={stageW} height={stageH} race={race} drive={active} active={active && on.race} bare lanes={shot && scene !== "wide" && scene !== "curve" ? shot.lanes : 5} />
+        <GhostRace erg={erg} width={stageW} height={stageH} race={race} drive={active} active={active && on.race && !game} bare lanes={shot && scene !== "wide" && scene !== "curve" ? shot.lanes : 5} />
       </Animated.View>
       {on.wide ? (
         <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: stageW, height: stageH, opacity: o.wide }}>
-          <Wide erg={erg} race={race} width={stageW} height={stageH} zoom={zoom} zNow={zNow} active={active} />
+          <Wide erg={erg} race={race} width={stageW} height={stageH} zoom={zoom} zNow={zNow} active={active && !game} />
         </Animated.View>
       ) : null}
       {on.curve ? (
         <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: stageW, height: stageH, opacity: o.curve, transform: [{ scale: o.curve.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }}>
           {shot?.compare ? <Curves compare={shot.compare} width={stageW} height={stageH} pad={PAD} /> : null}
         </Animated.View>
+      ) : null}
+      {game && arcade ? (
+        <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: stageW, height: stageH, backgroundColor: C.paper }}>
+          <ArcadeStage arcade={arcade} erg={erg} width={stageW} height={stageH} active={active} />
+        </View>
       ) : null}
     </View>
   );

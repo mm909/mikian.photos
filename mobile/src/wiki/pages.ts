@@ -58,7 +58,7 @@ export const PAGES: Page[] = [
         "App Store submission (Tue). Yours: it needs your Apple sign-in.",
         "Google Play submission (Wed).",
         "This wiki. Built Nov 24.",
-        "159, the hold-a-pace game, with the chest and the boat skins. Being built Nov 24; owner only until you say.",
+        "159, the hold-a-pace game, with the chest and the boat skins. Built Nov 24; owner only until you say. Play it, then tune it.",
         "Stories show both photos of a row, one after the other.",
         "More 250 m games: Free Throw (repeat the same pull), with soccer and golf skins of it.",
         "The planner: two dials, meters and average pace. Then The Wake, the red boat at the pace you need.",
@@ -118,7 +118,9 @@ export const PAGES: Page[] = [
     title: "159",
     sub: "Hold your pace, shoot the rocks. 250 m",
     blocks: [
-      { p: "Being built Nov 24, owner only. The first game." },
+      { p: "BUILT Nov 24, owner only. Start any row: on a 5K it comes up at 1,000, 2,000, 3,000 and 4,000 m. A demo row of 1K plays one at 250 m. The skins you win are in Settings, Locker." },
+      { h: "To tune once you have played it" },
+      { list: ["The playing part is 200 m, about 48 seconds at 1:59, not the 30 you said. Four shots of 50 m; shorten to 25 m shots or three shots to get to 30.", "A shot hits when 60% of its 50 m sat in your band; a missed one still hits 15% of the time, LUCKY.", "In testing a steady rower won about two games in three; a wobbly one almost never."] },
       { h: "The title card" },
       { p: "A line-art briefcase with 159 on it as a graffiti sticker. Under it a flip-dot board, black and yellow, reading 159 in our bold numerals, which flips into the pace you are holding while it says LOCK IN YOUR PACE. Five seconds; whatever you hold at the end is locked." },
       { h: "The game" },
@@ -154,7 +156,7 @@ export const PAGES: Page[] = [
     title: "Chests and skins",
     sub: "The reward after every game",
     blocks: [
-      { p: "Being built Nov 24, owner only. Kept on the phone for now; on the server later so it follows you." },
+      { p: "BUILT Nov 24, owner only: 38 items across the four layers, in Settings, Locker. Kept on the phone for now; on the server later so it follows you. Not yet worn by your boat in the race; that is next." },
       { h: "The chest" },
       { p: "Every game ends on a chest that opens: one item, or sometimes it bursts into rainbows and gives three." },
       { h: "The boat, in layers" },

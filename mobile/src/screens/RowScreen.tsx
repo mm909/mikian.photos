@@ -14,6 +14,8 @@ import { FRAME, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Pick
 import { SignIn } from "./Account";
 import { GhostRace, useRace } from "./GhostRace";
 import { Produced, useDirector } from "./Produced";
+import { useArcade } from "../arcade/useArcade";
+import { ArcadeOverlay } from "./ArcadeGame";
 
 /* LOG A ROW. Two ways in: connect a Concept2 PM5 and row, or by hand.
  * Both end at the same form: two photos, the day, LOG.
@@ -407,6 +409,13 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
    * the race is the page he said to land on. */
   const prodPage = raceFirst ? 1 : -1;
   const directed = useDirector(erg, shared);
+  /* THE ARCADE (owner, 2026-11-24: "159", arcade/game159.ts): a game the
+   * director drops into the row takes the produced page, and is laid over
+   * whichever other page is in view, so it is seen without a swipe. Not on
+   * the way out, and not once the row has stopped. OWNER ONLY for now: the
+   * App Store build has no games. */
+  const { me } = useSession();
+  const arcade = useArcade(erg, !!me.isAdmin);
   const upPage = raceFirst && !wide ? 2 : -1;
   const last = LAST + (prodPage > 0 ? 1 : 0) + (upPage > 0 ? 1 : 0);
   /* A PHONE THAT IS TURNED KEEPS ITS PAGE. The pages are as wide as the
@@ -440,7 +449,7 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
     </Pressable>
   );
   const race = leaf(<GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage && page !== prodPage} active={page === (raceFirst ? 0 : 1)} />);
-  const produced = prodPage > 0 ? leaf(<Produced erg={erg} race={shared} directed={directed} width={w} height={h} active={page === prodPage} />) : null;
+  const produced = prodPage > 0 ? leaf(<Produced erg={erg} race={shared} directed={directed} width={w} height={h} active={page === prodPage} arcade={arcade.id ? arcade : null} />) : null;
   const raceUp = upPage > 0 ? leaf(<GhostRace erg={erg} width={w} height={h} race={shared} upright drive={page === upPage} active={page === upPage} />) : null;
   const status = error ? "Disconnected" : live.ended ? "Piece finished" : live.awake ? "Live" : "Connected, waiting";
   const piece = live.targetM > 0 ? `${fmtInt(live.targetM)} m` : live.targetS > 0 ? `${fmtClock(live.targetS, false)} piece` : "Just row";
@@ -490,6 +499,11 @@ function Monitor({ erg, onLog, onRead, onLeave }: { erg: Erg; onLog: () => void;
               { paddingHorizontal: 20, justifyContent: "center" },
             )}
           </ScrollView>
+        ) : null}
+        {w && arcade.id && page !== prodPage && page !== last && !over ? (
+          <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: w, height: h }}>
+            <ArcadeOverlay arcade={arcade} erg={erg} width={w} height={h} />
+          </View>
         ) : null}
       </View>
 

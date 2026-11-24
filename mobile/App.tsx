@@ -19,6 +19,7 @@ import type { TelemetryDoc } from "./src/pm5/session";
 import { RowScreen, type Faked, type Logged } from "./src/screens/RowScreen";
 import { SettingsScreen, type SettingsPage } from "./src/screens/Settings";
 import { WikiScreen } from "./src/screens/Wiki";
+import { LockerScreen } from "./src/screens/Locker";
 import { NewsScreen, PeopleScreen, SearchScreen, type PeopleList } from "./src/screens/Social";
 import { StoriesScreen, StoryScreen, type StoryId } from "./src/screens/Stories";
 import { MetricScreen, type MetricId } from "./src/screens/Field";
@@ -96,6 +97,7 @@ type Over = { k: number } & (
   /* The analytics of a demo row: read off the phone, logged nowhere. */
   | { kind: "demo"; doc: TelemetryDoc; meters: number }
   | { kind: "wiki"; id?: string }
+  | { kind: "locker" }
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
   | { kind: "erg"; id: string }
@@ -472,7 +474,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -491,7 +493,9 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : o.kind === "rankings" ? (
       <RankingsScreen period={o.period} rec={o.rec} onRower={openRower} onRow={openRow} />
     ) : o.kind === "settings" ? (
-      <SettingsScreen page={o.page} onPage={(page) => push({ kind: "settings", page })} onPeople={openPeople} onSignedOut={() => setStack([])} onWiki={() => push({ kind: "wiki" })} />
+      <SettingsScreen page={o.page} onPage={(page) => push({ kind: "settings", page })} onPeople={openPeople} onSignedOut={() => setStack([])} onWiki={() => push({ kind: "wiki" })} onLocker={() => push({ kind: "locker" })} />
+    ) : o.kind === "locker" ? (
+      <LockerScreen />
     ) : o.kind === "wiki" ? (
       <WikiScreen id={o.id} onPage={(id) => push({ kind: "wiki", id })} />
     ) : o.kind === "stories" ? (
