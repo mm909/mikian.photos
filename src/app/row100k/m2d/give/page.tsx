@@ -62,7 +62,7 @@ export default async function GivePage() {
                 <p className="m2-kick">A kilometer, to charity, from the first meter</p>
                 <p className="m2-give-lede">
                   For four weeks, Thanksgiving to Christmas Eve, Rowtember rowers turn their meters into dollars for three local charities.
-                  Concept2 donates for every rower who reaches 100K, and we are grateful. ROWTEMBER matches with {cent(p.rate)} on every kilometer from the first. Add
+                  Concept2 donates for every rower who reaches 100K. ROWTEMBER matches with {cent(p.rate)} on every kilometer from the first. Add
                   your own cents and every kilometer is worth more.
                 </p>
               </section>
