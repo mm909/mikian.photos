@@ -3,7 +3,7 @@ import { ArchivoBlack_400Regular } from "@expo-google-fonts/archivo-black";
 import { SpaceMono_400Regular, SpaceMono_700Bold } from "@expo-google-fonts/space-mono";
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentRef, type ComponentType, type ReactNode } from "react";
 import { Animated, Easing, PanResponder, Platform, Pressable, SafeAreaView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, warm } from "./src/api";
 import { useLiveRaceFeed } from "./src/erg/liveRace";
@@ -193,6 +193,18 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* The board's month, read and set from the title (Board.tsx). */
   const boardMonth = useBoardMonth();
   const [monthsOpen, setMonthsOpen] = useState(false);
+  /* Where the title's foot is on the screen, so the months open under it
+     (owner, 2026-11-24: "This is good, but it's covered a little"). */
+  const titleRef = useRef<ComponentRef<typeof View>>(null);
+  const [monthsTop, setMonthsTop] = useState<number | undefined>(undefined);
+  const openMonths = () => {
+    const t = titleRef.current;
+    if (!t) return setMonthsOpen(true);
+    t.measureInWindow((_x: number, y: number, _w: number, h: number) => {
+      if (Number.isFinite(y) && Number.isFinite(h) && h > 0) setMonthsTop(y + h + 8);
+      setMonthsOpen(true);
+    });
+  };
   /* Every meter anybody has logged, for the mark on the stats tab. */
   const [total, setTotal] = useState<number | null>(null);
   /* What is typed in the search field, which sits in the bar on that tab. */
@@ -596,10 +608,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                 </View>
               ) : mark ? (
                 <Pressable
+                  ref={titleRef}
                   accessibilityRole={monthsMenu ? "button" : undefined}
                   accessibilityLabel={monthsMenu ? "Which month" : flip ? "Swap the look being tried" : undefined}
                   disabled={!flip && !monthsMenu}
-                  onPress={() => (monthsMenu ? setMonthsOpen(true) : setBoardLook((v) => (v === "bars" ? "sheet" : "bars")))}
+                  onPress={() => (monthsMenu ? openMonths() : setBoardLook((v) => (v === "bars" ? "sheet" : "bars")))}
                   onLongPress={flip ? () => setBoardLook((v) => (v === "bars" ? "sheet" : "bars")) : undefined}
                   hitSlop={8}
                   style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
@@ -687,7 +700,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
           ) : null}
         </View>
 
-        <MonthSheet open={monthsOpen} onClose={() => setMonthsOpen(false)} />
+        <MonthSheet open={monthsOpen} top={monthsTop} onClose={() => setMonthsOpen(false)} />
         {monitor ? null : (
           <TabBar
             small={tuck}
