@@ -79,14 +79,17 @@ export function pickBoardMonth(k: string): void {
 /* "2026-11" -> "11/26". */
 export const monthMark = (key: string): string => (/^\d{4}-\d{2}$/.test(key) ? `${key.slice(5, 7)}/${key.slice(2, 4)}` : "");
 
-/* The months, newest first, under the title. */
+/* The months, newest first, under the title. JUST THE DATES (owner,
+ * 2026-11-24: "If the selection box looks good with just 11/26, 10/26,
+ * 09/26, then maybe we just do that"): no month or edition names, a box
+ * only as wide as the dates. A reader still hears the month's name. */
 export function MonthSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { months, shown } = useBoardMonth();
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable accessibilityLabel="Close the months" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.25)" }}>
         <View style={{ position: "absolute", top: 96, left: 0, right: 0, alignItems: "center" }}>
-          <Pressable onPress={() => {}} style={{ width: 240, backgroundColor: C.paper, borderWidth: 2, borderColor: C.ink, borderRadius: 8, paddingVertical: 6 }}>
+          <Pressable onPress={() => {}} style={{ width: 132, backgroundColor: C.paper, borderWidth: 2, borderColor: C.ink, borderRadius: 8, paddingVertical: 6 }}>
             {[...months].reverse().map((m) => (
               <Pressable
                 key={m.key}
@@ -96,10 +99,10 @@ export function MonthSheet({ open, onClose }: { open: boolean; onClose: () => vo
                   pickBoardMonth(m.key);
                   onClose();
                 }}
-                style={({ pressed }) => ({ flexDirection: "row", alignItems: "baseline", gap: 10, paddingHorizontal: 16, paddingVertical: 12, opacity: pressed ? 0.5 : 1 })}
+                accessibilityLabel={m.label}
+                style={({ pressed }) => ({ alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, opacity: pressed ? 0.5 : 1 })}
               >
                 <Text style={{ fontFamily: F.black, fontSize: 18, color: m.key === shown ? C.accent : C.ink, fontVariant: ["tabular-nums"] }}>{monthMark(m.key)}</Text>
-                <Text style={mono(11, m.key === shown, m.key === shown ? C.ink : C.gray)}>{m.name && m.name !== m.label.split(" ")[0] ? `${m.label} · ${m.name}` : m.label}</Text>
               </Pressable>
             ))}
           </Pressable>

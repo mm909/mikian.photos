@@ -1066,3 +1066,11 @@ His words: "instead of the number that counts up being the 5,000 ... I want it t
 - HIS WORDS, of the feed and the profile drawn on their side: "The profile view is trying to be rendered horizontally when it shouldn't be able to be viewed horizontally." The app had turned with the phone everywhere since the first build (`app.json` orientation "default", for the monitor's sideways view).
 - NOW: the app is held upright everywhere, and the phone may turn only while the monitor's live pages are the screen in front (`src/orient.ts`: Monitor says it is drawn, App.tsx says the log screen with a row on it is in front). The form after a row, the feed with a row going under the ROWING strip, every other page: upright. The app starts upright before any code runs (`expo-screen-orientation` plugin, initialOrientation PORTRAIT_UP).
 - A NEW BUILD: `expo-screen-orientation` is native, so `app.json` went to 1.4.0 (owner, the same night: "Build any changes you're waiting on and always deploy over the air to my latest version. We shouldn't update the version the reviewer has"). Updates from here go to preview under 1.4.0; the reviewer's 1.3.0 build and the production channel are left alone.
+
+## Round 58 (2026-11-24, evening): the months as dates, and stories that close after the new ones
+
+He said of round 57's search: "much better".
+
+- THE MONTH MENU IS DATES (his words: "If the selection box looks good with just 11/26, 10/26, 09/26, then maybe we just do that"): `Board.tsx` MonthSheet, the menu under the 100K tab's title, lists 11/26, 10/26, 09/26 and nothing else (the month's name and the edition's name are gone), each centred in a box 132 wide. VoiceOver still reads the month's name. No month totals: the box reads well without them.
+- STORIES CLOSE AFTER THE LAST NEW ONE (his words: "when I finish all the new stories, go ahead and close out the stories for me"): `Recap.tsx` RecapViewer. Past a rower's last page is the next rower with a page not yet seen when the viewer opened; rowers already seen are skipped; with none left, the viewer closes. Tapping a seen circle still opens it and plays it through, then goes on to any new ones, or closes.
+- Typechecked; NOT seen in a browser or on a phone.

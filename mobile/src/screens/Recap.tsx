@@ -203,7 +203,8 @@ function Face({ r, size, light }: { r: RecapRower; size: number; light?: boolean
  * there opens the row. Anywhere else, the right two thirds go on and the
  * left third goes back; a page goes on by itself after five seconds; a
  * finger held down stops it; a drag down closes it. Past a rower's last
- * row is the next rower's first not yet seen. */
+ * row is the next rower's first not yet seen; past the last new one, it
+ * closes. */
 export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRower }: { rowers: RecapRower[]; start: number; seen: Set<string>; onSeen: (id: string) => void; onClose: () => void; onRow: (id: string) => void; onRower: (n: number) => void }) {
   useModalHold();
   const win = useWindowDimensions();
@@ -241,8 +242,14 @@ export function RecapViewer({ rowers, start, seen, onSeen, onClose, onRow, onRow
   };
   const next = () => {
     const { r, p } = posRef.current;
-    if (p < (frames[r]?.length ?? 0) - 1) go({ r, p: p + 1 });
-    else if (r < rowers.length - 1) go({ r: r + 1, p: firstOpen(r + 1) });
+    if (p < (frames[r]?.length ?? 0) - 1) return go({ r, p: p + 1 });
+    /* PAST THE LAST NEW ONE, IT CLOSES (owner, 2026-11-24: "when I finish
+     * all the new stories, go ahead and close out the stories for me"):
+     * past a rower's last page is the next rower with a page not yet seen
+     * when the viewer opened; with none left, the viewer closes. A circle
+     * already seen still opens and plays when it is tapped. */
+    const ahead = frames.findIndex((fs, i) => i > r && fs.some((f) => !seenAtOpen.has(f.row.id)));
+    if (ahead >= 0) go({ r: ahead, p: firstOpen(ahead) });
     else close();
   };
   const prev = () => {
