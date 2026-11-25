@@ -253,7 +253,9 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               <div key={g.name}>
                 <dt>
                   {g.name}
-                  <small>A gift</small>
+                  <small>
+                    {cents(g.cents)}/km pledged, up to ${g.cap.toLocaleString("en-US")}
+                  </small>
                 </dt>
                 <dd>{usd(g.dollars)}</dd>
               </div>

@@ -86,34 +86,34 @@ export default async function GivePage() {
                   <div key={g.name}>
                     <dt>{g.name}</dt>
                     <dd>
-                      {money(g.gift)} <small className="m2-give-est">≈ {cent(g.perKm)}/km</small>
+                      {cent(g.cents)} / km <small className="m2-give-est">up to {money(g.cap)}</small>
                     </dd>
                   </div>
                 ))}
                 <div className="total">
-                  <dt>Every kilometer{p.givers.length ? <small>About, with the gifts</small> : null}</dt>
-                  <dd>{p.givers.length ? "≈ " : ""}{cent(p.perKm)}</dd>
+                  <dt>Every kilometer</dt>
+                  <dd>{cent(p.perKm)}</dd>
                 </div>
               </dl>
 
               <section className="m2-worth" aria-label="The price of a cent">
                 <div className="m2-worth-h">
-                  <h2>The price of a cent</h2>
+                  <h2>Pledge a cent</h2>
                 </div>
                 <p className="m2-give-big">
-                  About <b>{money(p.cent.ask)}</b> adds 1¢ to every kilometer
+                  Pledge 1¢ a kilometer, <b>up to {money(p.centCap)}</b>
                 </p>
                 <p className="m2-give-small">
-                  You give a set amount, and that is all you give. What it adds a kilometer depends on how far everyone rows, so the
-                  cents are our best guess and may move. Your dollars do not.
+                  Your pledge adds to every kilometer rowed from Nov 26 to Dec 24 and never comes to more than {money(p.centCap)} a cent,
+                  about what our biggest month would cost. Our best guess is about {money(p.cent.likely)}.
                 </p>
                 <p className="m2-give-small">
-                  Our best guess at what M2D rowers will row by Dec 24 is about {num(p.projected.likely)} m, so 1¢ a kilometer comes to
-                  about {money(p.cent.likely)}. A slow month would make it {money(p.cent.low)}; our biggest month, {money(p.cent.high)}.
+                  Our best guess at what M2D rowers will row by Dec 24 is about {num(p.projected.likely)} m. A slow month would make a cent{" "}
+                  {money(p.cent.low)}; our biggest month, {money(p.cent.high)}.
                 </p>
               </section>
 
-              <GiveCalc centAt={p.cent.ask} perKm={p.perKm} />
+              <GiveCalc likely={p.cent.likely} cap={p.centCap} perKm={p.perKm} />
 
               <section className="m2-worth" aria-label="How to give">
                 <div className="m2-worth-h">
@@ -125,8 +125,8 @@ export default async function GivePage() {
                     <div>
                       <b>Tell us</b>
                       <p>
-                        Write to <a href={`mailto:${MAIL}?subject=${subject}`}>{MAIL}</a> with how much you want to give and the name to
-                        show. Or give anonymously and it is added to ROWTEMBER&apos;s.
+                        Write to <a href={`mailto:${MAIL}?subject=${subject}`}>{MAIL}</a> with the cents you want to pledge and the name to
+                        show. Or pledge anonymously and it is added to ROWTEMBER&apos;s.
                       </p>
                     </div>
                   </li>
@@ -135,8 +135,8 @@ export default async function GivePage() {
                     <div>
                       <b>Your line on the receipts</b>
                       <p>
-                        Your name and your gift go on the <Link href="/m2d">M2D</Link> receipts as their own line, and every kilometer
-                        rowed is worth more.
+                        Your name goes on the <Link href="/m2d">M2D</Link> receipts as its own line, growing with every kilometer
+                        rowed, up to your cap.
                       </p>
                     </div>
                   </li>
@@ -145,8 +145,8 @@ export default async function GivePage() {
                     <div>
                       <b>Give it straight to the charities</b>
                       <p>
-                        When M2D closes on Dec 24, we send you the split the rowers picked, and you give your amount directly to the
-                        charities. Nothing passes through us, so no fee is taken and the tax receipt comes from them.
+                        When M2D closes on Dec 24, we send you your total and the split the rowers picked, and you give it directly to
+                        the charities. Nothing passes through us, so no fee is taken and the tax receipt comes from them.
                       </p>
                     </div>
                   </li>
@@ -172,8 +172,8 @@ export default async function GivePage() {
               </section>
 
               <p className="m2-give-fine">
-                The price of a cent is an estimate from the meters rowed so far and from past months. A gift is a set amount: if more meters
-                are rowed than expected, it covers them at a slightly lower rate. ROWTEMBER matches up to{" "}
+                The best guess is an estimate from the meters rowed so far and from past months. A pledge never passes its cap: if more
+                meters are rowed than that covers, your cents cover them at a slightly lower rate. ROWTEMBER matches up to{" "}
                 {money(p.cap)}. <Link href="/m2d/faq">How it adds up</Link>.
               </p>
             </>

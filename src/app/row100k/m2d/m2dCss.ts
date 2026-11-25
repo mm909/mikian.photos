@@ -159,6 +159,7 @@ export const m2dCss = `
 .row100k .m2-give-big b{color:var(--water);font-weight:400}
 .row100k .m2-give-small{margin-top:8px;font-size:14px;line-height:1.5;color:var(--gray)}
 .row100k .m2-calc{margin-top:26px;border:2px solid var(--ink);padding:18px}
+.row100k .m2-calc-q{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
 .row100k .m2-calc-by{display:flex;gap:8px}
 .row100k .m2-calc-by button{flex:1;background:none;border:1px solid var(--ink);border-radius:0;padding:10px 8px;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);cursor:pointer}
 .row100k .m2-calc-by button.on{background:var(--ink);color:#fff}
