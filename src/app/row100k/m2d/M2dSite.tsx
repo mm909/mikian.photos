@@ -7,6 +7,11 @@ import { fmtRowerNumber } from "@/lib/row100k";
 import { Blocks } from "../Blackout";
 import type { M2dView } from "../m2d";
 
+/* SPLIT EVENLY (m2d.ts EVEN_SHARES), the default pick. */
+const EVEN = "even";
+const evenShares = { candlelighters: 34, shine: 33, inclusion: 33 };
+const isEvenSplit = (s: Record<string, number | undefined>) => Object.entries(evenShares).every(([k, v]) => (s[k] ?? 0) === v);
+
 /* THE M2D PAGE, drawn (page.tsx). One call: POST /api/row100k/m2d
  * { in, choice? }.
  *
@@ -80,7 +85,9 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
       const res = await fetch("/api/row100k/m2d", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(choice ? { in: on, choice } : { in: on }),
+        body: JSON.stringify(
+          choice === EVEN ? { in: on, shares: evenShares } : choice ? { in: on, choice } : { in: on },
+        ),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
@@ -111,7 +118,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
   /* I'M REGISTERED: a rower sends it; a visitor signs in and comes back
    * here, the pick kept; an account that never joined Rowtember joins. */
   const register = () => {
-    if (view.me) void send(true, pick ?? undefined);
+    if (view.me) void send(true, pick && pick !== EVEN ? pick : undefined);
     else window.location.href = signedIn ? "/join" : signInHref;
   };
   const logHref = view.me ? "/#log" : signedIn ? "/join" : signInHref;
@@ -120,8 +127,10 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
    * app ("Candlelighters 50% · Shine A Light 50%"). */
   const shares = view.me?.shares ?? null;
   const mineText = (() => {
+    if (pick === EVEN) return "Split evenly";
     if (pick) return charities.find((c) => c.key === pick)?.name ?? null;
-    if (!shares) return null;
+    if (!shares) return "Split evenly";
+    if (isEvenSplit(shares)) return "Split evenly";
     return charities
       .filter((c) => (shares[c.key as keyof typeof shares] ?? 0) > 0)
       .map((c) => `${c.name} ${shares[c.key as keyof typeof shares]}%`)
@@ -137,7 +146,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
     ["Get your meters into the Logbook", "ErgData sends each row there. Nov 26 to Dec 24; meters can be entered until Jan 4."],
     [
       "Row 100K",
-      "Concept2 gives once you pass 100K: 2 cents a kilometer, then 4 cents for each one past 100K. 100K earns a certificate, 200K the Holiday Challenge pin (50K for kids and adaptive rowers).",
+      "Concept2 donates for every rower who reaches 100K: 2 cents a kilometer, then 4 cents for each one past 100K. 100K earns a certificate, 200K the Holiday Challenge pin (50K for kids and adaptive rowers).",
     ],
     [
       "Log your rows on ROW too",
@@ -155,10 +164,27 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
     <div className="m2-picks-wrap">
       <h3>Your charity</h3>
       <p className="m2-pick-lede">
-        {by} matches Concept2&apos;s {cents(rate)} on every kilometer you row, from your first meter. Pick where it goes.
+        {by} matches Concept2&apos;s {cents(rate)} on every kilometer you row, from your first meter. It is split evenly across
+        the three unless you pick one.
         {w.over ? "" : " You can change it until Dec 24."}
       </p>
       <div className="m2-picks" role="radiogroup" aria-label="Your charity">
+        {(() => {
+          const on = pick === EVEN || (!pick && (!shares || isEvenSplit(shares)));
+          return (
+            <div className={on ? "m2-pickbox on" : "m2-pickbox"}>
+              <button type="button" role="radio" aria-checked={on} className="m2-pick" onClick={() => choose(EVEN)} disabled={busy || w.over}>
+                <b>
+                  <span className="m2-tick" aria-hidden="true">
+                    {on ? "✓" : ""}
+                  </span>
+                  Split evenly
+                </b>
+                <span>A third to each of the three.</span>
+              </button>
+            </div>
+          );
+        })()}
         {charities.map((c) => {
           const on = pick === c.key;
           return (
@@ -331,8 +357,8 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               Row <i>for charity</i>
             </h2>
             <p className="m2-lede">
-              The Concept2 Holiday Challenge, {day(w.first)} to {day(w.last)}. Concept2 gives once you pass 100K: 2 cents a
-              kilometer to the charity you pick in your Logbook, then 4 cents for every kilometer past 100K. {by} matches Concept2&apos;s {cents(rate)} on every kilometer you row, from your first meter, to the charity you
+              The Concept2 Holiday Challenge, {day(w.first)} to {day(w.last)}. Concept2 donates for every rower who reaches
+              100K: 2 cents a kilometer to the charity they pick in their Logbook, then 4 cents for every kilometer past 100K. {by} matches Concept2&apos;s {cents(rate)} on every kilometer you row, from your first meter, to the charity you
               pick here.
             </p>
             <h3>Opt in to M2D: {steps.length} steps</h3>
@@ -354,13 +380,11 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
             </p>
             {picks}
             <div className="m2-act">
-              <button type="button" className="m2-go" onClick={register} disabled={busy || !pick}>
+              <button type="button" className="m2-go" onClick={register} disabled={busy}>
                 {busy ? "Saving" : "I'm registered"}
               </button>
               <p className="m2-note">
-                {!pick
-                  ? "Pick a charity above first."
-                  : view.me
+                {view.me
                     ? `${mineText} gets ${by}'s part for your meters.`
                     : signedIn
                       ? "Join Rowtember first; your pick waits here."
@@ -440,7 +464,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
           )}
         </div>
         {view.rows.some((r) => !r.in && r.dollars != null) ? (
-          <p className="m2-note">The bar runs to 100K, where Concept2 starts giving. Grey dollars: not registered yet.</p>
+          <p className="m2-note">The bar runs to 100K, where Concept2&apos;s donation begins. Grey dollars: not registered yet.</p>
         ) : null}
       </div>
     </main>

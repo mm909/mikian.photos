@@ -12,11 +12,12 @@ import { CHALLENGE } from "@/lib/row100k";
  *
  * THE COUNT (owner, the same day: "we always want to show, like, even when
  * we're full ... 10 out of 12 ... we're going to need some buffer ... once
- * we hit 11, make it 11 out of 13. Up to 20"): BASE is the testers who
- * wrote in by DM before the page existed (4 on 2026-11-25); the goal shown
- * is 12, or two past the count once that passes 10, up to 20. */
+ * we hit 11, make it 11 out of 13. Up to 20"): the goal shown is 12, or two
+ * past the count once that passes 10, up to 20. The four who wrote in by
+ * DM before the page existed are in the list itself (owner: "make sure
+ * those 4 are added"), so BASE is 0. */
 export const ANDROID_KEY = "android.testers";
-export const ANDROID_BASE = 4;
+export const ANDROID_BASE = 0;
 export const ANDROID_NEED = 12;
 export const ANDROID_TOP = 20;
 

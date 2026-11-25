@@ -53,9 +53,7 @@ export default async function M2dFaqPage() {
                 Concept2 <i>{usd(v.totals.raised)}</i>
               </h2>
               <p>
-                Concept2 gives nothing for a rower until they pass 100,000 meters between Nov 26 and Dec 24. Then it gives 2¢ for each of
-                the first 100 kilometers, which is $2, and 4¢ for every kilometer after: 150K is $4, 200K is $6, 300K is $10. It goes to
-                the charity the rower picks in their Concept2 Logbook.
+                Thank you, Concept2. Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ for each of the first 100 kilometers, which is $2, and 4¢ for every kilometer after that. 150K is $4, 200K is $6, 300K is $10. It goes to the charity the rower picks in their Concept2 Logbook.
               </p>
               <p>
                 Our Concept2 figure adds that up for every registered Rowtember rower past 100K, from the rows they log on ROW:{" "}

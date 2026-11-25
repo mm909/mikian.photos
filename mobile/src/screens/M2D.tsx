@@ -157,7 +157,7 @@ function PerKm({ v }: { v: M2dView }) {
   return (
     <View style={{ marginTop: 34 }}>
       <Text style={{ fontFamily: F.black, fontSize: 17, color: C.ink, textTransform: "uppercase", paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>What a kilometer is worth</Text>
-      {sum("Under 100K", "Before Concept2 starts giving", all)}
+      {sum("Under 100K", "Until Concept2's donation begins at 100K", all)}
       {sum("Past 100K", "Concept2's 4¢ on top", all + 4)}
     </View>
   );
@@ -188,6 +188,11 @@ function useM2d() {
 
 const open = (url: string) => Linking.openURL(url).catch(() => null);
 
+/* SPLIT EVENLY, THE DEFAULT (owner, 2026-11-25; row100k/m2d.ts EVEN_SHARES):
+ * a rower in with no pick is split 34 / 33 / 33. */
+const EVEN = "even";
+const EVEN_SHARES: Record<string, number> = { candlelighters: 34, shine: 33, inclusion: 33 };
+
 /* THE STEPS, for a rower not yet in (owner: "Tell them it's 4 steps, or I
  * don't know ... it could just be click here, go opt in"). Concept2's own
  * steps, in its words where they are short; then the one press that tells
@@ -197,7 +202,7 @@ function Steps({ v, onIn, busy, pick, onPick }: { v: M2dView; onIn: () => void; 
     ["Make a free Concept2 Logbook", "Sign up at log.concept2.com, or sign in if you have one."],
     ["Pick a charity in your Logbook", "Invictus Games Foundation, Natural Resources Defense Council, War Child USA or Wood4Good, or Let Concept2 Choose. Do Not Donate means your meters raise nothing from Concept2."],
     ["Get your meters into the Logbook", "ErgData sends each row there. Nov 26 to Dec 24; meters can be entered until Jan 4."],
-    ["Row 100K", "Concept2 gives once you pass 100K: 2 cents a kilometer, then 4 cents for each one past 100K. 100K earns a certificate, 200K the Holiday Challenge pin (50K for kids and adaptive rowers)."],
+    ["Row 100K", "Concept2 donates for every rower who reaches 100K: 2 cents a kilometer, then 4 cents for each one past 100K. 100K earns a certificate, 200K the Holiday Challenge pin (50K for kids and adaptive rowers)."],
     /* The fifth is ours: ROWTEMBER's part is paid on rows logged in ROW. */
     [
       "Log your rows on ROW too",
@@ -209,7 +214,7 @@ function Steps({ v, onIn, busy, pick, onPick }: { v: M2dView; onIn: () => void; 
   return (
     <View style={{ marginTop: 22, borderWidth: 2, borderColor: C.ink, padding: 16 }}>
       <Text style={{ fontFamily: F.black, fontSize: 19, color: C.ink, textTransform: "uppercase" }}>Opt in to M2D: {steps.length} steps</Text>
-      <Text style={[mono(10, false, C.gray, 0.12), { marginTop: 6, lineHeight: 16 }]}>You row; Concept2 gives and {v.match?.by ?? "ROWTEMBER"} matches.</Text>
+      <Text style={[mono(10, false, C.gray, 0.12), { marginTop: 6, lineHeight: 16 }]}>You row; Concept2 donates and {v.match?.by ?? "ROWTEMBER"} matches.</Text>
       {steps.map(([h, t], i) => {
         const ours = i === steps.length - 1;
         return (
@@ -228,9 +233,9 @@ function Steps({ v, onIn, busy, pick, onPick }: { v: M2dView; onIn: () => void; 
       {matchOn ? <Picks v={v} pick={pick} busy={busy} onPick={onPick} /> : null}
       {v.me ? (
         <View style={{ marginTop: 16 }}>
-          <Go label={busy ? "Saving" : "I'm registered"} disabled={busy || (matchOn && !pick)} onPress={onIn} />
+          <Go label={busy ? "Saving" : "I'm registered"} disabled={busy} onPress={onIn} />
           <Text style={[mono(9.5, false, C.gray, 0.1), { marginTop: 10, lineHeight: 15 }]}>
-            {matchOn && !pick ? "Pick a charity above first." : matchOn && name ? `${name} gets ${v.match?.by}'s part for your meters.` : "Concept2 counts the meters in your Logbook."}
+            {matchOn && name ? `${name} gets ${v.match?.by}'s part for your meters.` : matchOn ? `${v.match?.by}'s part is split evenly across the three.` : "Concept2 counts the meters in your Logbook."}
           </Text>
         </View>
       ) : null}
@@ -277,6 +282,11 @@ function useIn(v: M2dView | null, reload: () => Promise<void>) {
   };
   const onPick = (k: string) => {
     if (v?.window.over) return;
+    if (k === EVEN) {
+      if (v?.me?.in) void say(true, undefined, EVEN_SHARES);
+      else setPicked(EVEN);
+      return;
+    }
     if (v?.me?.in) void say(true, k);
     else setPicked(k);
   };
@@ -315,6 +325,7 @@ function Picks({ v, pick, busy, onPick }: { v: M2dView; pick: string | null; bus
   const by = v.match?.by ?? "ROWTEMBER";
   const [changing, setChanging] = useState(false);
   const mine = (v.charities ?? []).find((c) => c.key === pick);
+  const evenOn = !pick || pick === EVEN;
   if (mine && !changing) {
     return (
       <View style={{ marginTop: 20 }}>
@@ -348,8 +359,19 @@ function Picks({ v, pick, busy, onPick }: { v: M2dView; pick: string | null; bus
     <View style={{ marginTop: 20 }}>
       <Text style={{ fontFamily: F.black, fontSize: 16, color: C.ink, textTransform: "uppercase" }}>Your charity</Text>
       <Text style={{ fontFamily: F.sans, fontSize: 13.5, lineHeight: 19, color: C.gray, marginTop: 4 }}>
-        {by} matches Concept2&apos;s {centsWord(rateOf(v))} on every kilometer you row, from your first meter. Pick where it goes.{v.window.over ? "" : " You can change it until Dec 24."}
+        {by} matches Concept2&apos;s {centsWord(rateOf(v))} on every kilometer you row, from your first meter. It is split evenly across the three unless you pick one.{v.window.over ? "" : " You can change it until Dec 24."}
       </Text>
+      <Pressable
+        accessibilityRole="radio"
+        accessibilityState={{ checked: evenOn, disabled: busy || v.window.over || !v.me }}
+        accessibilityLabel="Split evenly across the three"
+        disabled={busy || v.window.over || !v.me}
+        onPress={() => choose(EVEN)}
+        style={({ pressed }) => ({ marginTop: 10, borderWidth: 1, borderColor: evenOn ? C.accent : C.ink, backgroundColor: evenOn ? C.accent : "transparent", padding: 12, opacity: pressed ? 0.6 : 1 })}
+      >
+        <Text style={{ fontFamily: F.black, fontSize: 15, color: evenOn ? "#FFFFFF" : C.ink, textTransform: "uppercase" }}>{evenOn ? "✓ " : ""}Split evenly</Text>
+        <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: evenOn ? "#FFFFFF" : C.gray, marginTop: 3 }}>A third to each of the three.</Text>
+      </Pressable>
       {(v.charities ?? []).map((c) => {
         const on = pick === c.key;
         return (
@@ -598,7 +620,7 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
       <View style={{ paddingHorizontal: 20 }}>
         {v.me && !v.me.in && !w.over ? (
           joining ? (
-            <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick ?? undefined)} />
+            <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick && inOut.pick !== EVEN ? inOut.pick : undefined)} />
           ) : (
             <Pressable
               accessibilityRole="button"
@@ -708,7 +730,7 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
       {own && v.me?.in && matchOn ? <Split v={v} busy={inOut.busy} onSave={(s) => inOut.say(true, undefined, s)} /> : null}
       {/* Registering and Concept2 at the foot (owner, 2026-11-25). */}
       {own && v.me && !v.me.in && !v.window.over ? (
-        <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick ?? undefined)} />
+        <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick && inOut.pick !== EVEN ? inOut.pick : undefined)} />
       ) : null}
       {own && v.me?.in ? <Status v={v} busy={inOut.busy} onUndo={() => inOut.say(false)} /> : null}
       {!own ? (
@@ -782,7 +804,7 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
       <Text style={{ fontFamily: F.black, fontSize: 30, lineHeight: 34, color: C.ink, textTransform: "uppercase" }}>How it adds up</Text>
 
       {head("concept2", "Concept2", t.raised)}
-      {para("Concept2 gives nothing for a rower until they pass 100,000 meters between Nov 26 and Dec 24. Then 2¢ for each of the first 100 kilometers, which is $2, and 4¢ for every kilometer after: 150K is $4, 200K is $6, 300K is $10. It goes to the charity the rower picks in their Concept2 Logbook.")}
+      {para("Thank you, Concept2. Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ for each of the first 100 kilometers, which is $2, and 4¢ for every kilometer after that. 150K is $4, 200K is $6, 300K is $10. It goes to the charity the rower picks in their Concept2 Logbook.")}
       {para(`Our figure adds that up for every registered Rowtember rower past 100K, from the rows logged on ROW: ${t.past100k} ${t.past100k === 1 ? "rower" : "rowers"} so far, ${usd(t.raised)}. Concept2 counts the meters in each Logbook, so its own number can differ.`)}
 
       {head("rowtember", by, t.matched ?? 0)}

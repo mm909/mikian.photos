@@ -191,8 +191,16 @@ export function encodeShares(s: Shares): string {
   return on.map((c) => `${c.key}:${s[c.key]}`).join(",");
 }
 /* "Project Inclusion", or "Candlelighters 50% · Shine A Light 50%". */
+/* SPLIT EVENLY, THE DEFAULT (owner, 2026-11-25: "we should definitely give
+ * them the default option just to split it ... evenly amongst each of the
+ * charities. We can still let them select"): a rower in with no pick is
+ * read as this. 34 / 33 / 33, so it adds to 100. */
+export const EVEN_SHARES: Shares = Object.fromEntries(
+  CHARITIES.map((c, i) => [c.key, Math.floor(100 / CHARITIES.length) + (i < 100 % CHARITIES.length ? 1 : 0)]),
+) as Shares;
+export const isEven = (s: Shares | null | undefined): boolean => !!s && CHARITIES.every((c) => (s[c.key] ?? 0) === (EVEN_SHARES[c.key] ?? 0));
 export function sharesName(s: Shares | null): string {
-  if (!s) return "no pick yet";
+  if (!s || isEven(s)) return "split evenly";
   const on = CHARITIES.filter((c) => (s[c.key] ?? 0) > 0);
   if (on.length === 1) return on[0].name;
   return on.map((c) => `${c.name} ${s[c.key]}%`).join(" · ");
@@ -259,7 +267,7 @@ export async function m2dOptIns(): Promise<Map<string, Shares | null>> {
     where: { challenge: CHALLENGE, month: M2D_KEY, cancelledAt: null },
     select: { participantId: true, choice: true },
   });
-  return new Map(rows.map((r) => [r.participantId, parseShares(r.choice)]));
+  return new Map(rows.map((r) => [r.participantId, parseShares(r.choice) ?? EVEN_SHARES]));
 }
 
 /* Each rower's meters in the window. */

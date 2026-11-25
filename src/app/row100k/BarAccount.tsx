@@ -240,6 +240,10 @@ export function BarAccount({
                 <Link className="acct-item" href="/dev/raceday-results" onClick={close}>
                   Race results (sample) →
                 </Link>
+                {/* Who has signed up to test the Android app (2026-11-25). */}
+                <Link className="acct-item" href="/android/list" onClick={close}>
+                  Android testers →
+                </Link>
                 {/* What M2D will cost, and ROWTEMBER's rate (2026-11-25). */}
                 <Link className="acct-item" href="/dev/m2d-plan" onClick={close}>
                   M2D cost planner →

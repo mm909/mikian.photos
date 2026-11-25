@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "M2D: row 100K for charity — Rowtember",
   description:
-    "The Concept2 Holiday Challenge, Nov 26 to Dec 24: row 100K and Concept2 gives to charity. What Rowtember rowers have raised, and how to join.",
+    "The Concept2 Holiday Challenge, Nov 26 to Dec 24: row 100K and Concept2 donates to charity. What Rowtember rowers have raised, and how to join.",
 };
 
 /* M2D ON THE SITE (owner, 2026-11-25: "I need this sign up page. I need it

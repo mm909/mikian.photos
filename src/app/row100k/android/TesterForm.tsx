@@ -41,12 +41,12 @@ export function TesterForm({ have: have0, goal: goal0 }: { have: number; goal: n
         <input type="email" required autoComplete="email" inputMode="email" placeholder="you@gmail.com" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Your Google email" style={{ fontSize: 22 }} />
       </label>
       <p className="m2-calc-q" style={{ marginTop: 16 }}>
-        Your name <span style={{ fontWeight: 400, color: "var(--gray)" }}>(optional)</span>
+        Your name
       </p>
       <label className="m2-calc-in">
-        <input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Your name" style={{ fontSize: 22 }} maxLength={60} />
+        <input required autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Your name" style={{ fontSize: 22 }} maxLength={60} />
       </label>
-      <button type="submit" className="m2-go" disabled={busy || !email.trim()} style={{ marginTop: 20, maxWidth: "none" }}>
+      <button type="submit" className="m2-go" disabled={busy || !email.trim() || !name.trim()} style={{ marginTop: 20, maxWidth: "none" }}>
         {busy ? "Sending" : `Make it ${have0 + 1}`}
       </button>
       {err ? (
@@ -54,7 +54,6 @@ export function TesterForm({ have: have0, goal: goal0 }: { have: number; goal: n
           {err}
         </p>
       ) : null}
-      <p className="m2-give-small">We only use it to add you to the test. It is never shown.</p>
     </form>
   );
 }

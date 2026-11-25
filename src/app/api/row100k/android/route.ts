@@ -22,6 +22,7 @@ export async function POST(req: Request) {
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, 60) : "";
   if (!EMAIL.test(email) || email.length > 120) return no("That does not look like an email address.", 400);
+  if (!name) return no("Your name, please.", 400);
   try {
     const list = await androidTesters();
     const again = list.some((t) => t.email === email);
