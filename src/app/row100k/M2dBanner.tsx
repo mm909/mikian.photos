@@ -48,11 +48,11 @@ export function M2dBanner({ raised, started, cookie }: { raised: string | null; 
         <span className="m2b-k">M2D</span>
         <span className="m2b-t">
           {started
-            ? `Row 100K for charity with the Concept2 Holiday Challenge, to Dec 24.${raised ? ` ${raised} raised so far.` : ""}`
-            : "Row 100K for charity with the Concept2 Holiday Challenge. It starts Nov 26."}
+            ? `Your meters turn into dollars for charity, to Dec 24.${raised ? ` ${raised} raised so far.` : ""}`
+            : "Starting Nov 26, your meters turn into dollars for charity."}
         </span>
         <a className="m2b-cta" href="/m2d">
-          Join in →
+          Opt in →
         </a>
         <button type="button" className="m2b-x" aria-label="Dismiss the M2D strip" onClick={dismiss}>
           ×

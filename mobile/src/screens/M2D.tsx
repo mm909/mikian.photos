@@ -209,7 +209,7 @@ function Steps({ v, onIn, busy, pick, onPick }: { v: M2dView; onIn: () => void; 
   const name = v.charities?.find((c) => c.key === pick)?.name;
   return (
     <View style={{ marginTop: 22, borderWidth: 2, borderColor: C.ink, padding: 16 }}>
-      <Text style={{ fontFamily: F.black, fontSize: 19, color: C.ink, textTransform: "uppercase" }}>Join in {steps.length} steps</Text>
+      <Text style={{ fontFamily: F.black, fontSize: 19, color: C.ink, textTransform: "uppercase" }}>Opt in to M2D: {steps.length} steps</Text>
       <Text style={[mono(10, false, C.gray, 0.12), { marginTop: 6, lineHeight: 16 }]}>You row; Concept2 gives and {v.match?.by ?? "ROWTEMBER"} matches.</Text>
       {steps.map(([h, t], i) => {
         const ours = i === steps.length - 1;
@@ -606,7 +606,7 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
               onPress={() => setJoining(true)}
               style={({ pressed }) => ({ alignSelf: "flex-start", marginTop: 18, backgroundColor: C.accent, paddingHorizontal: 16, paddingVertical: 10, opacity: pressed ? 0.7 : 1 })}
             >
-              <Text style={{ fontFamily: F.black, fontSize: 14, color: "#FFFFFF", textTransform: "uppercase", letterSpacing: 0.4 }}>Join M2D</Text>
+              <Text style={{ fontFamily: F.black, fontSize: 14, color: "#FFFFFF", textTransform: "uppercase", letterSpacing: 0.4 }}>Opt in to M2D</Text>
             </Pressable>
           )
         ) : null}
@@ -800,7 +800,7 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
 
       <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, textTransform: "uppercase", marginTop: 30 }}>Questions</Text>
       {q("When is it?", "Thursday, Nov 26 to Thursday, Dec 24. Concept2 takes meters into the Logbook until Jan 4.")}
-      {q("How do I register?", `Make a free Concept2 Logbook, pick a charity there, and get your meters into it (ErgData does that). Then press Join M2D on the M2D tab, pick where ${by}'s part goes, and press I'm registered.`)}
+      {q("How do I register?", `Make a free Concept2 Logbook, pick a charity there, and get your meters into it (ErgData does that). Then press Opt in to M2D on the M2D tab, pick where ${by}'s part goes, and press I'm registered.`)}
       {q("How do I change my charity?", "On your profile, under M2D, until Dec 24. You can split it across the three there too.")}
       {q("What counts?", `For ${by}: rows logged on ROW from Nov 26 to Dec 24 by registered rowers. For Concept2: the meters in your Concept2 Logbook.`)}
       {q("Does it cost me anything?", "No. It is free.")}

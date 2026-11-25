@@ -320,7 +320,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
         ) : !joining && !w.over ? (
           <p className="m2-join">
             <button type="button" className="m2-go small" onClick={() => setJoining(true)}>
-              Join M2D
+              Opt in to M2D
             </button>
           </p>
         ) : !w.over ? (
@@ -334,7 +334,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               {usd(view.c2Goal)} goal. {by} matches Concept2&apos;s {cents(rate)} on every kilometer you row, from your first meter, to the charity you
               pick here.
             </p>
-            <h3>Join in {steps.length} steps</h3>
+            <h3>Opt in to M2D: {steps.length} steps</h3>
             <ol className="m2-steps">
               {steps.map(([h, b], i) => (
                 <li key={h} className={i === steps.length - 1 ? "ours" : undefined}>
