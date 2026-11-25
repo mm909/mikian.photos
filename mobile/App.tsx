@@ -396,17 +396,29 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     },
     [pos],
   );
-  /* A tap on the owner's M2D line (lib/rowNotify notifyOwner) opens the
-   * M2D tab (owner, 2026-11-25). */
-  useEffect(
-    () =>
-      onPushTap((d) => {
-        if (d.kind !== "m2d") return;
-        setM2dOn(true);
-        goTab("board");
-      }),
-    [goTab],
-  );
+  /* A TAP ON A NOTIFICATION opens what it is about (owner, 2026-11-25: "a
+   * push notification that says this person rowed this many meters at this
+   * pace ... should take me to the summary of their row. Right now ... it
+   * just opened up the app on whatever page I had left it on"). The data
+   * is lib/rowNotify's: a row line ({ row }) opens that row, its comments
+   * for a comment, reply or mention; PASSED opens the board; a follow,
+   * request or accept opens the notifications; the owner's M2D line opens
+   * the M2D tab. */
+  const pushTap = useRef<(d: Record<string, unknown>) => void>(() => undefined);
+  pushTap.current = (d) => {
+    const kind = typeof d.kind === "string" ? d.kind : "";
+    if (kind === "m2d") {
+      setM2dOn(true);
+      goTab("board");
+    } else if (typeof d.row === "string" && d.row) {
+      push({ kind: "row", id: d.row, talk: kind === "commented" || kind === "replied" || kind === "mentioned" || kind === "likedComment" });
+    } else if (kind === "passed") {
+      goTab("board");
+    } else if (kind === "follow" || kind === "request" || kind === "accepted") {
+      push({ kind: "news" });
+    }
+  };
+  useEffect(() => onPushTap((d) => pushTap.current(d)), []);
   /* THE LITTLE BUZZ as the tab changes, by a press or by a drag (buzz.ts). */
   const buzzed = useRef(tab);
   useEffect(() => {

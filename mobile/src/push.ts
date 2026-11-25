@@ -8,6 +8,7 @@
  * Only a real phone with the build that carries expo-notifications: a
  * browser and a simulator have no token to give. Any failure is silent:
  * the lines are still in the app's own notification centre. */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
@@ -25,12 +26,22 @@ if (Platform.OS !== "web") {
 /* A TAP ON A NOTIFICATION: `cb` gets its data, for a tap while the app
  * runs and for the one that opened it. The owner's M2D line carries
  * { kind: "m2d" } and opens the M2D tab (App.tsx). */
+const TAPPED = "row.push.tapped";
 export function onPushTap(cb: (data: Record<string, unknown>) => void): () => void {
   if (Platform.OS === "web") return () => undefined;
-  const sub = Notifications.addNotificationResponseReceivedListener((r) => cb((r.notification.request.content.data ?? {}) as Record<string, unknown>));
+  /* Each tap is acted on once: the last response is kept by the system
+   * and would otherwise open the same row on every launch after. */
+  const once = async (r: Notifications.NotificationResponse) => {
+    const id = `${r.notification.request.identifier}:${r.actionIdentifier}`;
+    const was = await AsyncStorage.getItem(TAPPED).catch(() => null);
+    if (was === id) return;
+    await AsyncStorage.setItem(TAPPED, id).catch(() => null);
+    cb((r.notification.request.content.data ?? {}) as Record<string, unknown>);
+  };
+  const sub = Notifications.addNotificationResponseReceivedListener((r) => void once(r));
   Notifications.getLastNotificationResponseAsync()
     .then((r) => {
-      if (r) cb((r.notification.request.content.data ?? {}) as Record<string, unknown>);
+      if (r) void once(r);
     })
     .catch(() => null);
   return () => sub.remove();
