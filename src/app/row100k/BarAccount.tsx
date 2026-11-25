@@ -240,6 +240,10 @@ export function BarAccount({
                 <Link className="acct-item" href="/dev/raceday-results" onClick={close}>
                   Race results (sample) →
                 </Link>
+                {/* What M2D will cost, and ROWTEMBER's rate (2026-11-25). */}
+                <Link className="acct-item" href="/dev/m2d-plan" onClick={close}>
+                  M2D cost planner →
+                </Link>
                 {/* The numbers live here rather than on the bar for now
                  * (owner call, 2026-09-05): not ready to be a public tab. */}
                 <Link className="acct-item" href="/analysis" onClick={close}>

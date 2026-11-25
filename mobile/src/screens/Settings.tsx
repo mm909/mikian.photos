@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { M2dPlanner } from "./M2D";
 import * as Updates from "expo-updates";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
@@ -45,7 +46,7 @@ import { Act, Sheet, Small, Toggle, type PeopleList } from "./Social";
 /* DEVELOPER is one page (owner, 2026-11-24: every developer option "into
  * one submenu", like the others): the arcade's resets, the Developer
  * account's reset, and the way to PASSWORD. */
-export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer" | "password";
+export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer" | "password" | "planner";
 
 const KIND: Record<string, [string, string]> = {
   passed: ["A rower I follow passes me", "At most one a day, however many passed."],
@@ -126,9 +127,13 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
   }
 
   if (page === "password") return wrap(<DeveloperPassword />);
+  /* What M2D costs, and ROWTEMBER's rate (owner, 2026-11-25): an admin
+   * only, in the developer settings (screens/M2D.tsx M2dPlanner). */
+  if (page === "planner") return wrap(me.isAdmin ? <M2dPlanner /> : null);
   if (page === "developer") {
     return wrap(
       <>
+        {me.isAdmin ? <Go label="M2D cost planner" sub="What M2D costs, and ROWTEMBER's rate. Only you see this." onPress={() => onPage("planner")} /> : null}
         {me.isAdmin ? <ArcadeDev /> : null}
         {me.isDev || me.isAdmin ? <DeveloperRows isDev={!!me.isDev} onPassword={() => onPage("password")} onReset={() => refresh()} /> : null}
       </>,

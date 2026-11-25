@@ -9,7 +9,7 @@ import { C, F, MONTHS, fmtClock, fmtInt } from "../theme";
 import { Blocks, Waiting, scrub, useLoad, useScrollDir } from "../ui";
 import { Flip } from "./Field";
 import { Box } from "./reviewBits";
-import { M2dStats } from "./M2D";
+import { M2dStatsView } from "./M2D";
 
 /* THE STATS, the site's /stats on a phone (stats/StatsShell.tsx, Stats.tsx),
  * in the order and the manner the site settled on:
@@ -99,6 +99,7 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
   /* ALL TIME first (owner, 2026-11-22: "on the stats, let's default it to
    * all time"). */
   const [period, setPeriod] = useState("all");
+  const [m2d, setM2d] = useState(false);
   /* THE STAT LEFT ON IS THE STAT COME BACK TO (owner, 2026-11-23: "make
    * the stat page remember the category that I left off at. Right now it
    * resets to total meters"): kept for the app's life and on the phone. */
@@ -133,13 +134,24 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
   const month = s.period.kind === "month";
   const key: StatKey = !month && (stat === "day" || stat === "week") ? "total" : stat;
   const rec = RECORDS.find((r) => r.key === key);
+  /* M2D IS A TIME FRAME (owner, 2026-11-25): first in the picker, its one
+   * metric DOLLARS RAISED, drawn by M2dStatsView (screens/M2D.tsx). The
+   * period under it stays as it was, so the way back is instant. */
   const pickPeriod = (k: string) => {
+    if (k === "m2d") {
+      setM2d(true);
+      return;
+    }
+    setM2d(false);
     setPeriod(k);
     setSlot(null);
   };
+  const frames = [{ key: "m2d", label: "M2D" }, ...s.periods];
 
-  const monthWord = (color: string, size = 12, bold = true, chip = false) => <WordMenu options={s.periods} value={s.period.key} onPick={pickPeriod} ariaLabel="Which time frame" textStyle={mono(size, bold, color)} chip={chip} />;
-  const statWord = (
+  const monthWord = (color: string, size = 12, bold = true, chip = false) => <WordMenu options={frames} value={m2d ? "m2d" : s.period.key} onPick={pickPeriod} ariaLabel="Which time frame" textStyle={mono(size, bold, color)} chip={chip} />;
+  const statWord = m2d ? (
+    <WordMenu options={[{ key: "dollars", label: "Dollars raised" }]} value="dollars" onPick={() => null} ariaLabel="Which stat" chip />
+  ) : (
     <WordMenu
       options={[...RECORDS, ...(month ? PERIODS : [])]}
       value={key}
@@ -174,10 +186,6 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
 
   return (
     <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
-      {/* THE M2D GOAL first (owner, 2026-11-25: "we could have a section of
-          stats that's a goal ... can we raise $100?"); the dollars are the
-          mark in the bar over this tab (App.tsx). */}
-      <M2dStats />
       {/* No stamp of the month and its meters here any more (owner,
           2026-11-21): every meter anybody has rowed is what the mark in the
           top bar rolls over into on this tab (App.tsx). */}
@@ -190,9 +198,10 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
         {statWord}
       </View>
 
-      {rec ? <Records key={rec.key} s={s} rec={rec} onRower={onRower} onRow={onRow} onAll={onRankings ? () => onRankings(period, rec.key) : undefined} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
+      {m2d ? <M2dStatsView onRower={onRower} /> : null}
+      {m2d ? null : rec ? <Records key={rec.key} s={s} rec={rec} onRower={onRower} onRow={onRow} onAll={onRankings ? () => onRankings(period, rec.key) : undefined} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
 
-      {month ? (
+      {month && !m2d ? (
         <>
           <Eye left="The month" right={s.month.label} />
           <MonthGrid month={s.month} byDay={s.communityByDay} today={s.liveMonth ? s.todayDay + 1 : undefined} marks={(s.thresholds?.length === 3 ? s.thresholds : marksOf(s.communityByDay)) as [number, number, number]} />
@@ -206,7 +215,7 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
         </>
       ) : null}
 
-      {s.field ? (
+      {s.field && !m2d ? (
         <>
           <Eye left="The field" />
           {/* The two medians, and no line of mean, deviation and
@@ -240,7 +249,7 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
         </>
       ) : null}
 
-      {month && s.attendance && s.attendance.rows.length ? (
+      {month && !m2d && s.attendance && s.attendance.rows.length ? (
         <>
           <Eye left="Perfect attendance" right={s.attendance.note} />
           {s.attendance.rows.map((r) => (

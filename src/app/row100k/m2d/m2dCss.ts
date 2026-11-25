@@ -83,6 +83,29 @@ export const m2dCss = `
 
 .row100k .m2-big.m2-soon{font-size:clamp(44px,11vw,112px);text-transform:uppercase}
 
+/* THE FINAL ORDER (2026-11-25): the total, then RAISED under it with the
+ * small note; the receipts names are links to the math; one quiet line for
+ * a rower in; one small JOIN M2D for a rower not in. */
+.row100k .m2-head .m2-big + .m2-kick{margin-top:6px}
+.row100k .m2-kick-q{font-weight:400;color:var(--gray)}
+.row100k .m2-from dt a{color:inherit;text-decoration:none;border-bottom:1px dotted var(--gray)}
+.row100k .m2-from dt a:hover{color:var(--water);border-bottom-color:var(--water)}
+.row100k .m2-quietline{margin-top:22px;max-width:640px}
+.row100k .m2-quietline p{font-family:var(--row-mono),monospace;font-size:11px;line-height:1.7;letter-spacing:.12em;text-transform:uppercase;color:var(--gray)}
+.row100k .m2-quietline b{color:var(--water)}
+.row100k .m2-join{margin-top:22px}
+.row100k .m2-go.small{display:inline-block;width:auto;padding:10px 18px;font-size:15px}
+.row100k .m2-faq{padding:16px 0 40px}
+.row100k .m2-faq h2{margin-top:34px;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(24px,6vw,36px);font-weight:400;line-height:1.05;text-transform:uppercase;color:var(--ink);scroll-margin-top:70px}
+.row100k .m2-faq h2 i{font-style:normal;color:var(--water)}
+.row100k .m2-faq p,.row100k .m2-faq li{margin-top:10px;max-width:640px;font-size:16px;line-height:1.55;color:var(--ink-soft)}
+.row100k .m2-faq ul{margin:6px 0 0 18px;padding:0}
+.row100k .m2-faq .sum{margin-top:14px;max-width:560px;border-top:2px solid var(--ink)}
+.row100k .m2-faq .sum div{display:flex;justify-content:space-between;gap:16px;padding:9px 0 8px;border-bottom:1px solid var(--line);font-size:15px}
+.row100k .m2-faq .sum dd{font-family:var(--row-mono),monospace;font-weight:700;color:var(--water)}
+.row100k .m2-faq h3{margin-top:22px;font-size:17px;font-weight:700;color:var(--ink)}
+.row100k .m2-in{width:7em;margin-left:6px;padding:6px 8px;border:1px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink);font-family:var(--row-mono),monospace;font-size:15px}
+
 .row100k .m2-call{margin-top:34px;border:2px solid var(--ink);padding:22px 18px}
 .row100k .m2-call h2{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,8vw,56px);font-weight:400;line-height:1;letter-spacing:-.01em;text-transform:uppercase;color:var(--ink)}
 .row100k .m2-call h2 i{font-style:normal;color:var(--water)}
