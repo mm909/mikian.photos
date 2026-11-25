@@ -12,7 +12,7 @@ import { BackIcon, BellIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon
 import { BadgeSlot, Mark, type MarkKind } from "./src/mark";
 import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen, MonthSheet, loadBoardMonths, monthMark, useBoardMonth } from "./src/screens/Board";
-import { M2D_PATH, M2dScreen, usd, type M2dView } from "./src/screens/M2D";
+import { M2D_PATH, M2dScreen, totalOf, usd, type M2dView } from "./src/screens/M2D";
 import { FeedScreen } from "./src/screens/Feed";
 import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
 import { DemoPage, ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
@@ -242,7 +242,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     warm(["/api/row100k/app/board", "/api/row100k/app/feed", "/api/row100k/stats?m=all", "/api/row100k/app/people?q="]);
     if (mine != null) warm(["/api/row100k/app/profile?", "/api/row100k/app/settings", "/api/row100k/app/notifications"]);
     api<{ meters: number }>("/api/row100k/app/total").then((r) => setTotal(r.meters), () => null);
-    api<M2dView>(M2D_PATH).then((r) => setRaised(r.totals.raised), () => null);
+    api<M2dView>(M2D_PATH).then((r) => setRaised(totalOf(r)), () => null);
     loadBoardMonths();
   }, [mine, stamp]);
 

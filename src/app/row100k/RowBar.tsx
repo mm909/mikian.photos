@@ -124,7 +124,7 @@ export async function RowBar({
       let raised: string | null = null;
       if (w.started) {
         try {
-          const r = (await m2dTotals()).totals.raised;
+          const r = (await m2dTotals()).totals.total;
           if (r > 0) raised = r >= 1000 ? `$${Math.round(r).toLocaleString("en-US")}` : `$${r.toFixed(2)}`;
         } catch {
           raised = null;

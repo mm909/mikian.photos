@@ -41,14 +41,38 @@ export type M2dView = {
   link: string;
   signup: string;
   goal: number;
-  /* The owner's match (row100k/m2d.ts M2D_MATCH): absent on an older site. */
-  match?: { on: boolean; cap: number; terms: string; raised: number; matched: number; toCharity: number; capped: boolean };
-  totals: { meters: number; raised: number; locked: number; unclaimed: number; rowers: number; registered: number; past100k: number };
+  /* ROWTEMBER's match (row100k/m2d.ts M2D_MATCH; owner, 2026-11-25: no cap
+   * shown, matched by "ROWTEMBER"), and the three Las Vegas charities a
+   * rower picks it for. Absent on an older site. */
+  match?: { on: boolean; by: string };
+  charities?: Charity[];
+  c2Goal?: number;
+  /* raised: Concept2's dollars; matched: ROWTEMBER's; total: both, THE
+   * figure; split: the match by charity picked. */
+  totals: {
+    meters: number;
+    raised: number;
+    matched?: number;
+    total?: number;
+    split?: Record<string, number>;
+    unpicked?: number;
+    locked: number;
+    unclaimed: number;
+    rowers: number;
+    registered: number;
+    past100k: number;
+  };
   rows: M2dRow[];
-  me: { rowerNumber: number; in: boolean; meters: number; dollars: number; locked: number } | null;
+  me: { rowerNumber: number; in: boolean; choice?: string | null; meters: number; dollars: number; locked: number } | null;
 };
 
+export type Charity = { key: string; name: string; full: string; what: string; url: string | null };
+
 export const M2D_PATH = "/api/row100k/app/m2d";
+
+/* THE FIGURE: everything raised for charity, Concept2 and ROWTEMBER's
+ * match together (the stats title in App.tsx too). */
+export const totalOf = (v: M2dView): number => v.totals.total ?? v.totals.raised;
 
 /* "$16.38"; "$1,234" once there are a thousand of them. */
 export const usd = (d: number): string => (d >= 1000 ? `$${fmtInt(d)}` : `$${d.toFixed(2)}`);
@@ -70,13 +94,14 @@ const open = (url: string) => Linking.openURL(url).catch(() => null);
  * don't know ... it could just be click here, go opt in"). Concept2's own
  * steps, in its words where they are short; then the one press that tells
  * this app. */
-function Steps({ v, onIn, busy }: { v: M2dView; onIn: () => void; busy: boolean }) {
+function Steps({ v, onIn, busy, pick, onPick }: { v: M2dView; onIn: () => void; busy: boolean; pick: string | null; onPick: (k: string) => void }) {
   const steps: [string, string][] = [
     ["Make a free Concept2 Logbook", "Sign up at log.concept2.com, or sign in if you have one."],
-    ["Pick a charity", "On your Logbook's front page: Invictus Games Foundation, NRDC, War Child USA or Wood4Good (or let Concept2 choose)."],
+    ["Pick a charity in your Logbook", "Invictus Games Foundation, Natural Resources Defense Council, War Child USA or Wood4Good, or Let Concept2 Choose. Do Not Donate means your meters raise nothing."],
     ["Get your meters into the Logbook", "ErgData sends each row there. Nov 26 to Dec 24; meters can be entered until Jan 4."],
-    ["Row 100K", "Concept2 gives 2 cents a kilometre, then 4 cents for each one past 100K. 200K earns the pin (add your mailing address)."],
+    ["Row 100K", "Concept2 gives 2 cents a kilometre, then 4 cents for each one past 100K. 100K earns a certificate, 200K the Holiday Challenge pin (50K for kids and adaptive rowers)."],
   ];
+  const matchOn = !!v.match?.on && !!v.charities?.length;
   return (
     <View style={{ marginTop: 22, borderWidth: 2, borderColor: C.ink, padding: 16 }}>
       <Text style={{ fontFamily: F.black, fontSize: 19, color: C.ink, textTransform: "uppercase" }}>Join in 4 steps</Text>
@@ -90,72 +115,127 @@ function Steps({ v, onIn, busy }: { v: M2dView; onIn: () => void; busy: boolean 
           </View>
         </View>
       ))}
+      {matchOn ? <Picks v={v} pick={pick} busy={busy} onPick={onPick} /> : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 22, rowGap: 14, marginTop: 20 }}>
         <Ctl label="Open Concept2 ↗" onPress={() => open(v.link)} />
-        {v.me ? <Ctl label={busy ? "Saving" : "I'm registered"} disabled={busy} onPress={onIn} /> : null}
+        {v.me ? <Ctl label={busy ? "Saving" : "I'm registered"} disabled={busy || (matchOn && !pick)} onPress={onIn} /> : null}
       </View>
-      <Text style={[mono(9.5, false, C.gray, 0.1), { marginTop: 16, lineHeight: 15 }]}>Rows logged in ROW count here. Concept2 counts the meters in your Logbook.</Text>
+      <Text style={[mono(9.5, false, C.gray, 0.1), { marginTop: 16, lineHeight: 15 }]}>
+        {matchOn && v.me && !pick ? "Pick a charity above, then tell us you're registered. " : ""}Rows logged in ROW count here. Concept2 counts the meters in your Logbook.
+      </Text>
     </View>
   );
 }
 
-/* Saying in or out: the site's answer is the new view. */
-function useIn(reload: () => Promise<void>) {
+/* Saying in or out, and the charity ROWTEMBER's match goes to: the site's
+ * answer is the new view. Before the rower is in, a tap on a charity is
+ * the pick I'M REGISTERED will send; once in, it saves at once (until
+ * Dec 24). */
+function useIn(v: M2dView | null, reload: () => Promise<void>) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
-  const say = async (on: boolean) => {
+  const [picked, setPicked] = useState<string | null>(null);
+  const pick = picked ?? v?.me?.choice ?? null;
+  const say = async (on: boolean, choice?: string) => {
     setBusy(true);
     setNote("");
     try {
-      await api(M2D_PATH, { body: { in: on } });
+      await api(M2D_PATH, { body: choice ? { in: on, choice } : { in: on } });
       await reload();
+      setPicked(null);
     } catch (err) {
       setNote(err instanceof Error ? err.message : "That did not save.");
     }
     setBusy(false);
   };
-  return { busy, note, say };
+  const onPick = (k: string) => {
+    if (v?.window.over) return;
+    if (v?.me?.in) void say(true, k);
+    else setPicked(k);
+  };
+  return { busy, note, say, pick, onPick };
 }
 
-/* The dollars, big: what the M2D tab opens on. */
+/* WHERE ROWTEMBER'S MATCH GOES (owner, 2026-11-25: "I want users to be
+ * able to pick where their donations go to ... Project Inclusion, Shine a
+ * Light, and Candlelighters"): the three, one picked. */
+function Picks({ v, pick, busy, onPick }: { v: M2dView; pick: string | null; busy: boolean; onPick: (k: string) => void }) {
+  const by = v.match?.by ?? "ROWTEMBER";
+  return (
+    <View style={{ marginTop: 20 }}>
+      <Text style={{ fontFamily: F.black, fontSize: 16, color: C.ink, textTransform: "uppercase" }}>Where {by}'s match goes</Text>
+      <Text style={{ fontFamily: F.sans, fontSize: 13.5, lineHeight: 19, color: C.gray, marginTop: 4 }}>
+        Pick one of three Las Vegas charities. {by} gives what Concept2 gives for your meters, and it goes here.{v.window.over ? "" : " You can change it until Dec 24."}
+      </Text>
+      {(v.charities ?? []).map((c) => {
+        const on = pick === c.key;
+        return (
+          <Pressable
+            key={c.key}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on, disabled: busy || v.window.over || !v.me }}
+            accessibilityLabel={`${c.name}. ${c.what}`}
+            disabled={busy || v.window.over || !v.me}
+            onPress={() => onPick(c.key)}
+            style={({ pressed }) => ({ marginTop: 10, borderWidth: on ? 2 : 1, borderColor: on ? C.accent : C.ink, padding: on ? 11 : 12, opacity: pressed ? 0.6 : 1 })}
+          >
+            <Text style={{ fontFamily: F.black, fontSize: 15, color: on ? C.accent : C.ink, textTransform: "uppercase" }}>
+              {on ? "✓ " : ""}
+              {c.name}
+            </Text>
+            <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 3 }}>{c.what}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/* THE FIGURE, big: everything raised for charity (owner, 2026-11-25:
+ * "let's just show a total amount raised and show where the donated money
+ * is coming from"); under it, where it comes from. No cap anywhere. */
 function Raised({ v }: { v: M2dView }) {
   const t = v.totals;
+  const total = totalOf(v);
+  const line = (k: string, d: number) => (
+    <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingVertical: 8, borderBottomWidth: 1, borderColor: C.line }}>
+      <Text style={{ fontFamily: F.bold, fontSize: 14, color: C.ink }}>{k}</Text>
+      <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.accent, fontVariant: ["tabular-nums"] }}>{usd(d)}</Text>
+    </View>
+  );
   return (
     <View style={{ marginTop: 22 }}>
-      <Text accessibilityLabel={`${usd(t.raised)} raised`} style={{ fontFamily: F.black, fontSize: 64, lineHeight: 70, color: C.accent, fontVariant: ["tabular-nums"] }}>
-        {usd(t.raised)}
+      <Text accessibilityLabel={`${usd(total)} raised for charity`} style={{ fontFamily: F.black, fontSize: 64, lineHeight: 70, color: C.accent, fontVariant: ["tabular-nums"] }}>
+        {usd(total)}
       </Text>
       <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 4 }]}>Raised for charity · {fmtInt(t.meters)} m rowed</Text>
-      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 8, lineHeight: 16 }]}>
-        {usd(t.locked)} locked in by {t.past100k} {t.past100k === 1 ? "rower" : "rowers"} past 100K · {t.registered} registered
-        {t.unclaimed > 0 ? ` · ${usd(t.unclaimed)} more if everyone registers` : ""}
-      </Text>
-      {v.match?.on && typeof v.match.toCharity === "number" ? (
-        <>
-          <Text style={[mono(11, true, C.ink, 0.1), { marginTop: 14, lineHeight: 18 }]}>
-            {usd(v.match.raised)} raised · {usd(v.match.matched)} matched ·{" "}
-            <Text style={{ color: C.accent }}>{usd(v.match.toCharity)} to charity</Text>
-          </Text>
-          <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.gray, marginTop: 6 }}>
-            <Text style={{ fontFamily: F.bold, color: C.ink }}>Rowtember matches it, up to ${fmtInt(v.match.cap)}.</Text>{" "}
-            {v.match.capped ? `The match has reached its $${fmtInt(v.match.cap)} cap. ` : ""}
-            {v.match.terms}
-          </Text>
-        </>
+      <View style={{ marginTop: 14, borderTopWidth: 2, borderColor: C.ink }}>
+        {line("From Concept2, for your meters", t.raised)}
+        {v.match?.on ? line(`Matched by ${v.match.by}`, t.matched ?? t.raised) : null}
+      </View>
+      {v.match?.on && v.charities?.length ? (
+        <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 8, lineHeight: 16 }]}>
+          {v.charities.map((c) => `${c.name} ${usd(t.split?.[c.key] ?? 0)}`).join(" · ")}
+          {(t.unpicked ?? 0) > 0 ? ` · Not picked yet ${usd(t.unpicked ?? 0)}` : ""}
+        </Text>
       ) : null}
+      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 8, lineHeight: 16 }]}>
+        {t.registered} registered · {t.past100k} past 100K
+        {t.unclaimed > 0 ? ` · ${usd(t.unclaimed)} more from Concept2 if everyone registers` : ""}
+      </Text>
     </View>
   );
 }
 
 export function M2dGoal({ v }: { v: M2dView }) {
-  const t = v.totals;
+  const total = totalOf(v);
   return (
     <View style={{ marginTop: 22 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
         <Text style={mono(11, true)}>Goal · {usd(v.goal)}</Text>
-        <Text style={mono(11, true, t.raised >= v.goal ? C.accent : C.ink)}>{t.raised >= v.goal ? "Made it" : `${usd(Math.max(0, v.goal - t.raised))} to go`}</Text>
+        <Text style={mono(11, true, total >= v.goal ? C.accent : C.ink)}>{total >= v.goal ? "Made it" : `${usd(Math.max(0, v.goal - total))} to go`}</Text>
       </View>
-      <Bar value={Math.min(t.raised, v.goal)} goal={v.goal} height={10} />
+      <Bar value={Math.min(total, v.goal)} goal={v.goal} height={10} />
     </View>
   );
 }
@@ -170,7 +250,7 @@ export function M2dStats() {
     <View style={{ marginTop: 18 }}>
       <Eye left="M2D for charity" right={data.window.started ? (data.window.over ? "Final" : `Day ${data.window.day} of ${data.window.days}`) : "Starts Nov 26"} />
       <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 10, lineHeight: 16 }]}>
-        {usd(data.totals.raised)} raised · {fmtInt(data.totals.meters)} m since Nov 26
+        {usd(totalOf(data))} raised for charity · {fmtInt(data.totals.meters)} m since Nov 26
       </Text>
       <M2dGoal v={data} />
     </View>
@@ -181,9 +261,10 @@ export function M2dStats() {
 export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => void; onScrollDir?: (down: boolean) => void }) {
   const dir = useScrollDir(onScrollDir);
   const { data: v, error, loading, reload } = useM2d();
-  const inOut = useIn(reload);
+  const inOut = useIn(v ?? null, reload);
   if (!v) return <Waiting error={error} onRetry={reload} />;
   const w = v.window;
+  const matchOn = !!v.match?.on && !!v.charities?.length;
   let place = 0;
   return (
     <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
@@ -191,12 +272,18 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
         <Dateline left="Concept2 Holiday Challenge" right={!w.started ? "Starts Nov 26" : w.over ? "Final" : `Day ${w.day} of ${w.days}`} days={w.days} day={w.day} />
         <Raised v={v} />
         <M2dGoal v={v} />
-        {v.me && !v.me.in && !w.over ? <Steps v={v} busy={inOut.busy} onIn={() => inOut.say(true)} /> : null}
+        {v.me && !v.me.in && !w.over ? (
+          <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick ?? undefined)} />
+        ) : null}
         {v.me?.in ? (
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 18 }}>
-            <Text style={mono(11, true, C.accent, 0.12)}>✓ You're registered</Text>
-            <Ctl label="Concept2 ↗" onPress={() => open(v.link)} />
-          </View>
+          <>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 18 }}>
+              <Text style={mono(11, true, C.accent, 0.12)}>✓ You're registered</Text>
+              <Ctl label="Concept2 ↗" onPress={() => open(v.link)} />
+            </View>
+            {matchOn && !inOut.pick && !w.over ? <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 12 }]}>Pick where {v.match?.by}'s match goes</Text> : null}
+            {matchOn ? <Picks v={v} pick={inOut.pick} busy={inOut.busy} onPick={inOut.onPick} /> : null}
+          </>
         ) : null}
         {!v.me ? (
           <View style={{ marginTop: 18 }}>
@@ -258,8 +345,9 @@ function Line({ r, place, onPress }: { r: M2dRow; place: number | null; onPress:
  * their line of the board. */
 export function M2dPanel({ num, own }: { num: number; own: boolean }) {
   const { data: v, error, reload } = useM2d();
-  const inOut = useIn(reload);
+  const inOut = useIn(v ?? null, reload);
   if (!v) return <Waiting error={error} onRetry={reload} />;
+  const matchOn = !!v.match?.on && !!v.charities?.length;
   const row = v.rows.find((r) => r.rowerNumber === num);
   const meters = own ? (v.me?.meters ?? 0) : (row?.meters ?? 0);
   const isIn = own ? !!v.me?.in : !!row?.in;
@@ -295,13 +383,19 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
           </Text>
         </>
       )}
-      {own && v.me && !v.me.in && !v.window.over ? <Steps v={v} busy={inOut.busy} onIn={() => inOut.say(true)} /> : null}
+      {own && v.me && !v.me.in && !v.window.over ? (
+        <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick ?? undefined)} />
+      ) : null}
       {own && v.me?.in ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 22, rowGap: 12, alignItems: "center", marginTop: 22 }}>
-          <Text style={mono(11, true, C.accent, 0.12)}>✓ Registered</Text>
-          <Ctl label="Concept2 ↗" onPress={() => open(v.link)} />
-          <Ctl label={inOut.busy ? "Saving" : "Undo"} disabled={inOut.busy} onPress={() => inOut.say(false)} />
-        </View>
+        <>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 22, rowGap: 12, alignItems: "center", marginTop: 22 }}>
+            <Text style={mono(11, true, C.accent, 0.12)}>✓ Registered</Text>
+            <Ctl label="Concept2 ↗" onPress={() => open(v.link)} />
+            <Ctl label={inOut.busy ? "Saving" : "Undo"} disabled={inOut.busy} onPress={() => inOut.say(false)} />
+          </View>
+          {matchOn && !inOut.pick && !v.window.over ? <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 12 }]}>Pick where {v.match?.by}'s match goes</Text> : null}
+          {matchOn ? <Picks v={v} pick={inOut.pick} busy={inOut.busy} onPick={inOut.onPick} /> : null}
+        </>
       ) : null}
       {!own ? (
         <View style={{ marginTop: 22 }}>

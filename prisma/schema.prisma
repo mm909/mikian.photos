@@ -762,6 +762,11 @@ model RowMonthOptIn {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   cancelledAt   DateTime?
+  /// M2D only (month "m2d-2026", 2026-11-25): the charity the rower picked
+  /// for ROWTEMBER's match ("candlelighters" | "shine" | "inclusion",
+  /// row100k/m2d.ts CHARITIES). Null on a month's opt-in, and on an M2D
+  /// row not yet picked.
+  choice        String?
 
   @@unique([challenge, participantId, month])
   @@index([challenge, month])
