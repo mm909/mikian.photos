@@ -95,7 +95,9 @@ export function concept2Of(meters: number): number {
 export const rowtemberOf = (meters: number, rate: number): number => Math.round(((Math.max(0, meters) / 1000) * rate) / 100 * 100) / 100;
 /* "3¢", "2.5¢", "4.25¢", "$1". */
 export const centsWord = (c: number): string => (c >= 100 ? `$${(c / 100).toFixed(c % 100 ? 2 : 0)}` : `${Math.round(c * 100) / 100}¢`);
-const rateOf = (v: M2dView): number => v.rate ?? 3;
+const rateOf = (v: M2dView): number => v.rate ?? 4;
+/* ROWTEMBER's line, said as a match (owner, 2026-11-25). */
+const matchWord = (v: M2dView): string => `Matches Concept2's ${centsWord(rateOf(v))}/km, from your first meter`;
 const giversOf = (v: M2dView) => v.totals.givers ?? [];
 const perKmOf = (v: M2dView): number => v.perKm ?? rateOf(v) + giversOf(v).reduce((a, g) => a + g.rate, 0);
 const windowWord = (v: M2dView): string => (!v.window.started ? "Nov 26 – Dec 24" : v.window.over ? "Final" : `Day ${v.window.day} of ${v.window.days}`);
@@ -200,7 +202,7 @@ function Steps({ v, onIn, busy, pick, onPick }: { v: M2dView; onIn: () => void; 
     /* The fifth is ours: ROWTEMBER's part is paid on rows logged in ROW. */
     [
       "Log your rows on ROW too",
-      `${v.match?.by ?? "ROWTEMBER"} gives ${centsWord(rateOf(v))} for every kilometer logged in ROW, from your first meter. Tap + at the top to log one. Sending your rows to Concept2 automatically is coming.`,
+      `${v.match?.by ?? "ROWTEMBER"} matches Concept2's ${centsWord(rateOf(v))} on every kilometer logged in ROW, from your first meter. Tap + at the top to log one. Sending your rows to Concept2 automatically is coming.`,
     ],
   ];
   const matchOn = !!v.match?.on && !!v.charities?.length;
@@ -208,7 +210,7 @@ function Steps({ v, onIn, busy, pick, onPick }: { v: M2dView; onIn: () => void; 
   return (
     <View style={{ marginTop: 22, borderWidth: 2, borderColor: C.ink, padding: 16 }}>
       <Text style={{ fontFamily: F.black, fontSize: 19, color: C.ink, textTransform: "uppercase" }}>Join in {steps.length} steps</Text>
-      <Text style={[mono(10, false, C.gray, 0.12), { marginTop: 6, lineHeight: 16 }]}>Free. You row; Concept2 and {v.match?.by ?? "ROWTEMBER"} give.</Text>
+      <Text style={[mono(10, false, C.gray, 0.12), { marginTop: 6, lineHeight: 16 }]}>You row; Concept2 gives and {v.match?.by ?? "ROWTEMBER"} matches.</Text>
       {steps.map(([h, t], i) => {
         const ours = i === steps.length - 1;
         return (
@@ -347,7 +349,7 @@ function Picks({ v, pick, busy, onPick }: { v: M2dView; pick: string | null; bus
     <View style={{ marginTop: 20 }}>
       <Text style={{ fontFamily: F.black, fontSize: 16, color: C.ink, textTransform: "uppercase" }}>Your charity</Text>
       <Text style={{ fontFamily: F.sans, fontSize: 13.5, lineHeight: 19, color: C.gray, marginTop: 4 }}>
-        {by} gives {centsWord(rateOf(v))} for every kilometer you row, from your first meter. Pick where it goes.{v.window.over ? "" : " You can change it until Dec 24."}
+        {by} matches Concept2&apos;s {centsWord(rateOf(v))} on every kilometer you row, from your first meter. Pick where it goes.{v.window.over ? "" : " You can change it until Dec 24."}
       </Text>
       {(v.charities ?? []).map((c) => {
         const on = pick === c.key;
@@ -529,7 +531,7 @@ function Raised({ v, onFaq }: { v: M2dView; onFaq: (k: "concept2" | "rowtember")
       {/* More room between the bar and the receipts (owner, 2026-11-25). */}
       <View style={{ marginTop: 34, borderTopWidth: 2, borderColor: C.ink }}>
         <Item who="Concept2" rate="2¢/km once a rower passes 100K, 4¢ after" d={usd(t.raised)} onPress={() => onFaq("concept2")} />
-        <Item who={by} rate={`${centsWord(rateOf(v))}/km on every meter`} d={usd(t.matched ?? 0)} onPress={() => onFaq("rowtember")} />
+        <Item who={by} rate={matchWord(v)} d={usd(t.matched ?? 0)} onPress={() => onFaq("rowtember")} />
         {giversOf(v).map((g) => (
           <Item key={g.name} who={g.name} rate={`${centsWord(g.rate)}/km pledged, every meter`} d={usd(g.dollars)} />
         ))}
@@ -684,7 +686,7 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
           <View style={{ marginTop: 22, borderTopWidth: 2, borderColor: C.ink }}>
             <Item who={own ? "You rowed" : "Rowed"} rate="Nov 26 to Dec 24" d={`${fmtInt(meters)} m`} />
             <Item who="Concept2" rate={meters < 100_000 ? `Starts at 100K · ${fmtInt(100_000 - meters)} m to go` : "2¢/km for the first 100 km, 4¢ after"} d={usd(c2)} />
-            <Item who={by} rate={`${centsWord(rateOf(v))}/km on every meter`} d={usd(ours)} />
+            <Item who={by} rate={matchWord(v)} d={usd(ours)} />
             {theirs.map((g) => (
               <Item key={g.name} who={g.name} rate={`${centsWord(g.rate)}/km pledged`} d={usd(g.d)} />
             ))}
@@ -784,7 +786,7 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
       {para(`Our figure adds that up for every registered Rowtember rower past 100K, from the rows logged on ROW: ${t.past100k} ${t.past100k === 1 ? "rower" : "rowers"} so far, ${usd(t.raised)}. Concept2 counts the meters in each Logbook, so its own number can differ.`)}
 
       {head("rowtember", by, t.matched ?? 0)}
-      {para(`${by} gives ${centsWord(rate)} for every kilometer a registered rower logs on ROW, from the first meter. There is no minimum.`)}
+      {para(`${by} matches Concept2: ${centsWord(rate)} for every kilometer a registered rower logs on ROW, from the first meter. There is no minimum.`)}
       <View style={{ marginTop: 10, borderTopWidth: 2, borderColor: C.ink }}>
         {row("Meters by registered rowers", `${fmtInt(t.inMeters ?? 0)} m`)}
         {row(`Kilometers × ${centsWord(rate)}`, `${fmtInt((t.inMeters ?? 0) / 1000)} km`)}
@@ -924,7 +926,7 @@ export function M2dPlanner() {
       const next = await api<Plan>(PLAN_PATH, { body: { rate: Number(rateIn) } });
       setP(next);
       setRateIn("");
-      setSay(`Saved. ROWTEMBER gives ${centsWord(next.rate)} a kilometer, on every meter in the window.`);
+      setSay(`Saved. ROWTEMBER matches at ${centsWord(next.rate)} a kilometer, on every meter in the window.`);
     } catch (err) {
       setSay(err instanceof Error ? err.message : "That did not save.");
     }
@@ -964,8 +966,17 @@ export function M2dPlanner() {
       style={{ marginTop: 10, borderWidth: 1, borderColor: C.ink, paddingHorizontal: 10, paddingVertical: 8, fontFamily: F.mono, fontSize: 16, color: C.ink }}
     />
   );
+  /* THE EXPOSURE, first and big (owner, 2026-11-25: "exposure liability
+   * for M2D"): the high case at the rate, then what is owed so far. */
+  const givRate = (plan.givers ?? []).reduce((a, x) => a + x.rate, 0);
   return (
     <View>
+      <Text style={[mono(10, true, C.ink, 0.12), { marginTop: 8 }]}>Exposure · high case at {centsWord(plan.rate)}/km</Text>
+      <Text style={{ fontFamily: F.black, fontSize: 56, lineHeight: 62, color: C.accent, fontVariant: ["tabular-nums"], marginTop: 6 }}>{usd(costOf(high, plan.rate))}</Text>
+      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 4, lineHeight: 16 }]}>
+        Likely {usd(costOf(likely, plan.rate))} · low {usd(costOf(low, plan.rate))} · owed so far {usd(plan.soFar.cost)}
+        {givRate ? ` · pledges cover ${centsWord(givRate)}/km on top` : ""}
+      </Text>
       {head(`So far · day ${plan.window.day} of ${plan.window.days}`)}
       {row("Meters in the window", `${fmtInt(plan.soFar.meters)} m`)}
       {row(`By registered rowers (${plan.soFar.registered})`, `${fmtInt(plan.soFar.inMeters)} m`)}

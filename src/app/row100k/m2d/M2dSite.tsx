@@ -142,7 +142,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
     [
       "Log your rows on ROW too",
       <>
-        {by} gives {cents(rate)} for every kilometer logged here, from your first meter.{" "}
+        {by} matches Concept2&apos;s {cents(rate)} on every kilometer logged here, from your first meter.{" "}
         <a className="m2-inline" href={logHref}>
           Log a row
         </a>
@@ -155,7 +155,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
     <div className="m2-picks-wrap">
       <h3>Your charity</h3>
       <p className="m2-pick-lede">
-        {by} gives {cents(rate)} for every kilometer you row, from your first meter. Pick where it goes.
+        {by} matches Concept2&apos;s {cents(rate)} on every kilometer you row, from your first meter. Pick where it goes.
         {w.over ? "" : " You can change it until Dec 24."}
       </p>
       <div className="m2-picks" role="radiogroup" aria-label="Your charity">
@@ -245,7 +245,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
             <div>
               <dt>
                 <Link href="/m2d/faq#rowtember">{by} ›</Link>
-                <small>{cents(rate)}/km on every meter</small>
+                <small>Matches Concept2&apos;s {cents(rate)}/km, from your first meter</small>
               </dt>
               <dd>{usd(t.matched)}</dd>
             </div>
@@ -331,7 +331,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
             <p className="m2-lede">
               The Concept2 Holiday Challenge, {day(w.first)} to {day(w.last)}. Concept2 gives once you pass 100K: 2 cents a
               kilometer to the charity you pick in your Logbook, then 4 cents for every kilometer past 100K, toward its{" "}
-              {usd(view.c2Goal)} goal. {by} gives {cents(rate)} for every kilometer you row, from your first meter, to the charity you
+              {usd(view.c2Goal)} goal. {by} matches Concept2&apos;s {cents(rate)} on every kilometer you row, from your first meter, to the charity you
               pick here.
             </p>
             <h3>Join in {steps.length} steps</h3>

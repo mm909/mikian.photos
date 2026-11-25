@@ -49,7 +49,13 @@ export const M2D_GOAL = 1000;
  * raise it and say so. A raise applies to every meter in the window. The
  * default stands until he sets one. Never printed as able to go down. */
 export const M2D_BY = "ROWTEMBER";
-export const M2D_RATE_DEFAULT = 3;
+/* 4¢, MATCHING CONCEPT2 (owner, 2026-11-25 afternoon: "update everything
+ * and say 4 cents, saying that we're just going to match. That way we can
+ * say we're matching"): Concept2 gives 4¢ a km past 100K; ROWTEMBER gives
+ * the same 4¢ on every km from the first. This overrides the morning's "I
+ * don't like saying it is a match". It is also the floor: a stored rate
+ * below it is read as 4, so the figure never goes down. */
+export const M2D_RATE_DEFAULT = 4;
 export const M2D_RATE_KEY = "m2d.rate";
 /* Cents a kilometer, to a hundredth of a cent, from 0.5 to 500 ($5/km)
  * (owner, 2026-11-25: "it doesn't have to be whole number. It can be 4
@@ -90,7 +96,7 @@ export async function m2dRate(): Promise<number> {
   try {
     const row = await db.rowSetting.findUnique({ where: { challenge_key: { challenge: CHALLENGE, key: M2D_RATE_KEY } }, select: { value: true } });
     const n = Number(row?.value);
-    return rateOk(n) ? n : M2D_RATE_DEFAULT;
+    return rateOk(n) ? Math.max(n, M2D_RATE_DEFAULT) : M2D_RATE_DEFAULT;
   } catch {
     return M2D_RATE_DEFAULT;
   }

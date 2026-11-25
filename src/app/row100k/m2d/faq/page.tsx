@@ -67,7 +67,7 @@ export default async function M2dFaqPage() {
                 {v.match.by} <i>{usd(v.totals.matched)}</i>
               </h2>
               <p>
-                {v.match.by} gives {cents(v.rate)} for every kilometer a registered rower logs on ROW, from the first meter. There is no
+                {v.match.by} matches Concept2: {cents(v.rate)} for every kilometer a registered rower logs on ROW, from the first meter. There is no
                 minimum.
               </p>
               <dl className="sum">

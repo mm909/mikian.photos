@@ -102,6 +102,9 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
         <Go label="Appearance" sub={look.dark ? "Dark" : "Light"} onPress={() => onPage("appearance")} />
         {/* THE WIKI, the owner's plans, for him alone (owner, 2026-11-24:
             "put it in the settings page"). */}
+        {/* M2D EXPOSURE, a press from the list (owner, 2026-11-25: "I need
+            that exposure page in the app"): what M2D can cost at the rate. */}
+        {me.isAdmin ? <Go label="M2D exposure" sub="What the match can cost: so far, projected, per cent. Only you see this." onPress={() => onPage("planner")} /> : null}
         {me.isAdmin && onWiki ? <Go label="Wiki" sub="The plans, the arcade, the order of work. Only you see this." onPress={onWiki} /> : null}
         {arcadeFor(me) && onLocker ? <Go label="Locker" sub="Your piece's skins from the arcade's chests. Only you see this." onPress={onLocker} /> : null}
         <View style={{ height: 26 }} />
