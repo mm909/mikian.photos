@@ -68,7 +68,9 @@ export function metersVersion(total: number): string {
   const t = Math.max(0, Math.floor(total));
   return `${MAJOR}.${Math.floor(t / 1_000_000)}.${t % 1_000_000}`;
 }
-const FOOT = `FOR YOURSELF AND OTHERS · V${BUILD.meters > 0 ? `${metersVersion(BUILD.meters)}${BUILD.letter}` : VERSION}`;
+/* The stamp as the splash prints it, V and all; Settings' ABOUT shows it too. */
+export const STAMP = `V${BUILD.meters > 0 ? `${metersVersion(BUILD.meters)}${BUILD.letter}` : VERSION}`;
+const FOOT = `FOR YOURSELF AND OTHERS · ${STAMP}`;
 
 /* THE COUNT POPS UP AS ZEROS FIRST (owner, 2026-11-23: "the meters count
  * kind of just pops in. Can that also pop up, but pop up as all zeros and

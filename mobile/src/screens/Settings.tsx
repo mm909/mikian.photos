@@ -1,8 +1,11 @@
+import Constants from "expo-constants";
+import * as Updates from "expo-updates";
 import { useEffect, useState, type ReactNode } from "react";
-import { Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SITE, api, edits, type SocialSettings } from "../api";
 import { useLookSwitch } from "../look";
 import { useSession } from "../session";
+import { STAMP } from "../splash";
 import { Eye, mono } from "../site";
 import { C, F } from "../theme";
 import { pickFace, setAvatar } from "../upload";
@@ -105,6 +108,7 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
             onSignedOut();
           }}
         />
+        <About />
       </>,
     );
   }
@@ -448,6 +452,101 @@ function DeveloperPassword() {
         {state === "saved" ? <Text style={mono(11, false, C.gray)}>Saved</Text> : null}
       </View>
     </>
+  );
+}
+
+/* ABOUT (owner, 2026-11-24, unable to tell whether his phone had the
+ * newest code: "Maybe if I could have the Apple version be in my settings
+ * somewhere, right? Like an about type of deal"). At the foot of the list:
+ * the store's version and build number, the update stamp the splash
+ * prints, the channel, and whether a newer update is waiting, with a
+ * button that fetches it and starts the app again on it.
+ *
+ * The build number comes from expo-application, which the build already
+ * carries (expo-notifications brings it), read in a try so a build without
+ * it shows the version alone. */
+function nativeVersion(): string {
+  let v = "";
+  let n = "";
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const A = require("expo-application") as { nativeApplicationVersion: string | null; nativeBuildVersion: string | null };
+    v = A.nativeApplicationVersion ?? "";
+    n = A.nativeBuildVersion ?? "";
+  } catch {
+    /* not in this build */
+  }
+  if (!v) v = Constants.expoConfig?.version ?? "";
+  return n ? `${v} (${n})` : v;
+}
+
+type Fresh = "checking" | "current" | "newer" | "fetching" | "failed" | "off";
+function About() {
+  const off = Platform.OS === "web" || __DEV__ || !Updates.isEnabled;
+  const [state, setState] = useState<Fresh>(off ? "off" : "checking");
+  const check = () => {
+    setState("checking");
+    Updates.checkForUpdateAsync().then(
+      (r) => setState(r.isAvailable ? "newer" : "current"),
+      () => setState("failed"),
+    );
+  };
+  useEffect(() => {
+    if (!off) check();
+    // Once, as the list opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const take = async () => {
+    setState("fetching");
+    try {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    } catch {
+      setState("failed");
+    }
+  };
+  const published = !off && !Updates.isEmbeddedLaunch && Updates.createdAt ? Updates.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  const line = (k: string, v: string) => (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 16, paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line }}>
+      <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink }}>{k}</Text>
+      <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.gray, fontVariant: ["tabular-nums"], flexShrink: 1, textAlign: "right" }}>{v}</Text>
+    </View>
+  );
+  const say =
+    state === "off"
+      ? Platform.OS === "web"
+        ? "The web build is always the newest: the site serves it fresh."
+        : "Updates are off in a development build: it runs the code on this computer."
+      : state === "checking"
+        ? "Checking for a newer update…"
+        : state === "current"
+          ? "Up to date."
+          : state === "newer"
+            ? "A newer update is ready: close and reopen ROW, or get it now."
+            : state === "fetching"
+              ? "Getting the update…"
+              : "Could not check just now. Try again in a moment.";
+  return (
+    <View>
+      <Eye left="About" />
+      {line("Version", nativeVersion() || "—")}
+      {line("Update", published ? `${STAMP} · ${published}` : `${STAMP} · in the build`)}
+      {!off && Updates.channel ? line("Channel", Updates.channel) : null}
+      <View accessibilityLiveRegion="polite" style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 14 }}>
+        {state === "checking" || state === "fetching" ? <ActivityIndicator color={C.gray} /> : null}
+        <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, lineHeight: 19, color: state === "newer" ? C.accent : C.gray }}>{say}</Text>
+      </View>
+      {state === "newer" ? (
+        <View style={{ alignSelf: "flex-start", marginTop: 10 }}>
+          <Small label="Get the update" fill onPress={take} />
+        </View>
+      ) : null}
+      {state === "failed" || state === "current" ? (
+        <Text accessibilityRole="button" suppressHighlighting onPress={check} style={{ fontFamily: F.sans, fontSize: 13, color: C.gray, textDecorationLine: "underline", marginTop: 8 }}>
+          Check again
+        </Text>
+      ) : null}
+    </View>
   );
 }
 

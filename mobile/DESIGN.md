@@ -1074,3 +1074,10 @@ He said of round 57's search: "much better".
 - THE MONTH MENU IS DATES (his words: "If the selection box looks good with just 11/26, 10/26, 09/26, then maybe we just do that"): `Board.tsx` MonthSheet, the menu under the 100K tab's title, lists 11/26, 10/26, 09/26 and nothing else (the month's name and the edition's name are gone), each centred in a box 132 wide. VoiceOver still reads the month's name. No month totals: the box reads well without them.
 - STORIES CLOSE AFTER THE LAST NEW ONE (his words: "when I finish all the new stories, go ahead and close out the stories for me"): `Recap.tsx` RecapViewer. Past a rower's last page is the next rower with a page not yet seen when the viewer opened; rowers already seen are skipped; with none left, the viewer closes. Tapping a seen circle still opens it and plays it through, then goes on to any new ones, or closes.
 - Typechecked; NOT seen in a browser or on a phone.
+
+## Round 59 (2026-11-24, evening): ABOUT in settings
+
+His words, not able to tell whether his phone had the newest code: "Maybe if I could have the Apple version be in my settings somewhere, right? Like an about type of deal."
+
+- ABOUT at the foot of the settings list, under Sign out (`Settings.tsx` About): VERSION, the store's version and build number ("1.4.0 (n)", from expo-application, which the build already carries through expo-notifications; read in a try, so a build without it shows the version alone); UPDATE, the stamp the splash prints (`STAMP` in `splash.tsx`) and when that update was published, or "in the build" when the phone runs the code it was built with; CHANNEL (preview on his phone). Under them, asked of expo-updates as the list opens: "Up to date.", or in the blue "A newer update is ready: close and reopen ROW, or get it now." with GET THE UPDATE, which fetches it and starts the app again on it. CHECK AGAIN after an answer or a failed check. A development build and the web build say plainly that they do not take updates.
+- Typechecked; NOT seen on a phone (settings needs an account, which the local web build cannot sign in to).
