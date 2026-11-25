@@ -8,6 +8,7 @@
  * client component both import it. */
 export const ROW_SEGMENTS: ReadonlySet<string> = new Set([
   "analysis",
+  "android",
   "app-privacy",
   "app-terms",
   "blackout",
