@@ -12,7 +12,7 @@ import { ApiError, api } from "../api";
 import { autoOf, onAuto, sendPiece, type Saved } from "../autolog";
 import { PENDING_MIN_M, dropPending, loadPending, loadPendingDoc, onPending, type Pending } from "../store";
 import { C, F, MONTHS, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
-import { Btn, Card, Eyebrow, Num, styles } from "../ui";
+import { Btn, Eyebrow, Num, styles } from "../ui";
 import { FRAME, finishRow, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked, type Progress } from "../upload";
 import { SignIn } from "./Account";
 import { GhostRace, useRace } from "./GhostRace";
@@ -1172,17 +1172,14 @@ function LogForm({
   const auto = me.month && count !== undefined ? `${me.month.label.split(" ")[0]} #${count + 1}` : "";
   /* A row that is logged has the title the site gave it, which is the same
    * count made where the rows are. */
-  const [title, setTitle] = useState(logged?.title ? logged.title : day.slice(0, 7) === today.slice(0, 7) ? auto : "");
-  /* The title the form opened with: what "changed" is measured against. */
-  const title0 = useRef(title).current;
-  const pickDay = (d: string) => {
-    if (logged?.title) return setDay(d);
-    const was = day.slice(0, 7) === today.slice(0, 7);
-    const is = d.slice(0, 7) === today.slice(0, 7);
-    if (was && !is && title === auto) setTitle("");
-    if (!was && is && title === "") setTitle(auto);
-    setDay(d);
-  };
+  /* ONE CAPTION, NO TITLE TO TYPE (owner, 2026-11-24: make it feel like
+   * writing an Instagram post, not filling out a form; "We just do a
+   * caption. Yeah."). The row's title is the one the site gives it, "November
+   * #12" (lib/row100k defaultRowTitle, for a row sent with none), and a row
+   * already logged keeps the one it has. Only a demo's pretend page needs
+   * one here, and it is that same count. */
+  const title = logged?.title ? logged.title : auto;
+  const pickDay = (d: string) => setDay(d);
   const [picking, setPicking] = useState(false);
   const [caption, setCaption] = useState("");
   const [photos, setPhotos] = useState<(Picked | null)[]>([null, null]);
@@ -1199,7 +1196,7 @@ function LogForm({
    * two or none: one photo is neither. */
   const ok = m > 0 && s > 0 && (logged ? both || none : !!fake || both);
   /* What the form would change on a row that is logged. */
-  const changed = !!logged && (both || title.trim() !== title0.trim() || !!caption.trim() || (!fake && day !== logged.day));
+  const changed = !!logged && (both || !!caption.trim() || (!fake && day !== logged.day));
   const [sure, setSure] = useState(false);
 
   /* BOTH PHOTOS IN ONE VISIT to the library: two picked fill both frames;
@@ -1254,7 +1251,7 @@ function LogForm({
       setError("");
       setBusy({ at: 0, to: 0.02, word: both ? "Getting photo 1 ready" : "Saving" });
       try {
-        await finishRow({ id: logged.rowId, day, meters: m, seconds: s, ...(title.trim() && title.trim() !== title0.trim() ? { title: title.trim() } : {}), caption, photos: photos[0] && photos[1] ? [photos[0], photos[1]] : undefined }, setBusy);
+        await finishRow({ id: logged.rowId, day, meters: m, seconds: s, caption, photos: photos[0] && photos[1] ? [photos[0], photos[1]] : undefined }, setBusy);
         setBusy(null);
         onDone(logged.rowId, day, m, s, doc);
       } catch (err) {
@@ -1267,7 +1264,7 @@ function LogForm({
     setError("");
     setBusy({ at: 0, to: 0.02, word: "Getting photo 1 ready" });
     try {
-      const r = await logRow({ day, meters: m, seconds: s, title, caption, photos: [photos[0], photos[1]], doc }, setBusy);
+      const r = await logRow({ day, meters: m, seconds: s, title: "", caption, photos: [photos[0], photos[1]], doc }, setBusy);
       setBusy(null);
       onDone(r.id, day, m, s, doc);
     } catch (err) {
@@ -1279,96 +1276,80 @@ function LogForm({
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 124 }} keyboardShouldPersistTaps="handled">
       {fake && !logged ? <Text style={[mono(10, true, C.accent, 0.12), { lineHeight: 16, marginBottom: 12 }]}>Demo row · nothing is saved · photos optional</Text> : null}
+      {/* WRITTEN AS A POST, NOT FILLED IN AS A FORM (owner, 2026-11-24:
+          "like writing an Instagram post"; drop the labels sitting outside
+          the boxes). The row in one line at the head, the two photos, the
+          caption under them with nothing but its placeholder, and the date
+          as one line in a list, as Instagram's own caption screen has its
+          rows under the words. */}
       {fixed ? (
-        <View>
-          {logged ? <Eyebrow style={{ color: C.good }}>{fake ? "Logged · a demo, nothing was saved" : "Logged · it is on the board"}</Eyebrow> : <Eyebrow>The row</Eyebrow>}
-          <View style={{ flexDirection: "row", alignItems: "baseline", gap: 12 }}>
-            <Num size={56} color={C.accent}>
-              {fmtInt(m)} m
-            </Num>
-            <Text style={{ fontFamily: F.sans, fontSize: 16, color: C.soft, fontVariant: ["tabular-nums"] }}>
-              {fmtClock(s, false)} · {fmtPace(m > 0 ? (s / m) * 500 : 0)}
-            </Text>
-          </View>
-          {logged ? <Text style={[styles.body, { fontSize: 14, marginTop: 4 }]}>Add the two photos now, or later from the row's own page.</Text> : null}
+        <View style={{ marginBottom: 14 }}>
+          {logged ? <Eyebrow style={{ color: C.good, marginBottom: 2 }}>{fake ? "Logged · a demo, nothing was saved" : "Logged · it is on the board"}</Eyebrow> : null}
+          <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, fontVariant: ["tabular-nums"] }}>
+            {fmtInt(m)} m <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.soft }}>· {fmtClock(s, false)} · {fmtPace(m > 0 ? (s / m) * 500 : 0)}</Text>
+          </Text>
         </View>
       ) : (
-        <View>
-          {/* Side by side (owner, 2026-11-22: "let's put meters and time on
-              the same row"). */}
-          <View style={{ flexDirection: "row", gap: 18 }}>
-            <View style={{ flex: 1 }}>
-              <Eyebrow>Meters</Eyebrow>
-              <TextInput style={field} keyboardType="number-pad" value={meters} onChangeText={setMeters} placeholder="5000" placeholderTextColor={C.line} accessibilityLabel="Meters" />
+        /* A row typed in: the meters and the time are what the post is of,
+           each a line with its word inside it. */
+        <View style={{ marginBottom: 14, borderTopWidth: 1, borderColor: C.line }}>
+          {[
+            { k: "Meters", v: meters, on: setMeters, ph: "5000", kb: "number-pad" as const, say: "Meters" },
+            { k: "Time", v: time, on: setTime, ph: "20:00", kb: "numbers-and-punctuation" as const, say: "Time, as minutes and seconds" },
+          ].map((r) => (
+            <View key={r.k} style={{ flexDirection: "row", alignItems: "center", minHeight: 52, borderBottomWidth: 1, borderColor: C.line }}>
+              <Text style={{ fontFamily: F.sans, fontSize: 16, color: C.ink, width: 80 }}>{r.k}</Text>
+              <TextInput style={{ flex: 1, minWidth: 0, textAlign: "right", fontSize: 22, fontFamily: F.black, color: C.ink, paddingVertical: 8, paddingHorizontal: 6, fontVariant: ["tabular-nums"] }} keyboardType={r.kb} autoCorrect={false} value={r.v} onChangeText={r.on} placeholder={r.ph} placeholderTextColor={C.line} accessibilityLabel={r.say} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Eyebrow>Time</Eyebrow>
-              <TextInput style={field} keyboardType="numbers-and-punctuation" autoCorrect={false} value={time} onChangeText={setTime} placeholder="20:00" placeholderTextColor={C.line} accessibilityLabel="Time, as minutes and seconds" />
-            </View>
-          </View>
+          ))}
         </View>
       )}
 
-      <Card style={{ marginTop: 20 }}>
-        {/* Two frames and no names on them (owner, 2026-11-21: "you can
-            just put 2 photos, you and the monitor, but it doesn't need to be
-            this one you, this one the monitor"). */}
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-          <Eyebrow style={{ color: C.ink }}>Two photos: you, and the monitor</Eyebrow>
-          {/* WHICH IS FIRST (owner, 2026-11-22: "let's allow people to
-              rearrange which photo is first or second when they're
-              submitting"). With two photos, moving one is swapping them:
-              one press. The first is the one the feed opens on and the
-              tile on the rower's grid. */}
-          {photos[0] && photos[1] ? (
-            <Text accessibilityRole="button" accessibilityLabel="Swap which photo is first" onPress={() => setPhotos((prev) => [prev[1], prev[0]])} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.ink }}>
-              ⇄ SWAP
-            </Text>
-          ) : null}
-          {Platform.OS !== "web" ? (
-            <Text accessibilityRole="button" onPress={() => pick(empty, "camera")} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>
-              CAMERA
-            </Text>
-          ) : null}
-        </View>
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          {[0, 1].map((i) => {
-            const p = photos[i];
-            return (
-              <CropFrame key={i} p={p} label={p ? `Photo ${i + 1}: drag to move it in its frame, tap to change it` : "Choose the two photos"} onPress={() => pick(i, "library")} onMove={(fx, fy) => setPhotos((prev) => prev.map((x, k) => (k === i && x ? { ...x, fx, fy } : x)))} />
-            );
-          })}
-        </View>
-        {photos[0] || photos[1] ? <Text style={[styles.body, { fontSize: 13, marginTop: 8 }]}>Drag a photo to choose the part that shows.</Text> : null}
-      </Card>
+      {/* The two frames, nothing named on them (owner, 2026-11-21); the
+          first is the one the feed opens on, SWAP trades them (2026-11-22). */}
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        {[0, 1].map((i) => {
+          const p = photos[i];
+          return (
+            <CropFrame key={i} p={p} label={p ? `Photo ${i + 1}: drag to move it in its frame, tap to change it` : "Choose the two photos: you, and the monitor"} onPress={() => pick(i, "library")} onMove={(fx, fy) => setPhotos((prev) => prev.map((x, k) => (k === i && x ? { ...x, fx, fy } : x)))} />
+          );
+        })}
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 18, minHeight: 36 }}>
+        <Text style={[styles.body, { flex: 1, fontSize: 13 }]}>{photos[0] || photos[1] ? "Drag a photo to choose the part that shows." : "You, and the monitor."}</Text>
+        {photos[0] && photos[1] ? (
+          <Text accessibilityRole="button" accessibilityLabel="Swap which photo is first" onPress={() => setPhotos((prev) => [prev[1], prev[0]])} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.ink }}>
+            ⇄ SWAP
+          </Text>
+        ) : null}
+        {Platform.OS !== "web" ? (
+          <Text accessibilityRole="button" onPress={() => pick(empty, "camera")} style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>
+            CAMERA
+          </Text>
+        ) : null}
+      </View>
 
-      {/* THE DATE, as a date, and a calendar behind it (owner, 2026-11-23:
-          "the date it was rowed, instead of have it being today with this
-          weird picker, we can just have it be like a normal date and then
-          have a date picker for it"). It was a word, Today or Yesterday,
-          between two arrows that stepped a day at a time. */}
-      <Card>
-        <Eyebrow style={{ color: C.ink }}>Date rowed</Eyebrow>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Date rowed: ${dateWord(day)}. Change it`} onPress={() => setPicking(true)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, borderBottomWidth: 1, borderColor: C.ink, opacity: pressed ? 0.6 : 1 })}>
-          <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, fontVariant: ["tabular-nums"] }}>{dateWord(day)}</Text>
-          <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2, color: C.accent }}>{day === today ? "TODAY · CHANGE" : "CHANGE"}</Text>
-        </Pressable>
-      </Card>
+      {/* THE CAPTION: no box and no word over it, only its placeholder. */}
+      <TextInput
+        style={{ fontSize: 16, lineHeight: 22, fontFamily: F.sans, color: C.ink, minHeight: 96, paddingVertical: 12, textAlignVertical: "top", borderBottomWidth: 1, borderColor: C.line }}
+        value={caption}
+        onChangeText={setCaption}
+        multiline
+        maxLength={500}
+        placeholder="Write a caption..."
+        placeholderTextColor={C.gray}
+        accessibilityLabel="Caption"
+      />
+
+      {/* THE DATE as one line of the list, a calendar behind it (owner,
+          2026-11-23: a normal date and a date picker). */}
+      <Pressable accessibilityRole="button" accessibilityLabel={`Date rowed: ${dateWord(day)}. Change it`} onPress={() => setPicking(true)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 52, borderBottomWidth: 1, borderColor: C.line, marginBottom: 20, opacity: pressed ? 0.6 : 1 })}>
+        <Text style={{ fontFamily: F.sans, fontSize: 16, color: C.ink }}>Date rowed</Text>
+        <Text style={{ fontFamily: F.sans, fontSize: 16, color: C.soft, fontVariant: ["tabular-nums"] }}>
+          {day === today ? "Today" : dateWord(day)} ›
+        </Text>
+      </Pressable>
       {picking ? <DaySheet day={day} today={today} onPick={pickDay} onClose={() => setPicking(false)} /> : null}
-
-      {/* Title, Description: no "(optional)" after either (the same day:
-          "We can also remove the optional section there. Like we can also
-          just say title, description"). */}
-      <Card>
-        <Eyebrow style={{ color: C.ink }}>Title</Eyebrow>
-        <TextInput style={{ borderBottomWidth: 1, borderColor: C.ink, fontSize: 18, fontFamily: F.bold, paddingVertical: 8, color: C.ink }} value={title} onChangeText={setTitle} maxLength={60} accessibilityLabel="Title" />
-      </Card>
-
-      {/* A CAPTION, shown under the photos (owner, 2026-11-22). */}
-      <Card>
-        <Eyebrow style={{ color: C.ink }}>Description</Eyebrow>
-        <TextInput style={{ borderBottomWidth: 1, borderColor: C.ink, fontSize: 16, lineHeight: 22, fontFamily: F.sans, paddingVertical: 8, color: C.ink, minHeight: 44 }} value={caption} onChangeText={setCaption} multiline maxLength={500} accessibilityLabel="Description" />
-      </Card>
 
       {error ? <Text style={[styles.body, { color: C.accent, marginBottom: 12 }]}>{error}</Text> : null}
       {/* While the row is going in, the button gives its place to the bar. */}

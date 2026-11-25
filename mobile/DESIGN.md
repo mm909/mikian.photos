@@ -1109,3 +1109,9 @@ His words, not able to tell whether his phone had the newest code: "Maybe if I c
 - AFTER HIS PHONE SCREENSHOTS (the build before this round): the hull bar was laid over the JAB row on the phone (a HealthBar with flex 1 in a fixed column; the web drew it right), so HealthBar has no flex of its own now. The kit is the same every row, JAB, SPEAR, ANCHOR (his names; SPEAR at the floor's pace, ANCHOR a second under); the sideways view no longer says THROW.
 - THE MORNING PAGE: the wiki's "While you slept" rewritten for Nov 25 with all of Nov 24 across the sessions and what to try on the phone and the PM5.
 - Seen in headless Chrome against the sandbox, upright and on its side, a 3K demo at 6x. NOT on a phone or a real PM5.
+
+## Round 58e (2026-11-25): logging a row reads as writing a post
+
+- ONE CAPTION, NO TITLE (owner, 2026-11-24: make it feel like writing an Instagram post, not filling out a form; "We just do a caption. Yeah."; drop the labels sitting outside the boxes). The form a row ends at (LogForm in RowScreen.tsx) is now: the row in one line at the head (500 m · 1:59 · 1:59.0; for a row typed in, METERS and TIME as two lines of a list with the word inside the line), the two photos (kept, with SWAP and CAMERA under them), then WRITE A CAPTION... with no box and no word over it, then DATE ROWED as one line of a list with the date and › at its right, as Instagram has its rows under the caption. The cards and their labels (Two photos, Date rowed, Title, Description) are gone.
+- THE TITLE IS THE SITE'S. A row sent with no title is given "November #12" by the site (lib/row100k defaultRowTitle, logEntry.ts); a row already logged keeps its title (the PATCH leaves a title it is not sent alone). No site change.
+- Seen in headless Chrome against the sandbox: the form typed by hand, and a demo row's form after ADD PHOTOS. Not seen on a phone.
