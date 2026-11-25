@@ -99,6 +99,7 @@ export const PAGES: Page[] = [
         "Your boat wears LV 7 MIKIAN in place of YOU, on the course and in the swarm (your name is nowhere else on those screens). The level counts this row's XP as it comes.",
         "The monsters are a fifth larger, the swarm's fish too.",
         "THE SETTING CHANGES EVERY FIVE FLOORS: THE ISLES (floors 1 to 5), THE REEF (6 to 10), THE ICE, THE EMBERS, THE MARSH, then round again. The same board in new colours (water, sand, grass; the lighthouse comes and goes). BOSS DOWN says which one is next.",
+        "The swarm never cuts into a fight: it goes once the monster is down, at the latest as the next one would come in (it was starting a second into the next fight).",
         "Damage numbers as the RPGs draw them: in their colour inside a dark outline, popping in big and settling, floating up and fading; five columns taken in turn, so the newest five never sit on each other, and no more than five at once.",
       ] },
       { h: "Tuesday, Nov 24, night: after your demo row" },

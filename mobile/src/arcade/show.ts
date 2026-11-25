@@ -382,7 +382,12 @@ export function createShow(seed = 1): Show {
               seenEvent = ev.at;
               if (ev.kind !== "floor" || v.battle.events >= FLOORS_A_ROUND) swapAt = tick.wall + SWAP_WALL_S;
             }
-            if (swapAt > 0 && tick.wall >= swapAt) {
+            /* NEVER IN THE MIDDLE OF A FIGHT (owner, 2026-11-24: "the fish
+             * game interrupted me when I was in the middle of a battle ...
+             * it should be after the battle"): the next monster comes in
+             * RESPAWN_S after a KO, sooner than the card's SWAP_WALL_S, so
+             * the swarm goes the moment it would arrive, before a blow. */
+            if (swapAt > 0 && (tick.wall >= swapAt || !!v.battle.monster)) {
               swapAt = -1;
               swarm = createSwarm({ t0: t, seed: seedOf(`${seed}/${T}/swarm${v.swarmTot.rounds}`), own: ctx.assigned ?? TARGET, base: v.battle.floorPace, boat: ctx.boat ?? NO_UPGRADES, skills: v.battle.skills.map((s) => s.def), roundS: Math.max(SWARM_LEAST, scaled(ROUND_S)) });
               v.swarm = swarm.step(t, p4);
