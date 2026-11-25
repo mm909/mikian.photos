@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 
 const num = (n: number) => Math.round(n).toLocaleString("en-US");
 const usd = (d: number) => (d >= 1000 ? `$${num(d)}` : `$${d.toFixed(2)}`);
-const cents = (c: number) => (c >= 100 ? `$${(c / 100).toFixed(c % 100 ? 2 : 0)}` : `${c}¢`);
+const cents = (c: number) => (c >= 100 ? `$${(c / 100).toFixed(c % 100 ? 2 : 0)}` : `${Math.round(c * 100) / 100}¢`);
 
 export default async function M2dFaqPage() {
   const viewer = await resolveViewer();
@@ -111,6 +111,22 @@ export default async function M2dFaqPage() {
                     <dd>{usd(v.totals.unpicked)}</dd>
                   </div>
                 ) : null}
+              </dl>
+
+              {/* WHAT A ROW RAISES (owner, 2026-11-25: the 50K to 300K lines
+                  moved here from the M2D page, so the board comes sooner). */}
+              <h2 id="ladder">What your meters raise</h2>
+              <p>
+                Concept2 and {v.match.by} together, for one registered rower: {cents(v.perKm ?? v.rate)} a kilometer under 100K,{" "}
+                {cents((v.perKm ?? v.rate) + 4)} a kilometer past it.
+              </p>
+              <dl className="sum">
+                {[50_000, 100_000, 150_000, 200_000, 300_000].map((m) => (
+                  <div key={m}>
+                    <dt>Row {num(m / 1000)}K</dt>
+                    <dd>{usd((m < 100_000 ? 0 : 2 + 0.04 * (m / 1000 - 100)) + ((m / 1000) * (v.perKm ?? v.rate)) / 100)}</dd>
+                  </div>
+                ))}
               </dl>
 
               <h2>Questions</h2>

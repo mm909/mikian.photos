@@ -258,18 +258,9 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
                 <dd>{usd(g.dollars)}</dd>
               </div>
             ))}
-            {charities.map((c) => (
-              <div key={c.key} className="sub">
-                <dt>{c.name}</dt>
-                <dd>{usd(t.split[c.key as keyof typeof t.split] ?? 0)}</dd>
-              </div>
-            ))}
-            {t.unpicked > 0 ? (
-              <div className="sub">
-                <dt>No charity picked yet</dt>
-                <dd>{usd(t.unpicked)}</dd>
-              </div>
-            ) : null}
+            {/* No charity lines here (owner, 2026-11-25: "we don't need to
+                say ... Candlelighters, Shine A Light, Project Inclusion");
+                the split by charity is on the FAQ. */}
             <div className="total">
               <dt>Total</dt>
               <dd>{usd(t.total)}</dd>
@@ -280,7 +271,20 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               much so far, so this is how much is donated ... here's how much
               your meters are worth"). */}
           <section className="m2-worth" aria-label="What your meters are worth">
-            <h2>What your meters are worth</h2>
+            {/* YOUR CHARITY, at the head of this, to the right (owner,
+                2026-11-25: "some text to the right that says ... change
+                your contribution ... I really want the board to be front and
+                center"): no line of its own above the board. */}
+            <div className="m2-worth-h">
+              <h2>What your meters are worth</h2>
+              {isIn && !w.over ? (
+                <button type="button" className="m2-quiet" onClick={() => setChanging((c) => !c)} disabled={busy}>
+                  {changing ? "Done" : mineText ? `${mineText} · change` : "Pick your charity"}
+                </button>
+              ) : isIn && mineText ? (
+                <span className="m2-quiet-t">{mineText}</span>
+              ) : null}
+            </div>
             <dl>
             <div className="rate">
               <dt>A kilometer under 100K</dt>
@@ -290,12 +294,6 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               <dt>A kilometer past 100K</dt>
               <dd>{cents(perKm + 4)}</dd>
             </div>
-            {[50_000, 100_000, 200_000, 300_000].map((m) => (
-              <div key={m}>
-                <dt>Row {num(m / 1000)}K</dt>
-                <dd>{usd(c2Of(m) + oursOf(m, perKm))}</dd>
-              </div>
-            ))}
             {view.me && w.started ? (
               <div className="you">
                 <dt>You, {num(view.me.meters)} m so far</dt>
@@ -310,18 +308,6 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
             that opens the sign-up. */}
         {isIn ? (
           <section className="m2-quietline" aria-label="Your M2D">
-            <p>
-              <b>✓ Registered</b>
-              {mineText ? ` · ${mineText}` : ""}
-              {!w.over ? (
-                <>
-                  {" · "}
-                  <button type="button" className="m2-quiet" onClick={() => setChanging((c) => !c)} disabled={busy}>
-                    {changing ? "Done" : mineText ? "Change" : "Pick your charity"}
-                  </button>
-                </>
-              ) : null}
-            </p>
             {changing || (!mineText && !w.over) ? picks : null}
             {changing && !w.over ? (
               <p className="m2-undo">
@@ -411,10 +397,17 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               {view.rows.map((r, i) => (
                 <div
                   key={r.rowerNumber}
-                  className={r.me ? "bd-row me" : "bd-row"}
+                  className={["bd-row", r.me ? "me" : "", r.meters >= 100_000 ? "past" : ""].filter(Boolean).join(" ")}
                   role="row"
                   aria-current={r.me ? "true" : undefined}
                 >
+                  {/* THE BAR TO 100K (owner, 2026-11-25: "a bar showing maybe
+                      your meters up to the 100K ... once they hit the 100K,
+                      their meters are worth this amount"): full and in the
+                      accent once past it, when Concept2 starts giving. */}
+                  {r.blocks == null ? (
+                    <span className="bd-bar" style={{ width: `calc((100% - var(--bd-figs)) * ${Math.min(1, r.meters / 100_000).toFixed(4)})` }} aria-hidden="true" />
+                  ) : null}
                   <div className="bd-in" role="presentation">
                     <span className="bd-rk" role="cell">
                       {r.blocks != null ? "" : i + 1}
@@ -446,7 +439,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
           )}
         </div>
         {view.rows.some((r) => !r.in && r.dollars != null) ? (
-          <p className="m2-note">Grey dollars: not registered yet. Register and they count.</p>
+          <p className="m2-note">The bar runs to 100K, where Concept2 starts giving. Grey dollars: not registered yet.</p>
         ) : null}
       </div>
     </main>
