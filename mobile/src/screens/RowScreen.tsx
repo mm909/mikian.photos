@@ -710,7 +710,7 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
   /* The show has no race on it, so the race page keeps the race going while
    * the show is the page in view. */
   const race = leaf(<GhostRace erg={erg} width={w} height={h} race={shared} drive={page !== upPage && (page !== prodPage || showOn)} active={page === racePage} />);
-  const produced = showOn ? leaf(<ShowPage showed={showed} erg={erg} width={w} height={h} active={page === prodPage} />) : prodPage > 0 ? leaf(<Produced erg={erg} race={shared} directed={directed} width={w} height={h} active={page === prodPage} />) : null;
+  const produced = showOn ? leaf(<ShowPage showed={showed} erg={erg} width={w} height={h} active={page === prodPage} logIt={auto?.state === "saved" ? onAdd : null} />) : prodPage > 0 ? leaf(<Produced erg={erg} race={shared} directed={directed} width={w} height={h} active={page === prodPage} />) : null;
   const raceUp = upPage > 0 ? leaf(<GhostRace erg={erg} width={w} height={h} race={shared} upright drive={page === upPage} active={page === upPage} />) : null;
   /* At the right of the bar, what is rowing: the demo, or the monitor by
    * its name; a monitor that has gone says so there, in the red. */
@@ -802,7 +802,8 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
       {/* While the rower is rowing the screen is numbers and nothing else.
           The buttons come up by themselves once the piece is over or the
           handle has been down a few seconds. */}
-      {over && page !== last ? <View style={{ paddingHorizontal: padX, paddingBottom: wide ? 6 : 16 }}>{wide ? <View style={{ width: Math.min(520, w - padX * 2), alignSelf: "center" }}>{ends}</View> : ends}</View> : <View style={{ height: wide ? 4 : 8 }} />}
+      {/* The arcade's finish screen has LOG IT of its own, upright. */}
+      {over && page !== last && !(showOn && !wide && order[Math.min(page, last)] === "show" && auto?.state === "saved" && !!showed.view.current?.battle) ? <View style={{ paddingHorizontal: padX, paddingBottom: wide ? 6 : 16 }}>{wide ? <View style={{ width: Math.min(520, w - padX * 2), alignSelf: "center" }}>{ends}</View> : ends}</View> : <View style={{ height: wide ? 4 : 8 }} />}
     </View>
   );
 }

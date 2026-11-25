@@ -72,8 +72,12 @@ const rnd = (i: number) => {
 };
 const rank = (r: Rarity) => RARITIES.indexOf(r as (typeof RARITIES)[number]);
 
-export function ChestOpen({ chest, at, t, width, height, won, note }: { chest: Chest; /* When it began to drop, by the wall. */ at: number; t: number; width: number; height: number; won: boolean; /* The line under CHEST, in place of how the game went. */ note?: string }) {
-  const e = t - at;
+/* `box`: a loot box, not the wooden chest (round four, 2026-11-25: "make it
+ * more of a loot box, Overwatch style"; "slow down the open so it can be
+ * enjoyed"; "don't label the chest 'Chest'"): drawn as LootBoxArt, `head`
+ * in place of the word CHEST, `slow` times as slow. */
+export function ChestOpen({ chest, at, t, width, height, won, note, head: headWord, slow = 1, box }: { chest: Chest; /* When it began to drop, by the wall. */ at: number; t: number; width: number; height: number; won: boolean; /* The line under CHEST, in place of how the game went. */ note?: string; head?: string; slow?: number; box?: "box" | "boss" }) {
+  const e = (t - at) / Math.max(0.2, slow);
   const best = bestOf(chest.items);
   const glow = RARITY_COLOR[best];
   const open = e >= OPEN_AT;
@@ -97,7 +101,7 @@ export function ChestOpen({ chest, at, t, width, height, won, note }: { chest: C
   const lid = open ? pop((e - OPEN_AT) / 0.3) : 0;
   const light = clamp((e - 0.7) / 1);
   const rays = chest.triple ? RAINBOW : [glow, glow, glow, glow, glow, glow];
-  const head = chest.triple ? "TRIPLE CHEST" : "CHEST";
+  const head = headWord ?? (chest.triple ? "TRIPLE CHEST" : "CHEST");
   const oe = e - OPEN_AT;
   const mouth = { x: cx, y: restY + ch * 0.36 };
   const flash = open ? clamp(1 - oe / 0.35) : 0;
@@ -127,7 +131,7 @@ export function ChestOpen({ chest, at, t, width, height, won, note }: { chest: C
             })
           : null}
         <G transform={`translate(${(cx - cw / 2 + shake).toFixed(1)} ${y.toFixed(1)})`}>
-          <ChestArt w={cw} h={ch} lid={lid} glow={chest.triple ? RAINBOW[Math.floor(e * 6) % 6] : glow} />
+          {box ? <LootBoxArt w={cw} h={ch} lid={lid} glow={chest.triple ? RAINBOW[Math.floor(e * 6) % 6] : glow} boss={box === "boss"} t={e} /> : <ChestArt w={cw} h={ch} lid={lid} glow={chest.triple ? RAINBOW[Math.floor(e * 6) % 6] : glow} />}
         </G>
         {/* The flash as the lid goes, and the confetti it throws up. */}
         {flash > 0 ? <Circle cx={mouth.x} cy={mouth.y} r={cw * (0.3 + 1.1 * (1 - flash))} fill="#FFFFFF" fillOpacity={0.75 * flash} /> : null}
@@ -340,6 +344,54 @@ export function ChestArt({ w, h, lid, glow = BAND }: { w: number; h: number; /* 
       <Rect x={w / 2 - w * 0.075} y={boxY - h * 0.04} width={w * 0.15} height={h * 0.21} rx={3} fill={BAND} stroke={ink} strokeWidth={sw * 0.8} />
       <Circle cx={w / 2} cy={boxY + h * 0.045} r={Math.max(2, w * 0.022)} fill={ink} />
       <Rect x={w / 2 - Math.max(0.8, w * 0.008)} y={boxY + h * 0.045} width={Math.max(1.6, w * 0.016)} height={h * 0.07} fill={ink} />
+    </G>
+  );
+}
+
+/* A LOOT BOX: a crate in the dark of the arcade, its seams lit in the
+ * colour of what is inside, an emblem on its face; a boss's is gold-edged
+ * with a crown. The lid lifts straight off and the light comes up. */
+export function LootBoxArt({ w, h, lid, glow, boss, t }: { w: number; h: number; lid: number; glow: string; boss: boolean; t: number }) {
+  const ink = C.ink;
+  const body = "#262B36";
+  const face = "#313847";
+  const edge = boss ? BAND : "#5B6477";
+  const lidH = h * 0.3;
+  const boxY = lidH;
+  const boxH = h - lidH;
+  const sw = Math.max(2, w * 0.022);
+  const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t * 2.4));
+  const cx = w / 2;
+  const cy = boxY + boxH * 0.52;
+  const er = Math.min(w, boxH) * 0.2;
+  const hex = Array.from({ length: 6 }, (_, i) => {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    return `${i ? "L" : "M"}${(cx + Math.cos(a) * er).toFixed(1)} ${(cy + Math.sin(a) * er).toFixed(1)}`;
+  }).join(" ") + "Z";
+  return (
+    <G>
+      <Rect x={w * 0.04} y={h - 2} width={w * 0.92} height={Math.max(4, h * 0.06)} rx={h * 0.03} fill={ink} fillOpacity={0.16} />
+      {lid > 0 ? (
+        <G>
+          <Path d={`M${w * 0.08} ${boxY} L${-w * 0.1} ${boxY - h * 1.2 * lid} H${w * 1.1} L${w * 0.92} ${boxY} Z`} fill={glow} fillOpacity={0.32} />
+          <Path d={`M${w * 0.24} ${boxY} L${w * 0.14} ${boxY - h * 0.9 * lid} H${w * 0.86} L${w * 0.76} ${boxY} Z`} fill="#FFFFFF" fillOpacity={0.45} />
+          <Rect x={w * 0.06} y={boxY - 3} width={w * 0.88} height={6} fill={glow} />
+        </G>
+      ) : null}
+      <Rect x={0} y={boxY} width={w} height={boxH} rx={w * 0.06} fill={body} stroke={ink} strokeWidth={sw} />
+      <Rect x={w * 0.08} y={boxY + boxH * 0.1} width={w * 0.84} height={boxH * 0.8} rx={w * 0.04} fill={face} stroke={edge} strokeWidth={sw * 0.8} />
+      <Line x1={w * 0.08} y1={cy} x2={cx - er * 1.1} y2={cy} stroke={glow} strokeWidth={sw * 1.2} strokeOpacity={pulse} />
+      <Line x1={cx + er * 1.1} y1={cy} x2={w * 0.92} y2={cy} stroke={glow} strokeWidth={sw * 1.2} strokeOpacity={pulse} />
+      <Path d={hex} fill={body} stroke={glow} strokeWidth={sw * 1.3} strokeOpacity={pulse} />
+      {boss ? <Path d={`M${cx - er * 0.55} ${cy + er * 0.3} L${cx - er * 0.55} ${cy - er * 0.25} L${cx - er * 0.25} ${cy + er * 0.02} L${cx} ${cy - er * 0.4} L${cx + er * 0.25} ${cy + er * 0.02} L${cx + er * 0.55} ${cy - er * 0.25} L${cx + er * 0.55} ${cy + er * 0.3} Z`} fill={BAND} stroke={ink} strokeWidth={sw * 0.6} strokeLinejoin="round" /> : <Path d={star(cx, cy, er * 0.55)} fill={glow} fillOpacity={pulse} />}
+      {[0.1, 0.9].map((bx) => (
+        <Rect key={bx} x={w * bx - w * 0.035} y={boxY + boxH * 0.05} width={w * 0.07} height={boxH * 0.9} rx={w * 0.02} fill={edge} stroke={ink} strokeWidth={sw * 0.6} />
+      ))}
+      <G transform={`translate(0 ${(-lidH * 1.6 * lid).toFixed(1)})`}>
+        <Rect x={-w * 0.02} y={0} width={w * 1.04} height={lidH} rx={w * 0.05} fill={body} stroke={ink} strokeWidth={sw} />
+        <Rect x={w * 0.06} y={lidH * 0.25} width={w * 0.88} height={lidH * 0.32} rx={lidH * 0.12} fill={face} stroke={edge} strokeWidth={sw * 0.7} />
+        <Line x1={w * 0.12} y1={lidH * 0.41} x2={w * 0.88} y2={lidH * 0.41} stroke={glow} strokeWidth={sw} strokeOpacity={pulse} />
+      </G>
     </G>
   );
 }

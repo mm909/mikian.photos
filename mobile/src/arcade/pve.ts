@@ -221,6 +221,8 @@ export type PveView = {
   out: boolean;
   overtime: boolean;
   xp: number;
+  /* The damage done this row. */
+  dealt: number;
   /* A box for every monster down, a boss's rarer. */
   loot: Loot[];
   shots: PShot[];
@@ -293,6 +295,7 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
     out: false,
     overtime: false,
     xp: 0,
+    dealt: 0,
     loot: [],
     shots: [],
     hits: [],
@@ -305,6 +308,7 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
     const mo = v.monster;
     if (!mo) return;
     const want = sv.hit * v.power;
+    v.dealt += Math.min(mo.hp, want);
     mo.hp = Math.max(0, mo.hp - want);
     const kill = mo.hp <= 1e-6;
     v.shots.push({ n: (v.shots[v.shots.length - 1]?.n ?? 0) + 1, at, from: "me", slot: sv.def.slot, dmg: Math.max(1, Math.round(want)), q: sv.q, kill, monster: mo.i });

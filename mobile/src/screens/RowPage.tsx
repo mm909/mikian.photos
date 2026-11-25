@@ -21,6 +21,7 @@ import type { MetricId } from "./Field";
 import type { RowMeasure } from "../pm5/craft";
 import { RowMenu, Sheet } from "./Social";
 import { useGame, useLastDemoGame, type Game } from "../arcade/games";
+import { AfterRow } from "./AfterRow";
 import { equip, useLocker } from "../arcade/locker";
 import { levelOf } from "../arcade/score";
 import { RARITY_COLOR, SKIN_BY_ID, STOCK, LAYER_WORD, wear } from "../arcade/skins";
@@ -133,6 +134,12 @@ export function RowPage({
   const { error, reload } = loaded;
   const [sharing, setSharing] = useState(false);
   const [talking, setTalking] = useState(!!talk);
+  /* THE ARCADE'S AFTER-ROW, over a row just logged that had a run on it
+   * (AfterRow.tsx): performance, progress, the boxes. Once. */
+  const game = useGame(fake ? null : id);
+  const demoGame = useLastDemoGame();
+  const ran = fake ? demoGame : game;
+  const [after, setAfter] = useState(true);
   const [said, setSaid] = useState<number | null>(null);
   /* EDIT ROW is open. It comes up a moment after the menu that asked for
    * it has gone: a phone will not raise one sheet while another is still
@@ -167,7 +174,9 @@ export function RowPage({
     </Text>
   );
 
+  const afterOn = after && !!fresh && !!ran && ran.mode === "solo" && arcadeFor(me) && Date.now() - ran.at < 30 * 60_000;
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 140 }}>
       {fake ? <Text style={[mono(10, true, C.accent, 0.12), { lineHeight: 16, marginBottom: 12 }]}>Demo row · nothing was saved</Text> : null}
       {/* WHO AND WHEN, in two tight lines (owner, 2026-11-21: "the space
@@ -329,6 +338,8 @@ export function RowPage({
       ) : null}
       {talking ? <CommentsSheet entryId={r.id} onClose={() => setTalking(false)} onRower={onRower} onCount={setSaid} /> : null}
     </ScrollView>
+    {afterOn && ran ? <AfterRow g={ran} meters={r.meters ?? fresh?.meters ?? 0} time={r.durationStr ?? ""} pace={(r.splitStr ?? "").replace(/\s*\/500.*$/, "")} lifeBefore={fresh?.lifeBefore ?? 0} onClose={() => setAfter(false)} /> : null}
+    </View>
   );
 }
 

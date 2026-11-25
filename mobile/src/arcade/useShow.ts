@@ -159,7 +159,9 @@ export function useShow(erg: Erg, on: boolean): Showed {
         const rest = Math.max(0, v.xpRow - banked.current);
         banked.current = v.xpRow;
         if (rest) addXp(rest).catch(() => null);
-        grant(v.final.chest.items, true).catch(() => null);
+        /* The course gives boxes (run.ts), opened after the row; a match
+         * still gives its one chest. */
+        if (!v.battle) grant(v.final.chest.items, true).catch(() => null);
         /* ONE SCREEN PAYS (owner, 2026-11-24: "you only get rewards for the
          * stuff that's on your screen"): the course's coins (the game's
          * meters), or a match's rating, never both. */
@@ -168,7 +170,7 @@ export function useShow(erg: Erg, on: boolean): Showed {
         if (b) addCoins(v.coins).catch(() => null);
         /* The floor reached, the stars won, a box for every monster down. */
         if (b) endRow({ at: b.at, run: b.run, lost: b.lost, stars: b.runsDone, box: b.loot.filter((l) => l.kind === "box").length, boss: b.loot.filter((l) => l.kind === "boss").length }).catch(() => null);
-        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: v.final.chest.items, coins: b ? v.coins : 0, fish: sw.kills, bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m) }).catch(() => null);
+        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: b ? [] : v.final.chest.items, coins: b ? v.coins : 0, fish: sw.kills, bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m), dealt: b ? Math.round(b.dealt) : 0, floor: b ? b.at + 1 : 0, stars: b?.runsDone ?? 0, lost: !!b?.lost }).catch(() => null);
       }
     };
     const tick = () => {

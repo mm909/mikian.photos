@@ -1,5 +1,5 @@
 import { useRef, type ReactElement, type ReactNode } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Rect } from "react-native-svg";
 import { DOT_ON, FlipDots, dotClock } from "../arcade/Art159";
 import { useWallClock } from "../arcade/BoatArt";
@@ -170,14 +170,14 @@ const stripOf = (width: number) => {
 };
 
 /* The page or the overlay: the headline and the stage beside or under it. */
-function Framed({ showed, erg, width, height, active }: { showed: Showed; erg: Erg; width: number; height: number; active: boolean }) {
+function Framed({ showed, erg, width, height, active, logIt }: { showed: Showed; erg: Erg; width: number; height: number; active: boolean; logIt?: (() => void) | null }) {
   const wide = width >= 520 && width > height;
   if (wide) {
     const SIDE = Math.round(Math.min(230, width * 0.24));
     return (
       <View style={{ width, height, flexDirection: "row", backgroundColor: C.paper }}>
         <Headline erg={erg} width={SIDE} height={height} wide />
-        <Stage showed={showed} erg={erg} width={width - SIDE} height={height} active={active} />
+        <Stage showed={showed} erg={erg} width={width - SIDE} height={height} active={active} logIt={logIt} />
       </View>
     );
   }
@@ -185,13 +185,15 @@ function Framed({ showed, erg, width, height, active }: { showed: Showed; erg: E
   return (
     <View style={{ width, height, backgroundColor: C.paper }}>
       <Headline erg={erg} width={width} height={STRIP} wide={false} />
-      <Stage showed={showed} erg={erg} width={width} height={height - STRIP} active={active} />
+      <Stage showed={showed} erg={erg} width={width} height={height - STRIP} active={active} logIt={logIt} />
     </View>
   );
 }
 
-export function ShowPage({ showed, erg, width, height, active }: { showed: Showed; erg: Erg; width: number; height: number; active: boolean }) {
-  return <Framed showed={showed} erg={erg} width={width} height={height} active={active} />;
+/* `logIt`: the row is logged and the photos and the caption are a press
+ * away (RowScreen's ADD PHOTOS); the finish screen shows LOG IT upright. */
+export function ShowPage({ showed, erg, width, height, active, logIt }: { showed: Showed; erg: Erg; width: number; height: number; active: boolean; logIt?: (() => void) | null }) {
+  return <Framed showed={showed} erg={erg} width={width} height={height} active={active} logIt={logIt} />;
 }
 
 /* Whether the show is laid over the other pages now: the ready check, the
@@ -208,7 +210,7 @@ export function ShowOverlay({ showed, erg, width, height }: { showed: Showed; er
 
 /* ---- the stage ------------------------------------------------------------- */
 
-function Stage({ showed, erg, width, height, active }: { showed: Showed; erg: Erg; width: number; height: number; active: boolean }) {
+function Stage({ showed, erg, width, height, active, logIt }: { showed: Showed; erg: Erg; width: number; height: number; active: boolean; logIt?: (() => void) | null }) {
   const wall = useWallClock(active);
   const locker = useLocker();
   const paint = wear(locker.equipped);
@@ -220,7 +222,9 @@ function Stage({ showed, erg, width, height, active }: { showed: Showed; erg: Er
    * at the pace of this stroke. */
   const speed = erg.live.pace > 0 && erg.live.pace < 600 && !erg.live.ended ? 500 / erg.live.pace : 0;
   const myM = v.m + Math.max(0, rt - v.t) * speed;
-  const p = { v, erg, width, height, wall, rt, myM, paint, hop, showed };
+  const p = { v, erg, width, height, wall, rt, myM, paint, hop, showed, logIt };
+  /* SINGLE PLAYER ENDS ON THE FINISH SCREEN (round four): no chest. */
+  if (v.battle && (v.phase === "chest" || v.phase === "summary")) return <EndScreen {...p} />;
   switch (v.phase) {
     case "intro":
       return showed.ctx.current.solo ? <SoloIntro {...p} /> : <Intro {...p} />;
@@ -250,7 +254,7 @@ function Stage({ showed, erg, width, height, active }: { showed: Showed; erg: Er
   }
 }
 
-type P = { v: ShowView; erg: Erg; width: number; height: number; wall: number; rt: number; myM: number; paint: Paint; hop: number; showed: Showed };
+type P = { v: ShowView; erg: Erg; width: number; height: number; wall: number; rt: number; myM: number; paint: Paint; hop: number; showed: Showed; logIt?: (() => void) | null };
 
 /* A line of big type, cut to fit the width (a phone's browser will not
  * shrink a line itself). */
@@ -1537,3 +1541,60 @@ function Finish({ v, width, height, wall, myM, paint, hop }: P) {
   );
 }
 
+
+/* ---- THE FINISH SCREEN (owner, 2026-11-24: on the rower, "the time first
+ * and biggest, then meters and pace. Congratulations; lifetime meters can
+ * tick up here"; then "he hangs up the handle and picks up the phone.
+ * Turned upright, a Log it button appears"). The performance, the progress
+ * and the boxes follow in the hand, on the row's page (AfterRow.tsx). ---- */
+function EndScreen({ v, width, height, wall, paint, showed, logIt }: P) {
+  const e = wall - v.sinceWall;
+  const ctx = showed.ctx.current;
+  const wide = width > height * 1.1;
+  const secs = v.t;
+  const pace = v.m > 0 ? (secs / v.m) * 500 : 0;
+  const life = ctx.lifetime + v.m * ease((e - 1) / 2.5);
+  const fade = (i: number) => ({ opacity: clamp((e - 0.2 - i * 0.3) / 0.4) });
+  const b = v.battle;
+  const line = b ? (b.lost ? `RUN LOST ON FLOOR ${b.at + 1}` : b.runsDone ? `RUN COMPLETE · ★ ${b.runsDone}` : `ON TO FLOOR ${b.at + 1} NEXT ROW`) : "";
+  return (
+    <View style={{ width, height, paddingHorizontal: 18, paddingTop: 10, overflow: "hidden" }}>
+      <View style={[{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, fade(0)]}>
+        <Text style={{ fontFamily: F.black, fontSize: wide ? 24 : 22, color: C.accent }}>WELL ROWED</Text>
+        <TokenArt paint={paint} size={wide ? 54 : 48} t={wall} hop={Math.abs(Math.sin(e * 4)) * 0.6} look={0} uid="end" />
+      </View>
+      <View style={fade(0)}>
+        <Num size={Math.min(wide ? 110 : 92, width / 4.3, height * 0.32)}>{clockS(secs)}</Num>
+      </View>
+      <View style={[{ flexDirection: "row", columnGap: 26, marginTop: 4 }, fade(1)]}>
+        <View>
+          <Eyebrow>Meters</Eyebrow>
+          <Num size={wide ? 40 : 32}>{fmtInt(v.m)}</Num>
+        </View>
+        <View>
+          <Eyebrow>Pace</Eyebrow>
+          <Num size={wide ? 40 : 32}>{pace ? fmtClock(pace) : "-:--.-"}</Num>
+        </View>
+      </View>
+      <View style={[{ marginTop: 10 }, fade(2)]}>
+        <Eyebrow>All-time meters</Eyebrow>
+        <Num size={wide ? 30 : 26}>{fmtInt(life)}</Num>
+        {line ? <Text style={{ fontFamily: F.black, fontSize: 16, color: b?.lost ? BEST : C.soft, marginTop: 6 }}>{line}</Text> : null}
+      </View>
+      <View style={{ flex: 1 }} />
+      {wide ? (
+        <Text style={[{ fontFamily: F.monoBold, fontSize: 13, letterSpacing: 1.6, color: C.soft, paddingBottom: 10 }, fade(3)]}>PICK UP THE PHONE TO LOG IT</Text>
+      ) : (
+        <View style={[{ paddingBottom: 14 }, fade(3)]}>
+          {logIt ? (
+            <Pressable accessibilityRole="button" onPress={logIt} style={({ pressed }) => ({ backgroundColor: C.ink, borderRadius: 10, paddingVertical: 18, alignItems: "center", opacity: pressed ? 0.7 : 1 })}>
+              <Text style={{ fontFamily: F.black, fontSize: 26, letterSpacing: 2, color: C.paper }}>LOG IT</Text>
+            </Pressable>
+          ) : (
+            <Text style={{ fontFamily: F.black, fontSize: 18, color: C.soft, textAlign: "center" }}>LOGGING…</Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}

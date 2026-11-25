@@ -101,7 +101,9 @@ export const PAGES: Page[] = [
         "The screen: two big numbers on the left (pace, finish), the board as big as it goes, the floor big in the corner, the monster's bar centred and bare, your hull as a bar, no page dots while you row.",
         "The kick-out at 250 m to go; a boss still up goes to OVERTIME. Then a drag race against a ghost to the line.",
         "Settings, DEVELOPER: Reset my run, and Add 5 boxes and a boss box.",
-        "Next: the finish screen, LOG IT when you pick the phone up, then performance, progress, and the boxes opened one by one; and two or three pictures of art styles.",
+        "THE END OF THE ROW: on the rower, the finish screen (WELL ROWED, the time biggest, meters and pace, all-time meters ticking up, where the run stands; no chest). Pick the phone up: LOG IT, big, opens the photos and the caption. Then, on the row's page, three steps a tap each: PERFORMANCE (time, meters, pace; damage done, monsters down, bosses, the floor), PROGRESS (the level's bar with the row's XP; all-time meters toward the next mark, a step three of this row rounded to 5K or 10K), and THE BOXES.",
+        "BOXES: one for every monster down, a boss box for every boss, kept on the phone until opened, boss boxes last. A new loot box (a dark crate, its seams lit in the colour of what is inside; a boss's with a crown), opened at two thirds the old speed. Odds: a box as the chest's (60/25/10/4/1), three items one time in twelve; a boss box never common (uncommon 50, rare 30, epic 15, legendary 5), three one time in four. A near miss on the reel is only ever what those odds gave.",
+        "Open: a 1K is cut to a fifth of a 5K, so a 1K at your pace finishes a run (and gets a star) too. Say if a run should be 5K only.",
       ] },
       { h: "Tuesday, Nov 24, late: after you played the preview" },
       { list: [

@@ -189,6 +189,34 @@ export function rollChest(rnd: () => number, won: boolean): Chest {
   return { triple, items };
 }
 
+/* A BOX (round four, 2026-11-25: "one box per enemy killed; a rarer box per
+ * boss, with drop rarity following the box"). A box draws at the chest's
+ * odds (DROP); a boss box at BOSS_DROP, never a common; a box bursts into
+ * three one time in twelve, a boss box one in four. The odds shown in the
+ * wiki are these, and a near miss is only ever what the odds gave. */
+export const BOSS_DROP: Record<Exclude<Rarity, "stock">, number> = { common: 0, uncommon: 50, rare: 30, epic: 15, legendary: 5 };
+export const BOX_TRIPLE = { box: 1 / 12, boss: 0.25 };
+export function rollBox(rnd: () => number, kind: "box" | "boss"): Chest {
+  const odds = kind === "boss" ? BOSS_DROP : DROP;
+  const triple = rnd() < BOX_TRIPLE[kind];
+  const items: string[] = [];
+  for (let i = 0; i < (triple ? 3 : 1); i++) {
+    let x = rnd() * 100;
+    let rarity: Exclude<Rarity, "stock"> = kind === "boss" ? "uncommon" : "common";
+    for (const r of RARITIES) {
+      x -= odds[r];
+      if (x < 0) {
+        rarity = r;
+        break;
+      }
+    }
+    const pool = DROPPABLE.filter((s) => s.rarity === rarity && !items.includes(s.id));
+    const from = pool.length ? pool : DROPPABLE.filter((s) => !items.includes(s.id));
+    items.push(from[Math.floor(rnd() * from.length)].id);
+  }
+  return { triple, items };
+}
+
 /* The best of what came out, for the colour of the light. */
 export function bestOf(ids: string[]): Rarity {
   let at = 0;
