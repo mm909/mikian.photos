@@ -61,8 +61,10 @@ export const M2D_RATE_DEFAULT = 4;
  * $5,000"). Said once, in the FAQ's questions and the giving page's fine
  * print, never as a bar or a countdown. Should registered meters ever be
  * worth more than this at the rate, ROWTEMBER's part is scaled to it: every
- * rower's share shrinks by the same fraction. At 4¢ that is 125,000 km. */
-export const M2D_CAP = 5000;
+ * rower's share shrinks by the same fraction. Lowered to $1,000 (owner,
+ * 2026-11-25 evening: "Cap it at $1,000 ... move it from 5,000 down to
+ * 1,000"). At 4¢ that is 25,000 km, 2.5 million registered meters. */
+export const M2D_CAP = 1000;
 export const M2D_RATE_KEY = "m2d.rate";
 /* Cents a kilometer, to a hundredth of a cent, from 0.5 to 500 ($5/km)
  * (owner, 2026-11-25: "it doesn't have to be whole number. It can be 4

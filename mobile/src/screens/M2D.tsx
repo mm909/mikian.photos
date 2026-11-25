@@ -803,7 +803,7 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
       {q("How do I register?", `Make a free Concept2 Logbook, pick a charity there, and get your meters into it (ErgData does that). Then press Opt in to M2D on the M2D tab, pick where ${by}'s part goes, and press I'm registered.`)}
       {q("How do I change my charity?", "On your profile, under M2D, until Dec 24. You can split it across the three there too.")}
       {q("What counts?", `For ${by}: rows logged on ROW from Nov 26 to Dec 24 by registered rowers. For Concept2: the meters in your Concept2 Logbook.`)}
-      {q("Is there a limit?", `${by} matches up to $5,000.`)}
+      {q("Is there a limit?", `${by} matches up to $1,000.`)}
       {q("Does it cost me anything?", "No. It is free.")}
       <View style={{ marginTop: 18 }}>
         <Ctl label="The challenge at Concept2 ↗" onPress={() => open(v.link)} />
@@ -1050,6 +1050,75 @@ export function M2dPlanner() {
         <Go label={busy ? "Saving" : "Set the rate"} disabled={busy || !rateIn || Number(rateIn) === plan.rate} onPress={() => void save()} />
       </View>
       {say ? <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 10, lineHeight: 17 }]}>{say}</Text> : null}
+    </View>
+  );
+}
+
+/* M2D'S RETURN (owner, 2026-11-25 evening: "a section for my ROI. And that
+ * should keep going and analyzing after M2D is done ... I started during
+ * M2D versus I just rowed during M2D. And then keep track of if they
+ * continue"), in his settings under M2D exposure. The site works it out
+ * (row100k/m2dReturn.ts, api/row100k/app/m2d/return); this only prints it.
+ * STARTED: first row ever on ROW in the window. ROWED: rowed on ROW before
+ * Nov 26 and in the window too. After Dec 24, each stretch shows how many
+ * of each class logged a row in it. */
+type Klass = { rowers: number; registered: number; meters: number; after: number[]; last30: number };
+type Return = {
+  window: { first: string; last: string; over: boolean };
+  today: string;
+  cost: number;
+  cap: number;
+  started: Klass;
+  rowed: Klass;
+  stretches: { label: string; first: string; last: string; partial: boolean }[];
+  perStarted: number | null;
+  perStartedStill: number | null;
+};
+const RETURN_PATH = "/api/row100k/app/m2d/return";
+const pctOf = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : "—");
+export function M2dReturn() {
+  const { data, error, reload } = useLoad(() => api<Return>(RETURN_PATH), [], RETURN_PATH);
+  if (!data) return <Waiting error={error} onRetry={reload} />;
+  const d = data;
+  const row = (k: string, v: string, sub?: string) => (
+    <View key={k} style={{ paddingVertical: 8, borderBottomWidth: 1, borderColor: C.line }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", columnGap: 10 }}>
+        <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: C.ink }}>{k}</Text>
+        <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.accent, fontVariant: ["tabular-nums"] }}>{v}</Text>
+      </View>
+      {sub ? <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 3 }]}>{sub}</Text> : null}
+    </View>
+  );
+  const head = (s: string) => <Text style={{ fontFamily: F.black, fontSize: 17, color: C.ink, textTransform: "uppercase", marginTop: 24, paddingBottom: 6, borderBottomWidth: 2, borderColor: C.ink }}>{s}</Text>;
+  const klass = (name: string, k: Klass, what: string) => (
+    <>
+      {head(`${name} · ${k.rowers}`)}
+      <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 6, lineHeight: 15 }]}>{what}</Text>
+      {row("Opted in to M2D", `${k.registered}`, k.rowers ? `${pctOf(k.registered, k.rowers)} of them` : undefined)}
+      {row("Meters in the window", `${fmtInt(k.meters)} m`)}
+      {d.stretches.length ? (
+        <>
+          {d.stretches.map((s, i) => row(`Rowed in ${s.label}${s.partial ? " (so far)" : ""}`, `${k.after[i]}`, pctOf(k.after[i], k.rowers)))}
+          {row("Rowed in the last 30 days", `${k.last30}`, pctOf(k.last30, k.rowers))}
+        </>
+      ) : null}
+    </>
+  );
+  return (
+    <View>
+      <Text style={[mono(10, true, C.ink, 0.12), { marginTop: 8 }]}>Cost per rower who started in M2D</Text>
+      <Text style={{ fontFamily: F.black, fontSize: 56, lineHeight: 62, color: C.accent, fontVariant: ["tabular-nums"], marginTop: 6 }}>{d.perStarted == null ? "—" : usd(d.perStarted)}</Text>
+      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 4, lineHeight: 16 }]}>
+        ROWTEMBER&apos;s match {usd(d.cost)} of the {usd(d.cap)} cap · {d.started.rowers} started
+        {d.perStartedStill != null ? ` · ${usd(d.perStartedStill)} per starter still rowing` : ""}
+      </Text>
+      {klass("Started in M2D", d.started, "Their first row on ROW was between Nov 26 and Dec 24.")}
+      {klass("Rowed in M2D", d.rowed, "They rowed on ROW before Nov 26, and in M2D too.")}
+      {!d.stretches.length ? (
+        <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 14, lineHeight: 15 }]}>
+          Who keeps rowing starts counting on Dec 25: the rest of December, then every month after, for as long as the site runs.
+        </Text>
+      ) : null}
     </View>
   );
 }

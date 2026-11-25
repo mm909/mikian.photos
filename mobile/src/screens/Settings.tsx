@@ -1,5 +1,5 @@
 import Constants from "expo-constants";
-import { M2dPlanner } from "./M2D";
+import { M2dPlanner, M2dReturn } from "./M2D";
 import * as Updates from "expo-updates";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
@@ -46,7 +46,7 @@ import { Act, Sheet, Small, Toggle, type PeopleList } from "./Social";
 /* DEVELOPER is one page (owner, 2026-11-24: every developer option "into
  * one submenu", like the others): the arcade's resets, the Developer
  * account's reset, and the way to PASSWORD. */
-export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer" | "password" | "planner" | "about";
+export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer" | "password" | "planner" | "return" | "about";
 
 const KIND: Record<string, [string, string]> = {
   passed: ["A rower I follow passes me", "At most one a day, however many passed."],
@@ -105,6 +105,9 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
         {/* M2D EXPOSURE, a press from the list (owner, 2026-11-25: "I need
             that exposure page in the app"): what M2D can cost at the rate. */}
         {me.isAdmin ? <Go label="M2D exposure" sub="What the match can cost: so far, projected, per cent. Only you see this." onPress={() => onPage("planner")} /> : null}
+        {/* M2D RETURN, under the exposure (owner, 2026-11-25 evening: "a
+            section for my ROI"): who started, who rowed, who keeps rowing. */}
+        {me.isAdmin ? <Go label="M2D return" sub="Cost per rower, who started and who rowed, who keeps rowing after. Only you see this." onPress={() => onPage("return")} /> : null}
         {me.isAdmin && onWiki ? <Go label="Wiki" sub="The plans, the arcade, the order of work. Only you see this." onPress={onWiki} /> : null}
         {arcadeFor(me) && onLocker ? <Go label="Locker" sub="Your piece's skins from the arcade's chests. Only you see this." onPress={onLocker} /> : null}
         <View style={{ height: 26 }} />
@@ -134,6 +137,7 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
   /* What M2D costs, and ROWTEMBER's rate (owner, 2026-11-25): an admin
    * only, in the developer settings (screens/M2D.tsx M2dPlanner). */
   if (page === "planner") return wrap(me.isAdmin ? <M2dPlanner /> : null);
+  if (page === "return") return wrap(me.isAdmin ? <M2dReturn /> : null);
   /* ABOUT, A PAGE OF ITS OWN (owner, 2026-11-25: "the about should
    * definitely just be in its own little settings folder"). */
   if (page === "about") return wrap(<About />);
