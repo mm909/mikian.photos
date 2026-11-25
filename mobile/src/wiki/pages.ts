@@ -47,7 +47,7 @@ export const PAGES: Page[] = [
         "THE SWARM between floors: from above, the boat boxing round its jab's reach, fish everywhere, XP to pick up.",
         "Coins are your meters in the game. Spend them on your profile's arcade tab: DAMAGE, HULL, QUICK, EASE, or a CHEST for 2,000.",
         "The chest opens with a reel that slows to the prize; it is yours the moment the row ends. Then the summary.",
-        "Settings, DEVELOPER: reset your level, boat, skills, appearance or unlocks, or unlock everything. Arcade only; rows and meters are never touched.",
+        "Settings, DEVELOPER is one page now, like the others: RESET MY WHOLE CHARACTER at the top (level 1: XP, coins, boat, skills, appearance, unlocks), then one at a time: level, coins, boat (the hull), skills, appearance, unlocks, or unlock everything; under them the Developer account and its password. Arcade only; rows and meters are never touched.",
         "Hidden from every rower but you until you say (January, or later); one line opens it.",
         "Smooth percents, LV and your name over the boat, larger monsters, a new setting every five floors, outlined damage numbers.",
       ] },
@@ -94,6 +94,7 @@ export const PAGES: Page[] = [
     blocks: [
       { h: "Tuesday, Nov 24, late: after you played the preview" },
       { list: [
+        "SETTINGS, DEVELOPER is one submenu: RESET MY WHOLE CHARACTER on top, then each reset on its own, a new one for the coins alone; the Developer account's reset and password under them.",
         "HIDDEN FROM EVERYBODY BUT YOU, until you open it (\"Wait until January to launch it, if not later\"). Not switched off, only no door drawn: the profile's arcade panel, FREE ROW or PLAY THE ARCADE on connect, the game on a row's page, the locker, the developer buttons. Opening it is one line, ARCADE_OPEN in src/arcade/gate.ts.",
         "The skill percents count up smoothly and never jump back: what is shown runs after the charge, and when a skill goes off it runs on to 100 and round to 0. At 10x it laps less often than the skill really fires.",
         "Your boat wears LV 7 MIKIAN in place of YOU, on the course and in the swarm (your name is nowhere else on those screens). The level counts this row's XP as it comes.",

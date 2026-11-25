@@ -3,7 +3,7 @@ import * as Updates from "expo-updates";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SITE, api, edits, type SocialSettings } from "../api";
-import { resetBoat, resetSkills } from "../arcade/boat";
+import { resetBoat, resetCoins, resetHull, resetSkills } from "../arcade/boat";
 import { resetLook, resetUnlocks, unlockAll } from "../arcade/locker";
 import { setXp } from "../arcade/progress";
 import { useLookSwitch } from "../look";
@@ -41,7 +41,10 @@ import { Act, Sheet, Small, Toggle, type PeopleList } from "./Social";
  * signed in as the Developer, RESET THIS ACCOUNT puts rower 001's copy
  * back at once; signed in as an admin, DEVELOPER PASSWORD sets the one
  * password that opens it, so the host's settings never need opening. */
-export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer";
+/* DEVELOPER is one page (owner, 2026-11-24: every developer option "into
+ * one submenu", like the others): the arcade's resets, the Developer
+ * account's reset, and the way to PASSWORD. */
+export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer" | "password";
 
 const KIND: Record<string, [string, string]> = {
   passed: ["A rower I follow passes me", "At most one a day, however many passed."],
@@ -103,8 +106,7 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
         {/* What the store asks to be a press away: the policy and the terms. */}
         <Go label="Privacy policy" onPress={() => Linking.openURL(SITE + "/row100k/app-privacy").catch(() => null)} />
         <Go label="Terms of use" onPress={() => Linking.openURL(SITE + "/row100k/app-terms").catch(() => null)} />
-        {me.isDev || me.isAdmin ? <DeveloperRows isDev={!!me.isDev} onPassword={() => onPage("developer")} onReset={() => refresh()} /> : null}
-        {arcadeFor(me) ? <ArcadeDev /> : null}
+        {me.isDev || me.isAdmin ? <Go label="Developer" sub={me.isAdmin ? "Resets for the arcade, the Developer password. Only you see this." : "Reset this account"} onPress={() => onPage("developer")} /> : null}
         <View style={{ height: 26 }} />
         <Act
           label="Sign out"
@@ -122,7 +124,15 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
     );
   }
 
-  if (page === "developer") return wrap(<DeveloperPassword />);
+  if (page === "password") return wrap(<DeveloperPassword />);
+  if (page === "developer") {
+    return wrap(
+      <>
+        {me.isAdmin ? <ArcadeDev /> : null}
+        {me.isDev || me.isAdmin ? <DeveloperRows isDev={!!me.isDev} onPassword={() => onPage("password")} onReset={() => refresh()} /> : null}
+      </>,
+    );
+  }
   if (page === "appearance") {
     return wrap(<Setting title="Dark mode" body="Ink for the page, cream for the type. Only on this phone." on={look.dark} onChange={look.setDark} />);
   }
@@ -399,7 +409,7 @@ function DeveloperRows({ isDev, onPassword, onReset }: { isDev: boolean; onPassw
   return (
     <>
       <View style={{ height: 26 }} />
-      <Eye style={{ marginTop: 0, marginBottom: 0 }} left="Developer" />
+      <Eye style={{ marginTop: 0, marginBottom: 0 }} left="The Developer account" />
       {isDev ? <Act label={busy ? "Resetting" : ask ? "Press again to reset" : "Reset this account"} danger={ask} onPress={busy ? () => null : reset} /> : null}
       {isDev && !note ? <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 8 }}>A copy of rower 001 that only this account sees. What you change stays until tomorrow, then rower 001 is copied again.</Text> : null}
       {note ? <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 8 }}>{note}</Text> : null}
@@ -413,9 +423,26 @@ function DeveloperRows({ isDev, onPassword, onReset }: { isDev: boolean; onPassw
  * an admin: each pressed twice, once to ask and once to do it. They touch
  * only the arcade kept on this phone (the XP, the boat, the locker); never
  * a row, the meters or anything on the site. */
-const ARCADE_DEV: { id: string; label: string; ask: string; done: string; run: () => Promise<unknown> }[] = [
-  { id: "level", label: "Reset my character to level 1", ask: "Your XP goes to 0. Press again.", done: "Level 1, no XP.", run: () => setXp(0) },
-  { id: "boat", label: "Reset my boat", ask: "Your coins and every upgrade go to 0. Press again.", done: "The boat is new: no coins, no upgrades.", run: () => resetBoat() },
+type DevReset = { id: string; label: string; ask: string; done: string; run: () => Promise<unknown> };
+/* THE WHOLE CHARACTER, at the top (owner, 2026-11-24: one button that puts
+ * everything back to level 1): the XP, the coins, the boat, the skills,
+ * the look and the unlocks. */
+const WHOLE: DevReset = {
+  id: "whole",
+  label: "Reset my whole character",
+  ask: "Level 1: XP, coins, boat, skills, appearance and unlocks all go. Press again.",
+  done: "Level 1: no XP, no coins, no upgrades, the plain box, an empty locker.",
+  run: async () => {
+    await setXp(0);
+    await resetBoat();
+    await resetLook();
+    await resetUnlocks();
+  },
+};
+const ARCADE_DEV: DevReset[] = [
+  { id: "level", label: "Reset my level", ask: "Your XP goes to 0. Press again.", done: "Level 1, no XP.", run: () => setXp(0) },
+  { id: "coins", label: "Reset my coins", ask: "Your coins go to 0. Press again.", done: "No coins.", run: () => resetCoins() },
+  { id: "boat", label: "Reset my boat", ask: "The HULL upgrade goes to level 0. Press again.", done: "The hull is at level 0.", run: () => resetHull() },
   { id: "skills", label: "Reset my skills", ask: "DAMAGE, QUICK and EASE go to level 0. Press again.", done: "The skills' upgrades are at 0.", run: () => resetSkills() },
   { id: "look", label: "Reset my appearance", ask: "Your piece goes back to the plain box. Press again.", done: "The plain box, nothing on.", run: () => resetLook() },
   { id: "unlocks", label: "Reset all unlocks", ask: "Every item you have won goes. Press again.", done: "No items: the locker is empty.", run: () => resetUnlocks() },
@@ -424,7 +451,7 @@ const ARCADE_DEV: { id: string; label: string; ask: string; done: string; run: (
 function ArcadeDev() {
   const [ask, setAsk] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  const press = async (d: (typeof ARCADE_DEV)[number]) => {
+  const press = async (d: DevReset) => {
     if (ask !== d.id) {
       setAsk(d.id);
       setNote(d.ask);
@@ -440,8 +467,10 @@ function ArcadeDev() {
   };
   return (
     <>
-      <View style={{ height: 18 }} />
-      <Eye style={{ marginTop: 0, marginBottom: 0 }} left="Developer · the arcade" right="Only you" />
+      <Eye style={{ marginTop: 0, marginBottom: 0 }} left="The arcade" right="Only you" />
+      <Act label={ask === WHOLE.id ? `Press again: ${WHOLE.label.toLowerCase()}` : WHOLE.label} danger onPress={() => press(WHOLE)} />
+      <View style={{ height: 14 }} />
+      <Eye style={{ marginTop: 0, marginBottom: 0 }} left="One at a time" />
       {ARCADE_DEV.map((d) => (
         <Act key={d.id} label={ask === d.id ? `Press again: ${d.label.toLowerCase()}` : d.label} danger={ask === d.id} onPress={() => press(d)} />
       ))}

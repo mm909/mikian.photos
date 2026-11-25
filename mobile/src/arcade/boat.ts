@@ -77,10 +77,13 @@ export const buy = (u: Upgrade) =>
     return { ...b, coins: b.coins - cost, [u]: b[u] + 1 };
   });
 
-/* THE OWNER'S DEVELOPER RESETS (Settings, DEVELOPER): the boat (coins and
- * every upgrade), or the skills (the upgrades that act on them: DAMAGE,
- * QUICK, EASE; the skills themselves are rolled fresh every row). */
+/* THE OWNER'S DEVELOPER RESETS (Settings, DEVELOPER), one thing each: the
+ * coins, the boat (its HULL), the skills (the upgrades that act on them:
+ * DAMAGE, QUICK, EASE), or all of it at once (resetBoat, for the whole
+ * character). */
 export const resetBoat = () => change(() => blank());
+export const resetCoins = () => change((b) => ({ ...b, coins: 0 }));
+export const resetHull = () => change((b) => ({ ...b, hull: 0 }));
 export const resetSkills = () => change((b) => ({ ...b, dmg: 0, quick: 0, ease: 0 }));
 
 /* Spends a chest's coins: true when there were enough (the chest is rolled
