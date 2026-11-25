@@ -22,15 +22,35 @@ export const m2dCss = `
 .row100k .m2-picks-wrap{margin-top:26px}
 .row100k .m2-pick-lede{margin-top:6px;max-width:640px;font-size:14px;line-height:1.5;color:var(--gray)}
 .row100k .m2-picks{display:grid;grid-template-columns:1fr;gap:10px;margin-top:14px}
-.row100k .m2-pick{display:block;text-align:left;background:none;border:1px solid var(--ink);border-radius:0;padding:12px 14px;color:var(--ink);font-family:var(--row-archivo),sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.row100k .m2-pick b{display:block;font-family:var(--row-archivo-black),sans-serif;font-size:17px;font-weight:400;text-transform:uppercase}
+/* A CHARITY: the card is the radio; its own site is a link under it. The
+ * picked one is a solid block of the accent with a check (review,
+ * 2026-11-25: an unmistakable selected state). */
+.row100k .m2-pickbox{display:flex;flex-direction:column}
+.row100k .m2-pick{display:block;flex:1 1 auto;width:100%;text-align:left;background:none;border:1px solid var(--ink);border-radius:0;padding:12px 14px;color:var(--ink);font-family:var(--row-archivo),sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.row100k .m2-pick b{display:flex;align-items:baseline;gap:0;font-family:var(--row-archivo-black),sans-serif;font-size:17px;font-weight:400;text-transform:uppercase}
+.row100k .m2-pick .m2-tick{display:inline-block;width:0;overflow:hidden}
 .row100k .m2-pick span{display:block;margin-top:4px;font-size:13.5px;line-height:1.45;color:var(--gray)}
 .row100k .m2-pick:hover{border-color:var(--water)}
-.row100k .m2-pick.on{border:2px solid var(--water);padding:11px 13px;background:color-mix(in srgb,var(--water) 9%,transparent)}
-.row100k .m2-pick.on b{color:var(--water)}
+.row100k .m2-pickbox.on .m2-pick{background:var(--water);border-color:var(--water);color:#fff}
+.row100k .m2-pickbox.on .m2-pick span{color:#fff;opacity:.9}
+.row100k .m2-pickbox.on .m2-pick .m2-tick{width:auto;margin-right:6px}
 .row100k .m2-pick:disabled{cursor:default}
 .row100k .m2-pick:disabled:hover{border-color:var(--ink)}
-.row100k .m2-pick.on:disabled:hover{border-color:var(--water)}
+.row100k .m2-pickbox.on .m2-pick:disabled:hover{border-color:var(--water)}
+.row100k .m2-site{align-self:flex-start;margin-top:6px;font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gray);text-decoration:underline;text-underline-offset:3px}
+.row100k .m2-site:hover{color:var(--water)}
+
+/* I M REGISTERED: the one solid button on the page, right under the pick. */
+.row100k .m2-act{margin-top:18px}
+.row100k .m2-go{display:block;width:100%;max-width:420px;background:var(--water);color:#fff;border:2px solid var(--water);border-radius:0;padding:16px 20px;font-family:var(--row-archivo-black),sans-serif;font-size:20px;font-weight:400;letter-spacing:.02em;text-transform:uppercase;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.row100k .m2-go:hover{background:var(--ink);border-color:var(--ink)}
+.row100k .m2-go:disabled{background:none;color:var(--gray);border-color:var(--line);cursor:default}
+.row100k .m2-act .m2-note{margin-top:10px}
+.row100k .m2-c2{margin-top:20px}
+.row100k .m2-inline{color:var(--water);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.row100k .m2-steps li.ours .k{color:var(--ink)}
+.row100k .m2-steps li.ours b{color:var(--water)}
+.row100k .m2-big.m2-soon{font-size:clamp(44px,11vw,112px);text-transform:uppercase}
 
 .row100k .m2-call{margin-top:34px;border:2px solid var(--ink);padding:22px 18px}
 .row100k .m2-call h2{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,8vw,56px);font-weight:400;line-height:1;letter-spacing:-.01em;text-transform:uppercase;color:var(--ink)}

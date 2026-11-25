@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fmtRowerNumber } from "@/lib/row100k";
 import { Blocks } from "../Blackout";
@@ -15,9 +14,16 @@ import type { M2dView } from "../m2d";
  * is coming from"), and under it where it comes from: Concept2 for the
  * meters, and ROWTEMBER's match split by the charity each rower picked. No
  * cap is printed anywhere (owner, the same day: "I don't want to say a
- * cap"). THE PICK is one of three Las Vegas charities for ROWTEMBER's
- * match, changeable until Dec 24; a registered rower with no pick is asked
- * for one. */
+ * cap"). Before Nov 26 the figure is STARTS TOMORROW (or the days to go),
+ * never a page of $0.00.
+ *
+ * THE PICK is one of three Las Vegas charities for ROWTEMBER's match,
+ * changeable until Dec 24, sitting right over I'M REGISTERED (a solid
+ * button) so the two read as one act. A visitor may pick before signing
+ * in: the pick waits in this browser (PICK_KEY) and is there when they come
+ * back from the sign-in page. */
+
+const PICK_KEY = "row100k.m2d.pick";
 
 const num = (n: number) => Math.round(n).toLocaleString("en-US");
 /* "$7.02"; whole dollars from $1,000. */
@@ -25,21 +31,6 @@ const usd = (d: number) => (d >= 1000 ? `$${num(d)}` : `$${d.toFixed(2)}`);
 /* "Nov 26" from "2026-11-26". */
 const day = (iso: string) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-
-/* The app's four steps (mobile/src/screens/M2D.tsx), with Concept2's own
- * charities and rewards. */
-const STEPS: [string, string][] = [
-  ["Make a free Concept2 Logbook", "Sign up at log.concept2.com, or sign in if you have one."],
-  [
-    "Pick a charity in your Logbook",
-    "Invictus Games Foundation, Natural Resources Defense Council, War Child USA or Wood4Good, or Let Concept2 Choose. Do Not Donate means your meters raise nothing.",
-  ],
-  ["Get your meters into the Logbook", "ErgData sends each row there. Nov 26 to Dec 24; meters can be entered until Jan 4."],
-  [
-    "Row 100K",
-    "Concept2 gives 2 cents a kilometre, then 4 cents for each one past 100K. 100K earns a certificate, 200K the Holiday Challenge pin (50K for kids and adaptive rowers).",
-  ],
-];
 
 const SORRY = "Could not take that. Try again.";
 
@@ -51,6 +42,26 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
   const [pick, setPick] = useState<string | null>(view.me?.choice ?? null);
   const { window: w, totals: t, goal, match, charities } = view;
   const name = (k: string | null) => charities.find((c) => c.key === k)?.name ?? null;
+
+  /* A pick made before signing in comes back with the visitor. */
+  useEffect(() => {
+    if (view.me?.choice) return;
+    try {
+      const k = window.localStorage.getItem(PICK_KEY);
+      if (k && charities.some((c) => c.key === k)) setPick(k);
+    } catch {
+      /* no storage: they pick again */
+    }
+  }, [view.me?.choice, charities]);
+
+  const keep = (k: string | null) => {
+    try {
+      if (k) window.localStorage.setItem(PICK_KEY, k);
+      else window.localStorage.removeItem(PICK_KEY);
+    } catch {
+      /* no storage */
+    }
+  };
 
   const send = async (on: boolean, choice?: string) => {
     if (busy) return;
@@ -66,6 +77,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
       if (res.ok && data.ok) {
         setIsIn(on);
         if (choice) setPick(choice);
+        keep(null);
         router.refresh();
       } else if (res.status === 401) window.location.href = signInHref;
       else setErr(data.error ?? SORRY);
@@ -76,51 +88,89 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
   };
 
   /* A tap on a charity: once registered it saves at once; before, it is
-   * the pick I'M REGISTERED will send. */
+   * the pick I'M REGISTERED will send (kept in this browser across the
+   * sign-in). */
   const choose = (k: string) => {
-    if (w.over) return;
+    if (w.over || busy) return;
     if (isIn) void send(true, k);
-    else setPick(k);
+    else {
+      setPick(k);
+      keep(k);
+    }
   };
 
-  const share = Math.min(1, t.total / goal);
-  const press = view.me ? (
-    <button type="button" className="bd-ctl big" onClick={() => void send(true, pick ?? undefined)} disabled={busy || !pick}>
-      {busy ? "Saving" : "I'm registered"}
-    </button>
-  ) : (
-    /* A stranger signs in and comes back; an account that never joined
-     * joins Rowtember first (/join). */
-    <Link className="bd-ctl big" href={signedIn ? "/join" : signInHref}>
-      {signedIn ? "Join Rowtember" : "Sign in"}
-    </Link>
-  );
+  /* I'M REGISTERED, for whoever is looking: a rower sends it; a visitor
+   * goes to sign in and comes back here, the pick kept; an account that
+   * never joined Rowtember joins first. */
+  const register = () => {
+    if (view.me) void send(true, pick ?? undefined);
+    else window.location.href = signedIn ? "/join" : signInHref;
+  };
+  const needPick = match.on && !pick;
+  const logHref = view.me ? "/#log" : signedIn ? "/join" : signInHref;
 
-  const picks = (
+  const steps: [string, React.ReactNode][] = [
+    ["Make a free Concept2 Logbook", "Sign up at log.concept2.com, or sign in if you have one."],
+    [
+      "Pick a charity in your Logbook",
+      "Invictus Games Foundation, Natural Resources Defense Council, War Child USA or Wood4Good, or Let Concept2 Choose. Do Not Donate means your meters raise nothing.",
+    ],
+    ["Get your meters into the Logbook", "ErgData sends each row there. Nov 26 to Dec 24; meters can be entered until Jan 4."],
+    [
+      "Row 100K",
+      "Concept2 gives 2 cents a kilometer, then 4 cents for each one past 100K. 100K earns a certificate, 200K the Holiday Challenge pin (50K for kids and adaptive rowers).",
+    ],
+    [
+      "Log your rows on ROW too",
+      <>
+        That&apos;s what {match.by} matches: only rows logged here count toward the match.{" "}
+        <a className="m2-inline" href={logHref}>
+          Log a row
+        </a>
+        . Sending your rows to Concept2 automatically is coming.
+      </>,
+    ],
+  ];
+
+  const picks = match.on ? (
     <div className="m2-picks-wrap">
-      <h3>Where ROWTEMBER&apos;s match goes</h3>
+      <h3>Where {match.by}&apos;s match goes</h3>
       <p className="m2-pick-lede">
-        Pick one of three Las Vegas charities. ROWTEMBER gives what Concept2 gives for your meters, and it goes here.
+        Pick one of three Las Vegas charities. {match.by} gives what Concept2 gives for your meters, and it goes here.
         {w.over ? "" : " You can change it until Dec 24."}
       </p>
-      <div className="m2-picks" role="radiogroup" aria-label="Where ROWTEMBER's match goes">
-        {charities.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            role="radio"
-            aria-checked={pick === c.key}
-            className={pick === c.key ? "m2-pick on" : "m2-pick"}
-            onClick={() => choose(c.key)}
-            disabled={busy || w.over || !view.me}
-          >
-            <b>{c.name}</b>
-            <span>{c.what}</span>
-          </button>
-        ))}
+      <div className="m2-picks" role="radiogroup" aria-label={`Where ${match.by}'s match goes`}>
+        {charities.map((c) => {
+          const on = pick === c.key;
+          return (
+            <div key={c.key} className={on ? "m2-pickbox on" : "m2-pickbox"}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={on}
+                className="m2-pick"
+                onClick={() => choose(c.key)}
+                disabled={busy || w.over}
+              >
+                <b>
+                  <span className="m2-tick" aria-hidden="true">
+                    {on ? "✓" : ""}
+                  </span>
+                  {c.name}
+                </b>
+                <span>{c.what}</span>
+              </button>
+              {c.url ? (
+                <a className="m2-site" href={c.url} target="_blank" rel="noopener noreferrer">
+                  Their site ↗
+                </a>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     </div>
-  );
+  ) : null;
 
   return (
     <main className="bd m2">
@@ -138,52 +188,64 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
         {/* THE HEAD: the total, and where it comes from. */}
         <section className="m2-head" aria-label="Raised so far">
           <p className="m2-kick">Raised for charity by Rowtember rowers</p>
-          <p className="m2-big">{usd(t.total)}</p>
-          <p className="m2-sub">
-            {num(t.meters)} m rowed since {day(w.first)} · {t.registered} registered
-          </p>
-          <dl className="m2-from">
-            <div>
-              <dt>From Concept2, for your meters</dt>
-              <dd>{usd(t.raised)}</dd>
-            </div>
-            {match.on ? (
-              <div>
-                <dt>Matched by {match.by}</dt>
-                <dd>{usd(t.matched)}</dd>
-              </div>
-            ) : null}
-          </dl>
-          {match.on ? (
-            <p className="m2-split">
-              {charities.map((c, i) => (
-                <span key={c.key}>
-                  {i ? " · " : ""}
-                  {c.name} {usd(t.split[c.key as keyof typeof t.split] ?? 0)}
-                </span>
-              ))}
-              {t.unpicked > 0 ? <span> · Not picked yet {usd(t.unpicked)}</span> : null}
+          {w.started ? (
+            <p className="m2-big">{usd(t.total)}</p>
+          ) : (
+            <p className="m2-big m2-soon">{w.until <= 1 ? "Starts tomorrow" : `Starts in ${w.until} days`}</p>
+          )}
+          {w.started ? (
+            <>
+              <p className="m2-sub">
+                {num(t.meters)} m rowed since {day(w.first)} · {t.registered} registered
+              </p>
+              <dl className="m2-from">
+                <div>
+                  <dt>From Concept2, for your meters</dt>
+                  <dd>{usd(t.raised)}</dd>
+                </div>
+                {match.on ? (
+                  <div>
+                    <dt>Matched by {match.by}</dt>
+                    <dd>{usd(t.matched)}</dd>
+                  </div>
+                ) : null}
+              </dl>
+              {match.on && t.matched > 0 ? (
+                <p className="m2-split">
+                  {charities.map((c, i) => (
+                    <span key={c.key}>
+                      {i ? " · " : ""}
+                      {c.name} {usd(t.split[c.key as keyof typeof t.split] ?? 0)}
+                    </span>
+                  ))}
+                  {t.unpicked > 0 ? <span> · Not picked yet {usd(t.unpicked)}</span> : null}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="m2-sub">
+              {day(w.first)} to {day(w.last)} · {t.registered} registered so far
             </p>
-          ) : null}
+          )}
           <div className="m2-goal">
             <div className="m2-goal-t">
-              <span>Goal {usd(goal)}</span>
-              <span>{Math.round(share * 100)}%</span>
+              <span>Goal {usd(goal)} to charity</span>
+              <span>{Math.round(Math.min(1, t.total / goal) * 100)}%</span>
             </div>
             <div className="m2-track" role="img" aria-label={`${usd(t.total)} of ${usd(goal)}`}>
-              <i style={{ width: `${(share * 100).toFixed(1)}%` }} />
+              <i style={{ width: `${(Math.min(1, t.total / goal) * 100).toFixed(1)}%` }} />
             </div>
           </div>
         </section>
 
-        {/* THE CALL: the rule, the four steps, the pick, the one press. */}
+        {/* THE CALL: the rule, the five steps, the pick over the one press. */}
         <section className="m2-call" aria-labelledby="m2-ask">
           <h2 id="m2-ask">
             Row 100K <i>for charity</i>
           </h2>
           <p className="m2-lede">
             The Concept2 Holiday Challenge, {day(w.first)} to {day(w.last)}. Row 100,000 meters and Concept2 gives 2 cents a
-            kilometre to the charity you pick in your Logbook, then 4 cents for every kilometre past 100K, toward its{" "}
+            kilometer to the charity you pick in your Logbook, then 4 cents for every kilometer past 100K, toward its{" "}
             {usd(view.c2Goal)} goal.{match.on ? ` ${match.by} gives the same again, to a Las Vegas charity you pick here.` : ""} It
             is free.
           </p>
@@ -191,21 +253,21 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
             <>
               <div className="m2-yes">
                 <p>
-                  ✓ You are registered{pick ? ` · ${name(pick)}` : ""}. Your Rowtember rows count here.
+                  ✓ You are registered{pick ? ` · ${name(pick)}` : ""}. Your rows logged on ROW count here.
                 </p>
                 <button type="button" className="bd-quiet" onClick={() => void send(false)} disabled={busy}>
                   Undo
                 </button>
               </div>
               {match.on && !pick && !w.over ? <p className="bd-say">Pick where {match.by}&apos;s match goes.</p> : null}
-              {match.on ? picks : null}
+              {picks}
             </>
           ) : (
             <>
-              <h3>Join in 4 steps</h3>
+              <h3>Join in {steps.length} steps</h3>
               <ol className="m2-steps">
-                {STEPS.map(([h, b], i) => (
-                  <li key={h}>
+                {steps.map(([h, b], i) => (
+                  <li key={h} className={i === steps.length - 1 ? "ours" : undefined}>
                     <span className="k">{i + 1}</span>
                     <div>
                       <b>{h}</b>
@@ -214,17 +276,26 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
                   </li>
                 ))}
               </ol>
-              {match.on ? picks : null}
-              <div className="bd-acts">
-                <a className="bd-ctl big" href={view.link} target="_blank" rel="noopener noreferrer">
+              <p className="m2-c2">
+                <a className="bd-ctl" href={view.link} target="_blank" rel="noopener noreferrer">
                   Open Concept2 ↗
                 </a>
-                {press}
-              </div>
-              <p className="m2-note">
-                {view.me && !pick && match.on ? "Pick a charity above, then tell us you are registered. " : "Then tell us here. "}
-                Rows logged on Rowtember count on this page; Concept2 counts the meters in your Logbook.
               </p>
+              {picks}
+              <div className="m2-act">
+                <button type="button" className="m2-go" onClick={register} disabled={busy || needPick}>
+                  {busy ? "Saving" : "I'm registered"}
+                </button>
+                <p className="m2-note">
+                  {needPick
+                    ? `Pick a charity above first.`
+                    : view.me
+                      ? `${name(pick)} gets ${match.by}'s match for your meters.`
+                      : signedIn
+                        ? "Join Rowtember first; your pick waits here."
+                        : "You sign in first; your pick waits here."}
+                </p>
+              </div>
             </>
           )}
           {err ? (
@@ -288,10 +359,12 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
             </div>
           )}
         </div>
-        <p className="m2-note">
-          Dollars on the board are Concept2&apos;s for each rower&apos;s meters.
-          {view.rows.some((r) => !r.in && r.dollars != null) ? " Grey dollars: not registered with Concept2 yet. Register and they count." : ""}
-        </p>
+        {view.rows.length ? (
+          <p className="m2-note">
+            Dollars on the board are Concept2&apos;s for each rower&apos;s meters.
+            {view.rows.some((r) => !r.in && r.dollars != null) ? " Grey dollars: not registered with Concept2 yet. Register and they count." : ""}
+          </p>
+        ) : null}
       </div>
     </main>
   );

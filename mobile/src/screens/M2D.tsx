@@ -37,7 +37,7 @@ import { Bar, Blocks, Waiting, useLoad, useScrollDir } from "../ui";
 export type M2dRow = { rowerNumber: number; name: string; meters: number; dollars: number | null; in: boolean; me: boolean; blocks?: number };
 export type M2dView = {
   signedIn?: boolean;
-  window: { first: string; last: string; days: number; day: number; started: boolean; over: boolean };
+  window: { first: string; last: string; days: number; day: number; started: boolean; over: boolean; until?: number };
   link: string;
   signup: string;
   goal: number;
@@ -99,31 +99,61 @@ function Steps({ v, onIn, busy, pick, onPick }: { v: M2dView; onIn: () => void; 
     ["Make a free Concept2 Logbook", "Sign up at log.concept2.com, or sign in if you have one."],
     ["Pick a charity in your Logbook", "Invictus Games Foundation, Natural Resources Defense Council, War Child USA or Wood4Good, or Let Concept2 Choose. Do Not Donate means your meters raise nothing."],
     ["Get your meters into the Logbook", "ErgData sends each row there. Nov 26 to Dec 24; meters can be entered until Jan 4."],
-    ["Row 100K", "Concept2 gives 2 cents a kilometre, then 4 cents for each one past 100K. 100K earns a certificate, 200K the Holiday Challenge pin (50K for kids and adaptive rowers)."],
+    ["Row 100K", "Concept2 gives 2 cents a kilometer, then 4 cents for each one past 100K. 100K earns a certificate, 200K the Holiday Challenge pin (50K for kids and adaptive rowers)."],
+    /* Review, 2026-11-25: a rower could do Concept2's four and get no
+     * match. The fifth is ours. */
+    [
+      "Log your rows on ROW too",
+      `That's what ${v.match?.by ?? "ROWTEMBER"} matches: only rows logged in ROW count toward the match. Tap + at the top to log one. Sending your rows to Concept2 automatically is coming.`,
+    ],
   ];
   const matchOn = !!v.match?.on && !!v.charities?.length;
+  const name = v.charities?.find((c) => c.key === pick)?.name;
   return (
     <View style={{ marginTop: 22, borderWidth: 2, borderColor: C.ink, padding: 16 }}>
-      <Text style={{ fontFamily: F.black, fontSize: 19, color: C.ink, textTransform: "uppercase" }}>Join in 4 steps</Text>
+      <Text style={{ fontFamily: F.black, fontSize: 19, color: C.ink, textTransform: "uppercase" }}>Join in {steps.length} steps</Text>
       <Text style={[mono(10, false, C.gray, 0.12), { marginTop: 6, lineHeight: 16 }]}>Free. Your meters become a donation from Concept2.</Text>
-      {steps.map(([h, t], i) => (
-        <View key={h} style={{ flexDirection: "row", columnGap: 12, marginTop: 14 }}>
-          <Text style={{ width: 22, fontFamily: F.black, fontSize: 18, color: C.accent }}>{i + 1}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: F.bold, fontSize: 15, color: C.ink }}>{h}</Text>
-            <Text style={{ fontFamily: F.sans, fontSize: 13.5, lineHeight: 19, color: C.gray, marginTop: 2 }}>{t}</Text>
+      {steps.map(([h, t], i) => {
+        const ours = i === steps.length - 1;
+        return (
+          <View key={h} style={{ flexDirection: "row", columnGap: 12, marginTop: 14 }}>
+            <Text style={{ width: 22, fontFamily: F.black, fontSize: 18, color: ours ? C.ink : C.accent }}>{i + 1}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: F.bold, fontSize: 15, color: ours ? C.accent : C.ink }}>{h}</Text>
+              <Text style={{ fontFamily: F.sans, fontSize: 13.5, lineHeight: 19, color: C.gray, marginTop: 2 }}>{t}</Text>
+            </View>
           </View>
-        </View>
-      ))}
-      {matchOn ? <Picks v={v} pick={pick} busy={busy} onPick={onPick} /> : null}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 22, rowGap: 14, marginTop: 20 }}>
+        );
+      })}
+      <View style={{ marginTop: 18 }}>
         <Ctl label="Open Concept2 ↗" onPress={() => open(v.link)} />
-        {v.me ? <Ctl label={busy ? "Saving" : "I'm registered"} disabled={busy || (matchOn && !pick)} onPress={onIn} /> : null}
       </View>
-      <Text style={[mono(9.5, false, C.gray, 0.1), { marginTop: 16, lineHeight: 15 }]}>
-        {matchOn && v.me && !pick ? "Pick a charity above, then tell us you're registered. " : ""}Rows logged in ROW count here. Concept2 counts the meters in your Logbook.
-      </Text>
+      {matchOn ? <Picks v={v} pick={pick} busy={busy} onPick={onPick} /> : null}
+      {v.me ? (
+        <View style={{ marginTop: 16 }}>
+          <Go label={busy ? "Saving" : "I'm registered"} disabled={busy || (matchOn && !pick)} onPress={onIn} />
+          <Text style={[mono(9.5, false, C.gray, 0.1), { marginTop: 10, lineHeight: 15 }]}>
+            {matchOn && !pick ? "Pick a charity above first." : matchOn && name ? `${name} gets ${v.match?.by}'s match for your meters.` : "Concept2 counts the meters in your Logbook."}
+          </Text>
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+/* The one solid button (review, 2026-11-25: I'M REGISTERED is the primary
+ * act, right under the pick). */
+function Go({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({ backgroundColor: disabled ? "transparent" : C.accent, borderWidth: 2, borderColor: disabled ? C.line : C.accent, paddingVertical: 15, alignItems: "center", opacity: pressed ? 0.7 : 1 })}
+    >
+      <Text style={{ fontFamily: F.black, fontSize: 18, color: disabled ? C.gray : "#FFFFFF", textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -170,21 +200,29 @@ function Picks({ v, pick, busy, onPick }: { v: M2dView; pick: string | null; bus
       {(v.charities ?? []).map((c) => {
         const on = pick === c.key;
         return (
-          <Pressable
-            key={c.key}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: on, disabled: busy || v.window.over || !v.me }}
-            accessibilityLabel={`${c.name}. ${c.what}`}
-            disabled={busy || v.window.over || !v.me}
-            onPress={() => onPick(c.key)}
-            style={({ pressed }) => ({ marginTop: 10, borderWidth: on ? 2 : 1, borderColor: on ? C.accent : C.ink, padding: on ? 11 : 12, opacity: pressed ? 0.6 : 1 })}
-          >
-            <Text style={{ fontFamily: F.black, fontSize: 15, color: on ? C.accent : C.ink, textTransform: "uppercase" }}>
-              {on ? "✓ " : ""}
-              {c.name}
-            </Text>
-            <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 3 }}>{c.what}</Text>
-          </Pressable>
+          <View key={c.key} style={{ marginTop: 10 }}>
+            {/* The picked one is a solid block of the accent with a check
+             * (review, 2026-11-25: an unmistakable selected state). */}
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on, disabled: busy || v.window.over || !v.me }}
+              accessibilityLabel={`${c.name}. ${c.what}`}
+              disabled={busy || v.window.over || !v.me}
+              onPress={() => onPick(c.key)}
+              style={({ pressed }) => ({ borderWidth: 1, borderColor: on ? C.accent : C.ink, backgroundColor: on ? C.accent : "transparent", padding: 12, opacity: pressed ? 0.6 : 1 })}
+            >
+              <Text style={{ fontFamily: F.black, fontSize: 15, color: on ? "#FFFFFF" : C.ink, textTransform: "uppercase" }}>
+                {on ? "✓ " : ""}
+                {c.name}
+              </Text>
+              <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: on ? "#FFFFFF" : C.gray, marginTop: 3 }}>{c.what}</Text>
+            </Pressable>
+            {c.url ? (
+              <Pressable accessibilityRole="link" accessibilityLabel={`${c.name}'s site`} hitSlop={8} onPress={() => open(c.url as string)} style={{ alignSelf: "flex-start", marginTop: 6 }}>
+                <Text style={[mono(9.5, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>Their site ↗</Text>
+              </Pressable>
+            ) : null}
+          </View>
         );
       })}
     </View>
@@ -203,6 +241,16 @@ function Raised({ v }: { v: M2dView }) {
       <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.accent, fontVariant: ["tabular-nums"] }}>{usd(d)}</Text>
     </View>
   );
+  /* Before Nov 26 no page of $0.00 (review, 2026-11-25): the days to go. */
+  if (!v.window.started) {
+    const until = v.window.until ?? 1;
+    return (
+      <View style={{ marginTop: 22 }}>
+        <Text style={{ fontFamily: F.black, fontSize: 44, lineHeight: 50, color: C.accent, textTransform: "uppercase" }}>{until <= 1 ? "Starts tomorrow" : `Starts in ${until} days`}</Text>
+        <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 6 }]}>Nov 26 to Dec 24 · {t.registered} registered so far</Text>
+      </View>
+    );
+  }
   return (
     <View style={{ marginTop: 22 }}>
       <Text accessibilityLabel={`${usd(total)} raised for charity`} style={{ fontFamily: F.black, fontSize: 64, lineHeight: 70, color: C.accent, fontVariant: ["tabular-nums"] }}>
@@ -213,7 +261,7 @@ function Raised({ v }: { v: M2dView }) {
         {line("From Concept2, for your meters", t.raised)}
         {v.match?.on ? line(`Matched by ${v.match.by}`, t.matched ?? t.raised) : null}
       </View>
-      {v.match?.on && v.charities?.length ? (
+      {v.match?.on && v.charities?.length && (t.matched ?? 0) > 0 ? (
         <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 8, lineHeight: 16 }]}>
           {v.charities.map((c) => `${c.name} ${usd(t.split?.[c.key] ?? 0)}`).join(" · ")}
           {(t.unpicked ?? 0) > 0 ? ` · Not picked yet ${usd(t.unpicked ?? 0)}` : ""}
@@ -232,7 +280,7 @@ export function M2dGoal({ v }: { v: M2dView }) {
   return (
     <View style={{ marginTop: 22 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-        <Text style={mono(11, true)}>Goal · {usd(v.goal)}</Text>
+        <Text style={mono(11, true)}>Goal · {usd(v.goal)} to charity</Text>
         <Text style={mono(11, true, total >= v.goal ? C.accent : C.ink)}>{total >= v.goal ? "Made it" : `${usd(Math.max(0, v.goal - total))} to go`}</Text>
       </View>
       <Bar value={Math.min(total, v.goal)} goal={v.goal} height={10} />
@@ -250,7 +298,7 @@ export function M2dStats() {
     <View style={{ marginTop: 18 }}>
       <Eye left="M2D for charity" right={data.window.started ? (data.window.over ? "Final" : `Day ${data.window.day} of ${data.window.days}`) : "Starts Nov 26"} />
       <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 10, lineHeight: 16 }]}>
-        {usd(totalOf(data))} raised for charity · {fmtInt(data.totals.meters)} m since Nov 26
+        {data.window.started ? `${usd(totalOf(data))} raised for charity · ${fmtInt(data.totals.meters)} m since Nov 26` : `Starts Nov 26 · ${data.totals.registered} registered so far`}
       </Text>
       <M2dGoal v={data} />
     </View>

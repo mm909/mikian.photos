@@ -242,7 +242,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     warm(["/api/row100k/app/board", "/api/row100k/app/feed", "/api/row100k/stats?m=all", "/api/row100k/app/people?q="]);
     if (mine != null) warm(["/api/row100k/app/profile?", "/api/row100k/app/settings", "/api/row100k/app/notifications"]);
     api<{ meters: number }>("/api/row100k/app/total").then((r) => setTotal(r.meters), () => null);
-    api<M2dView>(M2D_PATH).then((r) => setRaised(totalOf(r)), () => null);
+    api<M2dView>(M2D_PATH).then((r) => setRaised(r.window.started ? totalOf(r) : null), () => null);
     loadBoardMonths();
   }, [mine, stamp]);
 

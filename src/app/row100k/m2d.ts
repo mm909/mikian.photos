@@ -30,9 +30,10 @@ export const M2D_LAST = "2026-12-24";
 export const M2D_DAYS = 29;
 export const M2D_LINK = "https://log.concept2.com/challenges/holiday";
 export const M2D_SIGNUP = "https://log.concept2.com/signup";
-/* The first goal on the stats tab (owner: "a goal can be, can we raise
- * $100"). Measured against the total (Concept2 and the match). */
-export const M2D_GOAL = 100;
+/* The goal on the stats tab and the page (owner: "a goal can be, can we
+ * raise $100"; raised to $1,000 on review, 2026-11-25). Measured against
+ * the total to charity, the match included. */
+export const M2D_GOAL = 1000;
 
 /* THE MATCH (owner, 2026-11-25: "I think that I want to match the amount
  * made"; then "I don't want to say a cap for what I'm donating. Also let's
@@ -64,14 +65,14 @@ export const CHARITIES = [
     name: "Shine A Light",
     full: "Shine A Light Foundation",
     what: "Outreach and housing for people living in the Las Vegas flood tunnels.",
-    url: "https://shinealightlv.com",
+    url: "https://www.shinealightlv.com",
   },
   {
     key: "inclusion",
     name: "Project Inclusion",
     full: "Project Inclusion",
     what: "Social opportunities for neurodivergent and disabled adults in Southern Nevada.",
-    url: null,
+    url: "https://www.projectinclusion.org",
   },
 ] as const;
 export type CharityKey = (typeof CHARITIES)[number]["key"];
@@ -109,7 +110,9 @@ const PERIOD = {
   days: M2D_DAYS,
 } as Month;
 
-export type M2dWindow = { first: string; last: string; days: number; day: number; started: boolean; over: boolean };
+/* `until`: whole days to the first day (1 = it starts tomorrow; 0 once
+ * started), so the page says STARTS TOMORROW instead of a page of $0.00. */
+export type M2dWindow = { first: string; last: string; days: number; day: number; started: boolean; over: boolean; until: number };
 /* M2D_NOW moves this window's clock in development only, to look at the
  * board before Nov 26 or after Dec 24; production ignores it. */
 const DEV_AT = process.env.NODE_ENV !== "production" ? Date.parse(process.env.M2D_NOW ?? "") : NaN;
@@ -118,7 +121,8 @@ export function m2dWindow(at = Number.isFinite(DEV_AT) ? DEV_AT : nowMs()): M2dW
   const started = today >= M2D_FIRST;
   const over = today > M2D_LAST;
   const day = !started ? 0 : over ? M2D_DAYS : Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${M2D_FIRST}T00:00:00Z`)) / 86_400_000) + 1;
-  return { first: M2D_FIRST, last: M2D_LAST, days: M2D_DAYS, day, started, over };
+  const until = started ? 0 : Math.round((Date.parse(`${M2D_FIRST}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  return { first: M2D_FIRST, last: M2D_LAST, days: M2D_DAYS, day, started, over, until };
 }
 
 /* Every registered rower, and the charity they picked (null: not yet). */
