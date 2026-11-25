@@ -1,9 +1,6 @@
-import { db } from "@/lib/db";
-import { sendOwnerNotification } from "@/lib/email";
-import { CHALLENGE, CHALLENGE_LIVE } from "@/lib/row100k";
 import { rateLimit } from "@/lib/rateLimit";
 import { resolveViewer } from "@/lib/row100kViewer";
-import { M2D_KEY, m2dView } from "@/app/row100k/m2d";
+import { m2dView, saveM2d } from "@/app/row100k/m2d";
 import { asRower, no, yes } from "../social";
 
 /* M2D for the phone app (owner, 2026-11-25; the rules in row100k/m2d.ts).
@@ -38,23 +35,10 @@ export async function POST(req: Request) {
   const rl = await rateLimit({ key: `row-app-m2d:${me.id}`, limit: 30, windowSec: 3600 });
   if (!rl.ok) return no("Too many at once. Try again in a bit.", 429);
   try {
-    await db.rowMonthOptIn.upsert({
-      where: { challenge_participantId_month: { challenge: CHALLENGE, participantId: me.id, month: M2D_KEY } },
-      create: { challenge: CHALLENGE, participantId: me.id, rowerNumber: me.rowerNumber, month: M2D_KEY, cancelledAt: body.in ? null : new Date() },
-      update: { cancelledAt: body.in ? null : new Date() },
-    });
+    await saveM2d(me, body.in, who.viewer.actor?.email, "the ROW app");
   } catch (err) {
     console.error("row app: M2D opt-in not saved", err);
     return no("That did not save. Try again.", 500);
-  }
-  if (CHALLENGE === CHALLENGE_LIVE) {
-    const word = body.in ? "registered for" : "took back their registration for";
-    const sent = await sendOwnerNotification(
-      `M2D: #${me.rowerNumber} ${me.displayName} ${body.in ? "is in" : "is out"}`,
-      `Rower #${me.rowerNumber} ${me.displayName} ${word} the Concept2 Holiday Challenge (M2D) in the ROW app.\nAccount: ${who.viewer.actor?.email ?? ""}`,
-      who.viewer.actor?.email,
-    ).catch((err) => ({ ok: false as const, error: String(err) }));
-    if (!sent.ok) console.error("row app: M2D email failed", sent.error);
   }
   try {
     return yes(await m2dView(await resolveViewer()));

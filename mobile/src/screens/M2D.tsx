@@ -41,6 +41,8 @@ export type M2dView = {
   link: string;
   signup: string;
   goal: number;
+  /* The owner's match (row100k/m2d.ts M2D_MATCH): absent on an older site. */
+  match?: { on: boolean; cap: number; terms: string; matched: number };
   totals: { meters: number; raised: number; locked: number; unclaimed: number; rowers: number; registered: number; past100k: number };
   rows: M2dRow[];
   me: { rowerNumber: number; in: boolean; meters: number; dollars: number; locked: number } | null;
@@ -128,6 +130,13 @@ function Raised({ v }: { v: M2dView }) {
         {usd(t.locked)} locked in by {t.past100k} {t.past100k === 1 ? "rower" : "rowers"} past 100K · {t.registered} registered
         {t.unclaimed > 0 ? ` · ${usd(t.unclaimed)} more if everyone registers` : ""}
       </Text>
+      {v.match?.on ? (
+        <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.gray, marginTop: 12 }}>
+          <Text style={{ fontFamily: F.bold, color: C.ink }}>Rowtember matches it, up to ${fmtInt(v.match.cap)}.</Text>{" "}
+          {v.match.matched > 0 ? `${usd(v.match.matched)} matched so far. ` : ""}
+          {v.match.terms}
+        </Text>
+      ) : null}
     </View>
   );
 }

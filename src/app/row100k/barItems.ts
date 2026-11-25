@@ -14,7 +14,7 @@ import { MONTH } from "@/lib/row100k";
  * BOARD (owner, the same day: "look at the header. We need to condense it
  * into one line") — the article was three characters a phone did not
  * have. */
-export type NavKey = "home" | "raceday" | "board" | "rankings" | "stats" | "feed" | "gallery" | "partners";
+export type NavKey = "home" | "raceday" | "board" | "m2d" | "rankings" | "stats" | "feed" | "gallery" | "partners";
 
 export type NavItem = { key: NavKey; href: string; label: string };
 
@@ -27,6 +27,9 @@ export const ITEMS: NavItem[] = [
    * RANKINGS is the full rankings, opened on total meters; no ?m= and no
    * ?d=, so the records page reads the plain URL as this month, All. */
   { key: "board", href: "/board", label: "BOARD" },
+  /* M2D, the Concept2 Holiday Challenge in dollars (owner, 2026-11-25:
+   * the sign-up page on the site while the app is not live; m2d/page.tsx). */
+  { key: "m2d", href: "/m2d", label: "M2D" },
   { key: "rankings", href: "/records/total", label: "RANKINGS" },
   { key: "stats", href: "/stats", label: "STATS" },
   { key: "feed", href: "/feed", label: "FEED" },
@@ -48,7 +51,9 @@ const SEPTEMBER_ONLY: NavKey[] = ["partners", "feed"];
  * chips (theme.ts, the 440 and 360 cuts); these are the ones that leave it
  * under 900px (theme.ts .rail-x) for the account menu, or for the word MORE
  * when there is no account. */
-const SOMETIMES: NavKey[] = [STAMP, ...SEPTEMBER_ONLY];
+/* M2D too: a phone holds three words beside the wordmark, so on a narrow
+ * screen it is in the account menu (and the front page links it). */
+const SOMETIMES: NavKey[] = [STAMP, "m2d", ...SEPTEMBER_ONLY];
 
 /* What the rail carries right now. `raceOpen` is raceOpenFor(isAdmin) AND
  * (raceAnnounced() OR the race has been run), resolved by RowBar: the gate

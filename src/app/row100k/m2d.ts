@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { CHALLENGE, MONTH, nowMs, pacificDay } from "@/lib/row100k";
+import { sendOwnerNotification } from "@/lib/email";
+import { CHALLENGE, CHALLENGE_LIVE, MONTH, nowMs, pacificDay } from "@/lib/row100k";
 import { previewViewOpts, type Viewer } from "@/lib/row100kViewer";
 import type { Month } from "@/lib/rowPeriod";
 import { boardView } from "./boardData";
@@ -32,6 +33,27 @@ export const M2D_SIGNUP = "https://log.concept2.com/signup";
 /* The first goal on the stats tab (owner: "a goal can be, can we raise
  * $100"). */
 export const M2D_GOAL = 100;
+
+/* THE OWNER'S MATCH (owner, 2026-11-25, relayed: he matches what Rowtember
+ * rowers raise, a business donation; the cap read as $700). ONE PLACE: the
+ * figure and the terms the site page and the app print. Change `cap` here
+ * and both follow; `on: false` takes the line off everywhere. What counts
+ * is Concept2's own money for a Rowtember rower who reaches 100K with the
+ * rows logged on Rowtember (LOCKED below), checked against Concept2's
+ * honor board when the challenge closes. `terms` names no figure, so the
+ * cap is this one number. */
+export const M2D_MATCH = {
+  on: true,
+  cap: 700,
+  terms:
+    "Every dollar Concept2 gives for a Rowtember rower, Rowtember gives again. It counts rowers who reach 100K with their rows logged on Rowtember, checked against Concept2's honor board when the challenge closes.",
+} as const;
+/* The strip under the bar that leads to /m2d (M2dBanner.tsx): the cookie
+ * its x sets. */
+export const M2D_BANNER_COOKIE = "row100k_m2d_banner";
+
+/* What the match stands at: the locked dollars, up to the cap. */
+export const matched = (lockedDollars: number): number => Math.min(M2D_MATCH.cap, Math.round(lockedDollars * 100) / 100);
 
 /* Dollars, to the cent. */
 export function worth(meters: number): number {
@@ -107,6 +129,7 @@ export type M2dView = {
   link: string;
   signup: string;
   goal: number;
+  match: { on: boolean; cap: number; terms: string; matched: number };
   totals: M2dTotals;
   rows: M2dRow[];
   me: { rowerNumber: number; in: boolean; meters: number; dollars: number; locked: number } | null;
@@ -140,6 +163,7 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
     link: M2D_LINK,
     signup: M2D_SIGNUP,
     goal: M2D_GOAL,
+    match: { on: M2D_MATCH.on, cap: M2D_MATCH.cap, terms: M2D_MATCH.terms, matched: matched(totals.locked) },
     totals,
     rows,
     me: viewer.me ? { rowerNumber: viewer.me.rowerNumber, in: !!meId && ins.has(meId), meters: mine, dollars: worth(mine), locked: locked(mine) } : null,
@@ -159,4 +183,30 @@ export async function m2dShare(participantId: string | null, row: { day: string;
   let r: M2dShare["row"] = null;
   if (row && inWindow(row.day)) r = { meters: row.meters, dollars: Math.round((worth(m) - worth(Math.max(0, m - row.meters))) * 100) / 100 };
   return { meters: m, dollars: worth(m), in: !!participantId && ins.has(participantId), allMeters: totals.meters, allRaised: totals.raised, row: r };
+}
+
+/* A ROWER SAYS THEY ARE REGISTERED (or takes it back), from the app or the
+ * site page: one row under M2D_KEY, and on the live challenge an email to
+ * the owner every time (CLAUDE.md: every sign-up emails the owner). A
+ * failed send is logged, never surfaced. Throws when the save fails. */
+export async function saveM2d(
+  me: { id: string; rowerNumber: number; displayName: string },
+  isIn: boolean,
+  email: string | null | undefined,
+  where: "the ROW app" | "rowtember.com",
+): Promise<void> {
+  await db.rowMonthOptIn.upsert({
+    where: { challenge_participantId_month: { challenge: CHALLENGE, participantId: me.id, month: M2D_KEY } },
+    create: { challenge: CHALLENGE, participantId: me.id, rowerNumber: me.rowerNumber, month: M2D_KEY, cancelledAt: isIn ? null : new Date() },
+    update: { cancelledAt: isIn ? null : new Date() },
+  });
+  if (CHALLENGE !== CHALLENGE_LIVE) return;
+  const word = isIn ? "registered for" : "took back their registration for";
+  const sent = await sendOwnerNotification(
+    `M2D: #${me.rowerNumber} ${me.displayName} ${isIn ? "is in" : "is out"}`,
+    `Rower #${me.rowerNumber} ${me.displayName} ${word} the Concept2 Holiday Challenge (M2D) on ${where}.
+Account: ${email ?? ""}`,
+    email ?? undefined,
+  ).catch((err) => ({ ok: false as const, error: String(err) }));
+  if (!sent.ok) console.error("M2D: owner email failed", sent.error);
 }

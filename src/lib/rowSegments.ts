@@ -17,6 +17,7 @@ export const ROW_SEGMENTS: ReadonlySet<string> = new Set([
   "feed",
   "gallery",
   "join",
+  "m2d",
   "moderation",
   "partners",
   "plan",

@@ -12,6 +12,8 @@ import { NavProgress } from "./NavProgress";
 import { currentRace, raceAnnounced, raceOpenFor, raceOver } from "./raceday";
 import { myRaffleRows } from "./raffleData";
 import { RaffleBanner } from "./RaffleBanner";
+import { M2dBanner } from "./M2dBanner";
+import { M2D_BANNER_COOKIE, m2dTotals, m2dWindow } from "./m2d";
 import { openRaffle, raffleDismissCookie } from "./raffles";
 
 /* The one bar every /row100k page wears: the ROWTEMBER wordmark (owner,
@@ -103,6 +105,32 @@ export async function RowBar({
           joined={rower !== null}
         />
       );
+    }
+  }
+
+  /* THE M2D STRIP (2026-11-25): where no raffle strip is, on every page
+   * but /m2d, until the Concept2 Holiday Challenge closes; gone for good
+   * once its x is pressed (M2dBanner.tsx). The dollars raised ride on it
+   * once the window opens; a failed read just leaves them off. */
+  if (!banner && active !== "m2d") {
+    const w = m2dWindow();
+    let dismissed = false;
+    try {
+      dismissed = cookies().get(M2D_BANNER_COOKIE)?.value === "1";
+    } catch {
+      /* outside a request scope: show it */
+    }
+    if (!w.over && !dismissed) {
+      let raised: string | null = null;
+      if (w.started) {
+        try {
+          const r = (await m2dTotals()).totals.raised;
+          if (r > 0) raised = r >= 1000 ? `$${Math.round(r).toLocaleString("en-US")}` : `$${r.toFixed(2)}`;
+        } catch {
+          raised = null;
+        }
+      }
+      banner = <M2dBanner raised={raised} started={w.started} cookie={M2D_BANNER_COOKIE} />;
     }
   }
 
