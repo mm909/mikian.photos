@@ -108,6 +108,20 @@ export type ShareData = {
   digits?: number;
   /* Everyone's September, set only where the caller loads community totals
    * (the stats page) — unlocks the three community cards. */
+  /* M2D, the Concept2 Holiday Challenge in dollars (owner, 2026-11-25:
+   * "make sure we have stickers for the dollar amounts ... for the meters
+   * that you rode during that specific row, and total meters as well for
+   * everyone"). Set by the app's sticker deck (serverCard.ts) once the
+   * window is open; the three M2D cards ride on it. The rules and the
+   * figures are row100k/m2d.ts. */
+  m2d?: {
+    meters: number;
+    dollars: number;
+    in: boolean;
+    allMeters: number;
+    allRaised: number;
+    row: { meters: number; dollars: number } | null;
+  } | null;
   community?: {
     meters: number;
     rowers: number;
@@ -3673,7 +3687,72 @@ export const DAILY_CARD_IDS = dailyCards.map((c) => c.id);
 
 export const BOARD_CARD_IDS = boardCards.map((c) => c.id);
 
+/* THE M2D STICKERS (owner, 2026-11-25): a dollar figure, big, over what it
+ * is the worth of, and the mark. Three: this row, the rower's whole
+ * challenge so far, and everyone's. A hidden rower's own two stay out of
+ * the menu, as the dollars would give their meters away. No address. */
+const usd = (d: number) => `$${d.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function drawDollars(ctx: CanvasRenderingContext2D, fonts: ShareFonts, W: number, big: string, line1: string, line2: string) {
+  const cx = W / 2;
+  const maxW = W - 90;
+  let size = 220;
+  ctx.font = `${size}px ${fonts.black}`;
+  while (size > 110 && ctx.measureText(big).width > maxW) {
+    size -= 6;
+    ctx.font = `${size}px ${fonts.black}`;
+  }
+  drawCenteredText(ctx, big, { cx, baseline: 250, font: `${size}px ${fonts.black}`, color: "#ffffff", maxWidth: maxW });
+  drawCenteredText(ctx, line1, { cx, baseline: 318, font: `36px ${fonts.mono}`, color: "rgba(255,255,255,0.82)", tracking: 7, maxWidth: maxW });
+  drawCenteredText(ctx, line2, { cx, baseline: 368, font: `28px ${fonts.mono}`, color: "rgba(255,255,255,0.62)", tracking: 6, maxWidth: maxW });
+  drawMark(ctx, [{ text: MARK }], { cx, cy: 500, size: 104, fontFamily: fonts.black });
+}
+const m2dRowCard: ShareCard = {
+  id: "m2d-row",
+  label: "M2D: this row",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) => !d.masked && !!d.m2d?.row && d.m2d.row.meters > 0,
+  draw(ctx, data, fonts) {
+    const r = data.m2d?.row;
+    if (!r) return;
+    drawDollars(ctx, fonts, this.width, usd(r.dollars), `${r.meters.toLocaleString("en-US")} M ROWED`, "METERS TO DOLLARS");
+  },
+};
+const m2dMeCard: ShareCard = {
+  id: "m2d-me",
+  label: "M2D: my total",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) => !d.masked && !!d.m2d && d.m2d.meters > 0,
+  draw(ctx, data, fonts) {
+    const m = data.m2d;
+    if (!m) return;
+    drawDollars(ctx, fonts, this.width, usd(m.dollars), `${m.meters.toLocaleString("en-US")} M FOR CHARITY`, "NOV 26 - DEC 24");
+  },
+};
+const m2dAllCard: ShareCard = {
+  id: "m2d-all",
+  label: "M2D: everyone",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) => !!d.m2d && d.m2d.allMeters > 0,
+  draw(ctx, data, fonts) {
+    const m = data.m2d;
+    if (!m) return;
+    drawDollars(ctx, fonts, this.width, usd(m.allRaised), `${m.allMeters.toLocaleString("en-US")} M TOGETHER`, "RAISED FOR CHARITY");
+  },
+};
+
 export const CARDS: ShareCard[] = [
+  // M2D (2026-11-25): the dollar stickers first while the Holiday Challenge
+  // runs. Only the app's deck sets data.m2d (serverCard.ts), so the site's
+  // share dialog never offers them.
+  m2dRowCard,
+  m2dMeCard,
+  m2dAllCard,
   rowtemberRow,
   rowtemberRowFull,
   rowtemberReceipt,

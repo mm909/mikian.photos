@@ -9,6 +9,7 @@ import { accentOn, capsOn, paletteOf } from "@/lib/rowPalette";
 import { siteSettings } from "@/lib/rowSettings";
 import type { Viewer } from "@/lib/row100kViewer";
 import { buildProfile } from "../r/[num]/profileData";
+import { m2dShare } from "../m2d";
 import { setCardAccent } from "./accent";
 import { RACE_CARD_IDS, RACE_TIME_CARD_IDS, availableCards, type ShareCard, type ShareData, type ShareFonts } from "./cards";
 
@@ -96,6 +97,8 @@ async function readShareData(viewer: Viewer, rowId: string | null): Promise<Shar
   if (!viewer.actor) return null;
   let num = viewer.me?.rowerNumber ?? null;
   let month: string | undefined;
+  /* Whose meters the M2D stickers count (2026-11-25). */
+  let pid: string | null = viewer.myParticipantId;
   if (rowId) {
     const entry = await db.rowEntry.findFirst({
       where: { id: rowId, challenge: CHALLENGE },
@@ -104,6 +107,7 @@ async function readShareData(viewer: Viewer, rowId: string | null): Promise<Shar
     if (!entry) return null;
     if (!viewer.isAdmin && entry.participant.id !== viewer.myParticipantId) return null;
     num = entry.participant.rowerNumber;
+    pid = entry.participant.id;
     month = entry.day.slice(0, 7);
   }
   if (!num) return null;
@@ -127,5 +131,13 @@ async function readShareData(viewer: Viewer, rowId: string | null): Promise<Shar
       console.error("row app: recording unreadable for a row's stickers", err);
     }
   }
-  return { ...built.view.shareData, row: row ? { day: row.day, meters: row.meters, seconds: row.seconds, title: row.title, erg, splits } : null };
+  /* THE M2D FIGURES for the dollar stickers (row100k/m2d.ts), once the
+   * Holiday Challenge is open. A miss costs those three stickers only. */
+  let m2d: ShareData["m2d"] = null;
+  try {
+    m2d = await m2dShare(pid, row ? { day: row.day, meters: row.meters } : null);
+  } catch (err) {
+    console.error("row app: M2D figures unreadable for the stickers", err);
+  }
+  return { ...built.view.shareData, m2d, row: row ? { day: row.day, meters: row.meters, seconds: row.seconds, title: row.title, erg, splits } : null };
 }

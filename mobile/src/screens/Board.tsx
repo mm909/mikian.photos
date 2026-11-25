@@ -76,6 +76,15 @@ export function pickBoardMonth(k: string): void {
   const now = monthState.months[monthState.months.length - 1]?.key;
   setMonthState({ month: k === now ? null : k });
 }
+/* The months there are boards for, read without the board on the screen:
+ * the M2D tab stands where the board stood (2026-11-25), and its title's
+ * menu still lists them. */
+export function loadBoardMonths(): void {
+  if (monthState.months.length) return;
+  api<BoardView>("/api/row100k/app/board")
+    .then((d) => d.months?.length && !monthState.months.length && setMonthState({ months: d.months }))
+    .catch(() => null);
+}
 /* "2026-11" -> "11/26". */
 export const monthMark = (key: string): string => (/^\d{4}-\d{2}$/.test(key) ? `${key.slice(5, 7)}/${key.slice(2, 4)}` : "");
 
@@ -83,26 +92,41 @@ export const monthMark = (key: string): string => (/^\d{4}-\d{2}$/.test(key) ? `
  * 2026-11-24: "If the selection box looks good with just 11/26, 10/26,
  * 09/26, then maybe we just do that"): no month or edition names, a box
  * only as wide as the dates. A reader still hears the month's name. */
-export function MonthSheet({ open, onClose, top }: { open: boolean; onClose: () => void; /* The title's foot on the screen (App.tsx measures it): the box opens wholly under it, never over it (owner, 2026-11-24: "it's covered a little"). */ top?: number }) {
+export function MonthSheet({ open, onClose, top, m2d, onM2d }: { open: boolean; onClose: () => void; /* The title's foot on the screen (App.tsx measures it): the box opens wholly under it, never over it (owner, 2026-11-24: "it's covered a little"). */ top?: number; /* M2D at the head of the list, and whether it is what the tab shows (2026-11-25). */ m2d?: boolean; onM2d?: (on: boolean) => void }) {
   const { months, shown } = useBoardMonth();
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable accessibilityLabel="Close the months" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.25)" }}>
         <View style={{ position: "absolute", top: top ?? 112, left: 0, right: 0, alignItems: "center" }}>
           <Pressable onPress={() => {}} style={{ width: 132, backgroundColor: C.paper, borderWidth: 2, borderColor: C.ink, borderRadius: 8, paddingVertical: 6 }}>
+            {onM2d ? (
+              <Pressable
+                accessibilityRole="menuitem"
+                accessibilityState={{ selected: !!m2d }}
+                accessibilityLabel="M2D, the Concept2 Holiday Challenge"
+                onPress={() => {
+                  onM2d(true);
+                  onClose();
+                }}
+                style={({ pressed }) => ({ alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, opacity: pressed ? 0.5 : 1 })}
+              >
+                <Text style={{ fontFamily: F.black, fontSize: 18, color: m2d ? C.accent : C.ink }}>M2D</Text>
+              </Pressable>
+            ) : null}
             {[...months].reverse().map((m) => (
               <Pressable
                 key={m.key}
                 accessibilityRole="menuitem"
-                accessibilityState={{ selected: m.key === shown }}
+                accessibilityState={{ selected: !m2d && m.key === shown }}
                 onPress={() => {
                   pickBoardMonth(m.key);
+                  onM2d?.(false);
                   onClose();
                 }}
                 accessibilityLabel={m.label}
                 style={({ pressed }) => ({ alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, opacity: pressed ? 0.5 : 1 })}
               >
-                <Text style={{ fontFamily: F.black, fontSize: 18, color: m.key === shown ? C.accent : C.ink, fontVariant: ["tabular-nums"] }}>{monthMark(m.key)}</Text>
+                <Text style={{ fontFamily: F.black, fontSize: 18, color: !m2d && m.key === shown ? C.accent : C.ink, fontVariant: ["tabular-nums"] }}>{monthMark(m.key)}</Text>
               </Pressable>
             ))}
           </Pressable>

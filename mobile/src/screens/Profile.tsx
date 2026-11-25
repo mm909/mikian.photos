@@ -6,6 +6,7 @@ import { api, edits, type Best, type Blocked, type Counts, type FiveK, type LogR
 import { MonthGrid, PaceLine } from "../charts";
 import { GridIcon, RingIcon, StatsIcon } from "../icons";
 import { arcadeFor } from "../arcade/gate";
+import { M2dPanel } from "./M2D";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt, isDark } from "../theme";
@@ -129,8 +130,15 @@ import { FollowButton, RowerMenu, type PeopleList } from "./Social";
  * (`Hundred`, as it was). The third tab (`Ratings`) is the rower's 5Ks over
  * all months: the average pace, the spread, how many, and the dots. */
 
-const SUBS = ["rows", "stats", "ratings"] as const;
-type Sub = (typeof SUBS)[number];
+/* M2D IS THE THIRD COLUMN, AND THE GAME A FOURTH FOR THE OWNER ALONE (owner,
+ * 2026-11-25: "let's replace where our current thing for game is. That will
+ * be the third column. On mine, let's give me 4 columns, but let's just hide
+ * the game column ... for everyone else except for me"). The game column is
+ * RATINGS (the arcade's Elo, the boat, the 5K spread); it is drawn for whom
+ * the arcade is drawn (arcade/gate.ts). M2D is screens/M2D.tsx M2dPanel. */
+const ALL_SUBS = ["rows", "stats", "m2d", "ratings"] as const;
+type Sub = (typeof ALL_SUBS)[number];
+const subsFor = (game: boolean): readonly Sub[] => (game ? ALL_SUBS : ALL_SUBS.filter((t) => t !== "ratings"));
 
 const m2 = (s: number) => fmtClock(s, false);
 const hours = (s: number) => `${(s / 3600).toFixed(1)} h`;
@@ -176,6 +184,9 @@ export function ProfileScreen({
 }) {
   const dir = useScrollDir(onScrollDir);
   const { ready, me } = useSession();
+  /* The columns this viewer gets: the game only where the arcade is drawn. */
+  const subsRef = useRef<readonly Sub[]>(subsFor(arcadeFor(me)));
+  subsRef.current = subsFor(arcadeFor(me));
   const own = num === undefined;
   /* ALL TIME FIRST (owner, 2026-11-23: "On the stats page on the profile,
    * we should default to all-time first"). */
@@ -214,7 +225,7 @@ export function ProfileScreen({
   paneRef.current = paneW;
   const tabRef = useRef<Sub>(tab);
   tabRef.current = tab;
-  const at = SUBS.indexOf(tab);
+  const at = subsRef.current.indexOf(tab);
   const pos = useRef(new Animated.Value(at)).current;
   const [peek, setPeek] = useState<Sub | null>(null);
   const peekRef = useRef<Sub | null>(null);
@@ -235,9 +246,9 @@ export function ProfileScreen({
     pos.setValue(to);
     peekRef.current = null;
     setPeek(null);
-    if (SUBS[to] !== tabRef.current) {
-      tabRef.current = SUBS[to];
-      setTab(SUBS[to]);
+    if (subsRef.current[to] !== tabRef.current) {
+      tabRef.current = subsRef.current[to];
+      setTab(subsRef.current[to]);
     }
   }, [pos]);
   const glideTo = useCallback(
@@ -253,7 +264,7 @@ export function ProfileScreen({
     (t: Sub) => {
       glide.current = null;
       pos.stopAnimation();
-      pos.setValue(SUBS.indexOf(t));
+      pos.setValue(subsRef.current.indexOf(t));
       peekRef.current = null;
       setPeek(null);
       tabRef.current = t;
@@ -268,8 +279,8 @@ export function ProfileScreen({
         if (!(Math.abs(g.dx) > 28 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2)) return false;
         /* Past either end there is no tab of this page: the drag is left
          * for the shell, which moves to the tab beside the profile. */
-        const i = glide.current ?? SUBS.indexOf(tabRef.current);
-        return g.dx < 0 ? i < SUBS.length - 1 : i > 0;
+        const i = glide.current ?? subsRef.current.indexOf(tabRef.current);
+        return g.dx < 0 ? i < subsRef.current.length - 1 : i > 0;
       },
       onPanResponderTerminationRequest: () => false,
       /* The page does not scroll up and down under a drag across it. */
@@ -278,10 +289,10 @@ export function ProfileScreen({
         setSideDrag(true);
       },
       onPanResponderMove: (_e, g) => {
-        const i = SUBS.indexOf(tabRef.current);
-        pos.setValue(Math.max(0, Math.min(SUBS.length - 1, i - g.dx / paneRef.current)));
+        const i = subsRef.current.indexOf(tabRef.current);
+        pos.setValue(Math.max(0, Math.min(subsRef.current.length - 1, i - g.dx / paneRef.current)));
         const n = i + (g.dx < 0 ? 1 : -1);
-        const want = n >= 0 && n < SUBS.length ? SUBS[n] : null;
+        const want = n >= 0 && n < subsRef.current.length ? subsRef.current[n] : null;
         if (peekRef.current !== want) {
           peekRef.current = want;
           setPeek(want);
@@ -289,13 +300,13 @@ export function ProfileScreen({
       },
       onPanResponderRelease: (_e, g) => {
         setSideDrag(false);
-        const i = SUBS.indexOf(tabRef.current);
+        const i = subsRef.current.indexOf(tabRef.current);
         const far = Math.abs(g.dx) > paneRef.current * 0.28 || Math.abs(g.vx) > 0.5;
-        glideTo(Math.max(0, Math.min(SUBS.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i)), 220);
+        glideTo(Math.max(0, Math.min(subsRef.current.length - 1, far ? i + (g.dx < 0 ? 1 : -1) : i)), 220);
       },
       onPanResponderTerminate: () => {
         setSideDrag(false);
-        glideTo(SUBS.indexOf(tabRef.current), 180);
+        glideTo(subsRef.current.indexOf(tabRef.current), 180);
       },
     }),
   ).current;
@@ -324,6 +335,8 @@ export function ProfileScreen({
       <RowGrid num={p.rower.rowerNumber} mine={p.isMe} onRow={(id) => onRow?.(id)} more={near} />
     ) : sub === "ratings" ? (
       <Ratings p={p} onLocker={onLocker} />
+    ) : sub === "m2d" ? (
+      <M2dPanel num={p.rower.rowerNumber} own={p.isMe} />
     ) : (
           <>
           {/* WHICH MONTH, and that month's figures, here and not in the
@@ -496,7 +509,7 @@ export function ProfileScreen({
             </View>
           ) : null}
 
-          {locked ? null : <Tabs value={tab} onPick={pickTab} pos={pos} width={paneW - 32} />}
+          {locked ? null : <Tabs value={tab} onPick={pickTab} pos={pos} width={paneW - 32} subs={subsRef.current} />}
         </>
       )}
 
@@ -509,14 +522,14 @@ export function ProfileScreen({
           still a drag on it. */}
       {locked || p.masked ? null : (
         <View {...swipe.panHandlers} style={{ marginHorizontal: -16, overflow: "hidden", minHeight: Math.max(360, win.height - 300) }}>
-          {SUBS.map((t, i) =>
+          {subsRef.current.map((t, i) =>
             t === tab || t === peek ? (
               <Animated.View
                 key={t}
                 pointerEvents={t === tab ? "auto" : "none"}
                 style={[
                   t === tab ? null : { position: "absolute", left: 0, top: 0, width: paneW },
-                  { paddingHorizontal: t === "rows" ? 0 : 16, transform: [{ translateX: pos.interpolate({ inputRange: [0, SUBS.length - 1], outputRange: [i * paneW, (i - (SUBS.length - 1)) * paneW] }) }] },
+                  { paddingHorizontal: t === "rows" ? 0 : 16, transform: [{ translateX: pos.interpolate({ inputRange: [0, subsRef.current.length - 1], outputRange: [i * paneW, (i - (subsRef.current.length - 1)) * paneW] }) }] },
                 ]}
               >
                 {panel(t)}
@@ -649,13 +662,14 @@ function SocialLine({ p, rel, counts, onPeople, onChange, onRow, onSettings }: {
  * short ink rule under the open one. The grid of photos, the stats, and the
  * ratings (2026-11-24), a bell curve with its middle marked: the average
  * and the spread the tab is. Until that day the third was the word 100K. */
-function Tabs({ value, onPick, pos, width }: { value: Sub; onPick: (t: Sub) => void; pos: Animated.Value; width: number }) {
-  const cell = width / SUBS.length;
-  const tabs: { id: Sub; label: string }[] = [
-    { id: "rows", label: "Photos of every row" },
+function Tabs({ value, onPick, pos, width, subs }: { value: Sub; onPick: (t: Sub) => void; pos: Animated.Value; width: number; subs: readonly Sub[] }) {
+  const cell = width / subs.length;
+  const tabs: { id: Sub; label: string }[] = ([
+    { id: "rows" as Sub, label: "Photos of every row" },
     { id: "stats", label: "Stats" },
+    { id: "m2d", label: "M2D, the Concept2 Holiday Challenge" },
     { id: "ratings", label: "Ratings" },
-  ];
+  ] as { id: Sub; label: string }[]).filter((t) => subs.includes(t.id));
   return (
     <View accessibilityRole="tablist" style={{ flexDirection: "row", marginTop: 18, marginBottom: 2 }}>
       {tabs.map((t) => {
@@ -663,13 +677,13 @@ function Tabs({ value, onPick, pos, width }: { value: Sub; onPick: (t: Sub) => v
         const tone = on ? C.ink : C.gray;
         return (
           <Pressable key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: on }} onPress={() => onPick(t.id)} style={{ flex: 1, alignItems: "center", paddingTop: 10 }}>
-            <View style={{ height: 26, justifyContent: "center" }}>{t.id === "rows" ? <GridIcon color={tone} size={24} /> : t.id === "stats" ? <StatsIcon color={tone} size={24} /> : <CurveIcon color={tone} size={24} />}</View>
+            <View style={{ height: 26, justifyContent: "center" }}>{t.id === "rows" ? <GridIcon color={tone} size={24} /> : t.id === "stats" ? <StatsIcon color={tone} size={24} /> : t.id === "m2d" ? <Text style={{ fontFamily: F.black, fontSize: 19, lineHeight: 24, color: tone }}>$</Text> : <CurveIcon color={tone} size={24} />}</View>
             <View style={{ height: 2, marginTop: 10 }} />
           </Pressable>
         );
       })}
       {/* The short ink rule under the open tab: it goes with the finger. */}
-      <Animated.View pointerEvents="none" style={{ position: "absolute", left: (cell - 64) / 2, bottom: 0, width: 64, height: 2, backgroundColor: C.ink, transform: [{ translateX: pos.interpolate({ inputRange: [0, SUBS.length - 1], outputRange: [0, cell * (SUBS.length - 1)] }) }] }} />
+      <Animated.View pointerEvents="none" style={{ position: "absolute", left: (cell - 64) / 2, bottom: 0, width: 64, height: 2, backgroundColor: C.ink, transform: [{ translateX: pos.interpolate({ inputRange: [0, subs.length - 1], outputRange: [0, cell * (subs.length - 1)] }) }] }} />
     </View>
   );
 }

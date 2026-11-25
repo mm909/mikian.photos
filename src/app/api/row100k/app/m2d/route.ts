@@ -1,0 +1,64 @@
+import { db } from "@/lib/db";
+import { sendOwnerNotification } from "@/lib/email";
+import { CHALLENGE, CHALLENGE_LIVE } from "@/lib/row100k";
+import { rateLimit } from "@/lib/rateLimit";
+import { resolveViewer } from "@/lib/row100kViewer";
+import { M2D_KEY, m2dView } from "@/app/row100k/m2d";
+import { asRower, no, yes } from "../social";
+
+/* M2D for the phone app (owner, 2026-11-25; the rules in row100k/m2d.ts).
+ *
+ * GET: the window, the totals (the dollars), the board and the viewer's
+ * own line. Anybody may read it, as anybody may read the 100K board.
+ *
+ * POST { in }: the rower says they are registered for the Concept2 Holiday
+ * Challenge (or takes it back: a mistaken press is undone here, as the
+ * registration itself lives on Concept2's site). Every save emails the
+ * owner (CLAUDE.md: every sign-up emails the owner); a failed send is
+ * logged, never shown. Answers the view again. */
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  try {
+    const viewer = await resolveViewer();
+    return yes({ signedIn: viewer.actor !== null, ...(await m2dView(viewer)) });
+  } catch (err) {
+    console.error("row app: failed to read M2D", err);
+    return no("M2D could not be read just now.", 500);
+  }
+}
+
+export async function POST(req: Request) {
+  const who = await asRower();
+  if ("denied" in who) return who.denied;
+  const me = who.me;
+  const body = (await req.json().catch(() => null)) as { in?: unknown } | null;
+  if (typeof body?.in !== "boolean") return no("Say in or out.", 400);
+  const rl = await rateLimit({ key: `row-app-m2d:${me.id}`, limit: 30, windowSec: 3600 });
+  if (!rl.ok) return no("Too many at once. Try again in a bit.", 429);
+  try {
+    await db.rowMonthOptIn.upsert({
+      where: { challenge_participantId_month: { challenge: CHALLENGE, participantId: me.id, month: M2D_KEY } },
+      create: { challenge: CHALLENGE, participantId: me.id, rowerNumber: me.rowerNumber, month: M2D_KEY, cancelledAt: body.in ? null : new Date() },
+      update: { cancelledAt: body.in ? null : new Date() },
+    });
+  } catch (err) {
+    console.error("row app: M2D opt-in not saved", err);
+    return no("That did not save. Try again.", 500);
+  }
+  if (CHALLENGE === CHALLENGE_LIVE) {
+    const word = body.in ? "registered for" : "took back their registration for";
+    const sent = await sendOwnerNotification(
+      `M2D: #${me.rowerNumber} ${me.displayName} ${body.in ? "is in" : "is out"}`,
+      `Rower #${me.rowerNumber} ${me.displayName} ${word} the Concept2 Holiday Challenge (M2D) in the ROW app.\nAccount: ${who.viewer.actor?.email ?? ""}`,
+      who.viewer.actor?.email,
+    ).catch((err) => ({ ok: false as const, error: String(err) }));
+    if (!sent.ok) console.error("row app: M2D email failed", sent.error);
+  }
+  try {
+    return yes(await m2dView(await resolveViewer()));
+  } catch {
+    return yes({});
+  }
+}

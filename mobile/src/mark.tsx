@@ -36,7 +36,8 @@ const OUT_SPREAD = 100;
 const OUT_MS = 150;
 const WAIT = OUT_SPREAD + OUT_MS - 20;
 /* "month": "11/26", the month's two figures in the blue (2026-11-23). */
-export type MarkKind = "word" | "meters" | "month";
+/* "money": "$16.38", the dollar sign in the blue (M2D, 2026-11-25). */
+export type MarkKind = "word" | "meters" | "month" | "money";
 
 /* How a word is set: its size, and which ONE thing in it is the blue. A
  * count of meters: its M. A rower's number: what is between its first and
@@ -51,7 +52,7 @@ function setting(word: string, kind: MarkKind) {
   const digits = /^\d+$/.test(word);
   const o = word.indexOf("O");
   const one = word === "FAQS" ? 2 : word[0] === "Q" ? 0 : o >= 0 ? o : Math.floor((n - 1) / 2);
-  const blue = (i: number) => (kind === "month" ? i < 2 : kind === "meters" ? i === n - 1 : digits ? i > 0 && i < n - 1 : i === one);
+  const blue = (i: number) => (kind === "money" ? i === 0 : kind === "month" ? i < 2 : kind === "meters" ? i === n - 1 : digits ? i > 0 && i < n - 1 : i === one);
   /* The whole word is under way inside about half a second. */
   const step = Math.min(55, 460 / Math.max(1, n));
   /* And on its way out, much faster. */

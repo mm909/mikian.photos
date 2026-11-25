@@ -9,6 +9,7 @@ import { C, F, MONTHS, fmtClock, fmtInt } from "../theme";
 import { Blocks, Waiting, scrub, useLoad, useScrollDir } from "../ui";
 import { Flip } from "./Field";
 import { Box } from "./reviewBits";
+import { M2dStats } from "./M2D";
 
 /* THE STATS, the site's /stats on a phone (stats/StatsShell.tsx, Stats.tsx),
  * in the order and the manner the site settled on:
@@ -173,6 +174,10 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
 
   return (
     <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+      {/* THE M2D GOAL first (owner, 2026-11-25: "we could have a section of
+          stats that's a goal ... can we raise $100?"); the dollars are the
+          mark in the bar over this tab (App.tsx). */}
+      <M2dStats />
       {/* No stamp of the month and its meters here any more (owner,
           2026-11-21): every meter anybody has rowed is what the mark in the
           top bar rolls over into on this tab (App.tsx). */}

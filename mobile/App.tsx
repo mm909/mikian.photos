@@ -8,10 +8,11 @@ import { Animated, Easing, PanResponder, Platform, Pressable, SafeAreaView, Text
 import { api, warm } from "./src/api";
 import { useLiveRaceFeed } from "./src/erg/liveRace";
 import { useErg } from "./src/erg/useErg";
-import { BackIcon, BellIcon, BoardIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon, VerifiedIcon } from "./src/icons";
+import { BackIcon, BellIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon, VerifiedIcon } from "./src/icons";
 import { BadgeSlot, Mark, type MarkKind } from "./src/mark";
 import { LookCtx, loadLook, saveLook } from "./src/look";
-import { BoardScreen, MonthSheet, monthMark, useBoardMonth } from "./src/screens/Board";
+import { BoardScreen, MonthSheet, loadBoardMonths, monthMark, useBoardMonth } from "./src/screens/Board";
+import { M2D_PATH, M2dScreen, usd, type M2dView } from "./src/screens/M2D";
 import { FeedScreen } from "./src/screens/Feed";
 import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
 import { DemoPage, ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
@@ -80,10 +81,19 @@ type Tab = "feed" | "search" | "board" | "stats" | "profile";
 const TABS: { id: Tab; label: string; Icon: ComponentType<{ color?: string; size?: number }> }[] = [
   { id: "feed", label: "Feed", Icon: FeedIcon },
   { id: "search", label: "Search", Icon: SearchIcon },
-  { id: "board", label: "Board", Icon: BoardIcon },
+  /* M2D, where the 100K board stood (owner, 2026-11-25: "Let's take over
+   * that middle tab that's usually the 100K ... M2D is what we'll call
+   * it"): the Concept2 Holiday Challenge in dollars (screens/M2D.tsx). The
+   * monthly boards are still the title's menu on this tab. */
+  { id: "board", label: "M2D", Icon: DollarIcon },
   { id: "stats", label: "Stats", Icon: StatsIcon },
   { id: "profile", label: "Profile", Icon: ProfileIcon },
 ];
+
+/* The M2D tab's glyph: a dollar sign in the house's black face. */
+function DollarIcon({ color = "#fff", size = 26 }: { color?: string; size?: number }) {
+  return <Text style={{ fontFamily: F.black, fontSize: size * 0.86, lineHeight: size, color, includeFontPadding: false }}>$</Text>;
+}
 
 type Over = { k: number } & (
   | { kind: "rower"; num: number }
@@ -205,8 +215,17 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       setMonthsOpen(true);
     });
   };
-  /* Every meter anybody has logged, for the mark on the stats tab. */
+  /* Every meter anybody has logged: the mark on the stats tab until the
+   * M2D dollars took its place (2026-11-25). */
   const [total, setTotal] = useState<number | null>(null);
+  /* THE DOLLARS RAISED, the mark on the stats tab (owner, 2026-11-25:
+   * "Definitely at the header of stats, where we usually have meters ...
+   * Let's put the dollar value there, and it doesn't start until that
+   * date"). Screens/M2D.tsx says how they are reckoned. */
+  const [raised, setRaised] = useState<number | null>(null);
+  /* Whether the middle tab shows M2D or a month's 100K board, picked from
+   * its title's menu. M2D first. */
+  const [m2dOn, setM2dOn] = useState(true);
   /* What is typed in the search field, which sits in the bar on that tab. */
   const [find, setFind] = useState("");
   /* The pieces this phone has recorded, for THE READ to rank against. */
@@ -223,6 +242,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     warm(["/api/row100k/app/board", "/api/row100k/app/feed", "/api/row100k/stats?m=all", "/api/row100k/app/people?q="]);
     if (mine != null) warm(["/api/row100k/app/profile?", "/api/row100k/app/settings", "/api/row100k/app/notifications"]);
     api<{ meters: number }>("/api/row100k/app/total").then((r) => setTotal(r.meters), () => null);
+    api<M2dView>(M2D_PATH).then((r) => setRaised(r.totals.raised), () => null);
+    loadBoardMonths();
   }, [mine, stamp]);
 
   /* DEVELOPMENT, in a browser: ?row=<id> opens that row's page, and
@@ -422,7 +443,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : t === "search" ? (
       <SearchScreen text={find} onRower={openRower} onScrollDir={setAway} />
     ) : t === "board" ? (
-      <BoardScreen key={stamp} look={boardLook} onRower={openRower} onScrollDir={setAway} />
+      m2dOn ? (
+        <M2dScreen key={stamp} onRower={openRower} onScrollDir={setAway} />
+      ) : (
+        <BoardScreen key={stamp} look={boardLook} onRower={openRower} onScrollDir={setAway} />
+      )
     ) : t === "stats" ? (
       <StatsScreen onRower={openRower} onRow={openRow} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} />
     ) : (
@@ -478,9 +503,14 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   if (logOn) mark = "LOG";
   else if (!top) {
     if (tab === "profile" && mine != null) mark = num3(mine);
-    else if (tab === "stats" && total !== null) {
+    else if (tab === "stats" && raised !== null) {
+      mark = usd(raised);
+      markIs = "money";
+    } else if (tab === "stats" && total !== null) {
       mark = `${fmtInt(total)}M`;
       markIs = "meters";
+    } else if (tab === "board" && m2dOn) {
+      mark = "M2D";
     } else if (tab === "board") {
       /* The board's month, "11/26", with the month in the blue (owner,
        * 2026-11-23: "where the 100K is ... that's where we should put the
@@ -493,8 +523,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   } else if (top.kind === "rower") mark = num3(top.num);
   else if (top.kind === "row") mark = rowOf ? num3(rowOf) : "ROW";
   const pageOf = logOn ? null : !top ? (tab === "profile" && mine != null ? mine : null) : top.kind === "rower" ? top.num : null;
-  const flip = !logOn && !top && tab === "board" && !!me.isAdmin;
-  const monthsMenu = !logOn && !top && tab === "board" && boardMonth.months.length > 1;
+  const flip = !logOn && !top && tab === "board" && !m2dOn && !!me.isAdmin;
+  const monthsMenu = !logOn && !top && tab === "board" && boardMonth.months.length > 0;
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
@@ -700,7 +730,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
           ) : null}
         </View>
 
-        <MonthSheet open={monthsOpen} top={monthsTop} onClose={() => setMonthsOpen(false)} />
+        <MonthSheet open={monthsOpen} top={monthsTop} onClose={() => setMonthsOpen(false)} m2d={m2dOn} onM2d={setM2dOn} />
         {monitor ? null : (
           <TabBar
             small={tuck}
