@@ -3,7 +3,7 @@
  * tenth of a second at a time at a steady pace, with stroke-to-stroke
  * noise, and prints what happened: floors, bosses, wrecks. The rower's own
  * pace here is 1:59. */
-import { SKILL_BY_ID, createPve, fillOf, floorPaceOf, nameOf, roomOf, type BoatLv } from "../src/arcade/pve";
+import { KIT, SKILL_BY_ID, createPve, fillOf, floorPaceOf, nameOf, roomOf, type BoatLv } from "../src/arcade/pve";
 import { prng } from "../src/arcade/rng";
 
 let failed = 0;
@@ -12,7 +12,7 @@ const ok = (what: string, pass: boolean, got?: unknown) => {
   console.log(`${pass ? "ok  " : "FAIL"} ${what}${pass ? "" : ` (got ${JSON.stringify(got)})`}`);
 };
 const gauss = (rnd: () => number) => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
-const plain = [SKILL_BY_ID.jab, SKILL_BY_ID.throw, SKILL_BY_ID.cannon];
+const plain = KIT;
 const hard = [SKILL_BY_ID.flick, SKILL_BY_ID.spear, SKILL_BY_ID.anchor];
 
 /* `seconds` of battle at `pace`, noise `sd` seconds a 500. */

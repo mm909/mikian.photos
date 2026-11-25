@@ -504,8 +504,11 @@ function HealthBar({ name, h, max, mine, wall, right }: { name?: string; h: numb
   const since = wall - L.hitAt;
   const low = now < 0.3;
   const num = `${fmtInt(Math.ceil(L.shown))}${right ? ` ${right}` : ""}`;
+  /* No flex of its own (seen on his phone, 2026-11-24: a bar with flex 1
+   * in a column of fixed height was laid over the JAB row); beside another
+   * bar it is wrapped in a flex: 1 view by the caller. */
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ alignSelf: "stretch" }}>
       {name ? (
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
           <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 15, color: mine ? C.accent : C.ink, flexShrink: 1 }}>
@@ -704,8 +707,12 @@ function Match(p: P) {
   return (
     <View style={{ width, height, overflow: "hidden" }}>
       <View style={{ height: HUD, flexDirection: "row", columnGap: 18, paddingHorizontal: 16, paddingTop: 8 }}>
-        <HealthBar name="YOU" h={me?.health ?? 0} max={me?.max ?? 1} mine wall={wall} />
-        <HealthBar name={opp.name.toUpperCase()} h={op?.health ?? 0} max={op?.max ?? 1} mine={false} wall={wall} />
+        <View style={{ flex: 1 }}>
+          <HealthBar name="YOU" h={me?.health ?? 0} max={me?.max ?? 1} mine wall={wall} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <HealthBar name={opp.name.toUpperCase()} h={op?.health ?? 0} max={op?.max ?? 1} mine={false} wall={wall} />
+        </View>
       </View>
       <View style={{ flexDirection: "row" }}>
         <View style={{ width: g.W, height: g.H }}>

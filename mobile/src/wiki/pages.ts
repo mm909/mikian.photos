@@ -245,8 +245,8 @@ export const PAGES: Page[] = [
       ] },
       { h: "Skills: three boxes along the bottom" },
       { list: [
-        "A quick one (fills in 1 second), a middle one (3 seconds), a heavy one (8 or 10). Each slot rolls one of two a row: JAB or FLICK, THROW or SPEAR, CANNON or ANCHOR.",
-        "Each skill has a pace, off the floor's: JAB a second slower than the floor's, FLICK and THROW at it, SPEAR and CANNON a second under, ANCHOR two under.",
+        "Every row plays the same three, your names for them: JAB, a quick one (fills in 1 second); SPEAR, a middle one (3 seconds); ANCHOR, a heavy one (10 seconds). FLICK, THROW and CANNON are kept for when you pick a slot's skill.",
+        "Each skill has a pace, off the floor's: JAB a second slower than the floor's, SPEAR at it, ANCHOR a second faster.",
         "A skill FILLS ONLY AT ITS PACE OR FASTER. At its pace it fills in its time; 3 seconds faster, twice as fast, and no faster than that. Slower than its pace it stands still.",
         "Each box shows its percent, its pace, and either ▲ RISING (and how fast, 1.5×) or ■ 1.4S FASTER: how much faster you need to row to start it.",
         "A skill a second harder hits a fifth harder, so the harder kit pays when you are rowing fast and costs you when you are not.",

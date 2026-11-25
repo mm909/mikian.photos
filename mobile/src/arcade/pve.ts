@@ -27,8 +27,8 @@ import { prng } from "./rng";
  *
  * SKILLS, three charging at once: a quick one (fills in a second), a middle
  * one (three) and a heavy one (eight or ten). Each has a pace: the floor's
- * pace less its OFFSET (JAB a second slower than the floor's, SPEAR a second
- * faster, ANCHOR two), and it FILLS ONLY AT ITS PACE OR FASTER: at its pace
+ * pace less its OFFSET (JAB a second slower than the floor's, SPEAR at it,
+ * ANCHOR a second faster), and it FILLS ONLY AT ITS PACE OR FASTER: at its pace
  * in its own time, and faster the more the rower beats it (RISE_S). Slower
  * than its pace it stands still. A skill a second harder hits a fifth
  * harder (OFF_BONUS).
@@ -107,11 +107,16 @@ export const SKILLS: SkillDef[] = [
   { id: "jab", name: "JAB", slot: 0, fill: 1, off: -1, line: "A SECOND, AT A SECOND SLOWER THAN THE FLOOR'S PACE" },
   { id: "flick", name: "FLICK", slot: 0, fill: 1, off: 0, line: "A SECOND, AT THE FLOOR'S PACE" },
   { id: "throw", name: "THROW", slot: 1, fill: 3, off: 0, line: "THREE SECONDS AT THE FLOOR'S PACE" },
-  { id: "spear", name: "SPEAR", slot: 1, fill: 3, off: 1, line: "THREE SECONDS, A SECOND UNDER THE FLOOR'S PACE" },
+  { id: "spear", name: "SPEAR", slot: 1, fill: 3, off: 0, line: "THREE SECONDS AT THE FLOOR'S PACE" },
   { id: "cannon", name: "CANNON", slot: 2, fill: 8, off: 1, line: "EIGHT SECONDS, A SECOND UNDER, A BIG HIT" },
-  { id: "anchor", name: "ANCHOR", slot: 2, fill: 10, off: 2, line: "TEN SECONDS, TWO UNDER, THE BIGGEST HIT" },
+  { id: "anchor", name: "ANCHOR", slot: 2, fill: 10, off: 1, line: "TEN SECONDS, A SECOND UNDER, THE BIGGEST HIT" },
 ];
 export const SKILL_BY_ID: Record<string, SkillDef> = Object.fromEntries(SKILLS.map((s) => [s.id, s]));
+
+/* THE KIT EVERY ROW PLAYS (owner, 2026-11-24: "jab, spear and anchor as
+ * three boxes"; one name for each slot, the same every row). The other
+ * three are kept for when a slot is picked. */
+export const KIT: SkillDef[] = [SKILL_BY_ID.jab, SKILL_BY_ID.spear, SKILL_BY_ID.anchor];
 
 /* Three skills, one a slot, rolled. */
 export function rollSkills(rnd: () => number): SkillDef[] {
@@ -227,7 +232,7 @@ export type Pve = { step(t: number, pace: number): PveView; view(): PveView; res
 /* `scale`: the share of a 5K the show is cut to; rooms are cut with it. */
 export function createPve({ t0, seed, own = TARGET, boat = NO_UPGRADES, skills, scale = 1 }: { t0: number; seed: number; own?: number; sigma?: number; boat?: BoatLv; skills?: SkillDef[]; scale?: number }): Pve {
   const rnd = prng(seed);
-  const kit = skills ?? rollSkills(rnd);
+  const kit = skills ?? KIT;
   const up = dmgMul(boat.dmg);
   const fillMul = quickMul(boat.quick);
   const hullMax = hullOf(boat.hull);
