@@ -64,7 +64,7 @@ export type M2dView = {
     past100k: number;
   };
   rows: M2dRow[];
-  me: { rowerNumber: number; in: boolean; choice?: string | null; meters: number; dollars: number; locked: number } | null;
+  me: { rowerNumber: number; in: boolean; choice?: string | null; shares?: Record<string, number> | null; meters: number; dollars: number; locked: number } | null;
 };
 
 export type Charity = { key: string; name: string; full: string; what: string; url: string | null };
@@ -167,11 +167,11 @@ function useIn(v: M2dView | null, reload: () => Promise<void>) {
   const [note, setNote] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const pick = picked ?? v?.me?.choice ?? null;
-  const say = async (on: boolean, choice?: string) => {
+  const say = async (on: boolean, choice?: string, shares?: Record<string, number>) => {
     setBusy(true);
     setNote("");
     try {
-      await api(M2D_PATH, { body: choice ? { in: on, choice } : { in: on } });
+      await api(M2D_PATH, { body: shares ? { in: on, shares } : choice ? { in: on, choice } : { in: on } });
       await reload();
       setPicked(null);
     } catch (err) {
@@ -365,6 +365,127 @@ function Picks({ v, pick, busy, onPick }: { v: M2dView; pick: string | null; bus
   );
 }
 
+/* "Project Inclusion", or "Candlelighters 50% · Shine A Light 50%". */
+function sharesText(v: M2dView, s: Record<string, number>): string {
+  const on = (v.charities ?? []).filter((c) => (s[c.key] ?? 0) > 0);
+  if (on.length === 1) return on[0].name;
+  return on.map((c) => `${c.name} ${s[c.key]}%`).join(" · ");
+}
+
+/* THE CHARITY, IN ONE PLACE: THE PROFILE (owner, 2026-11-25: "Let's just
+ * have 1 spot and have it be on their profile"). Where ROWTEMBER's match
+ * goes, and CHANGE to split it across the three until Dec 24 ("1/3 each,
+ * 10/90, 0/50/50"; never at sign-up, where it is one charity, 100%).
+ * Three rows with − and + in steps of 10: taking from one gives to the
+ * next, so the shares always add to 100. */
+function Split({ v, busy, onSave }: { v: M2dView; busy: boolean; onSave: (s: Record<string, number>) => void }) {
+  const list = v.charities ?? [];
+  const saved = v.me?.shares ?? null;
+  const [draft, setDraft] = useState<Record<string, number> | null>(null);
+  const by = v.match?.by ?? "ROWTEMBER";
+  const start = () => setDraft(Object.fromEntries(list.map((c) => [c.key, saved?.[c.key] ?? (saved ? 0 : Math.round(100 / list.length))])) as Record<string, number>);
+  const step = (i: number, d: 10 | -10) => {
+    if (!draft) return;
+    const k = list[i].key;
+    const next = { ...draft };
+    if (d > 0) {
+      if (next[k] >= 100) return;
+      /* + takes 10 from the next charity that has it. */
+      for (let j = 1; j < list.length; j++) {
+        const o = list[(i + j) % list.length].key;
+        if (next[o] > 0) {
+          const take = Math.min(10, next[o], 100 - next[k]);
+          next[o] -= take;
+          next[k] += take;
+          setDraft(next);
+          return;
+        }
+      }
+    } else {
+      if (next[k] <= 0) return;
+      /* − gives 10 to the next charity. */
+      const give = Math.min(10, next[k]);
+      const o = list[(i + 1) % list.length].key;
+      next[k] -= give;
+      next[o] += give;
+      setDraft(next);
+    }
+  };
+  if (!draft) {
+    return (
+      <View style={{ marginTop: 22 }}>
+        <Text style={mono(10, true, C.ink, 0.12)}>{by}'s match goes to</Text>
+        {saved ? (
+          list
+            .filter((c) => (saved[c.key] ?? 0) > 0)
+            .map((c) => (
+              <View key={c.key} style={{ marginTop: 8, backgroundColor: C.accent, padding: 12, flexDirection: "row", alignItems: "center", columnGap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: F.black, fontSize: 15, color: "#FFFFFF", textTransform: "uppercase" }}>✓ {c.name}</Text>
+                  <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: "#FFFFFF", marginTop: 3 }}>{c.what}</Text>
+                </View>
+                <Text style={{ fontFamily: F.black, fontSize: 20, color: "#FFFFFF", fontVariant: ["tabular-nums"] }}>{saved[c.key]}%</Text>
+              </View>
+            ))
+        ) : (
+          <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 8 }]}>No charity picked yet</Text>
+        )}
+        {!v.window.over ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Change or split the charity" hitSlop={8} disabled={busy} onPress={start} style={{ alignSelf: "flex-start", marginTop: 10 }}>
+            <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>{saved ? "Change or split" : "Pick a charity"}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+  const sum = list.reduce((a, c) => a + (draft[c.key] ?? 0), 0);
+  const btn = (label: string, on: () => void, off: boolean, a11y: string) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={a11y} disabled={off || busy} onPress={on} hitSlop={6} style={({ pressed }) => ({ width: 40, height: 40, borderWidth: 1, borderColor: off ? C.line : C.ink, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.5 : 1 })}>
+      <Text style={{ fontFamily: F.black, fontSize: 20, color: off ? C.line : C.ink }}>{label}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={{ marginTop: 22 }}>
+      <Text style={{ fontFamily: F.black, fontSize: 16, color: C.ink, textTransform: "uppercase" }}>Where {by}'s match goes</Text>
+      <Text style={{ fontFamily: F.sans, fontSize: 13.5, lineHeight: 19, color: C.gray, marginTop: 4 }}>All to one, or split it. The shares always add up to 100%.</Text>
+      {list.map((c, i) => (
+        <View key={c.key} style={{ flexDirection: "row", alignItems: "center", columnGap: 10, paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line }}>
+          <Text style={{ flex: 1, fontFamily: F.black, fontSize: 14, color: draft[c.key] > 0 ? C.ink : C.gray, textTransform: "uppercase" }}>{c.name}</Text>
+          {btn("−", () => step(i, -10), draft[c.key] <= 0, `Less to ${c.name}`)}
+          <Text style={{ width: 52, textAlign: "center", fontFamily: F.black, fontSize: 18, color: draft[c.key] > 0 ? C.accent : C.gray, fontVariant: ["tabular-nums"] }}>{draft[c.key]}%</Text>
+          {btn("+", () => step(i, 10), draft[c.key] >= 100, `More to ${c.name}`)}
+        </View>
+      ))}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 16, rowGap: 8, marginTop: 10 }}>
+        {list.map((c) => (
+          <Pressable key={c.key} accessibilityRole="button" hitSlop={6} onPress={() => setDraft(Object.fromEntries(list.map((x) => [x.key, x.key === c.key ? 100 : 0])) as Record<string, number>)}>
+            <Text style={[mono(9.5, false, C.gray, 0.1), { textDecorationLine: "underline" }]}>All to {c.name}</Text>
+          </Pressable>
+        ))}
+        {list.length === 3 ? (
+          <Pressable accessibilityRole="button" hitSlop={6} onPress={() => setDraft({ [list[0].key]: 34, [list[1].key]: 33, [list[2].key]: 33 })}>
+            <Text style={[mono(9.5, false, C.gray, 0.1), { textDecorationLine: "underline" }]}>⅓ each</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <Text style={{ fontFamily: F.bold, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 14 }}>{sharesText(v, draft)}</Text>
+      <View style={{ marginTop: 12 }}>
+        <Go
+          label={busy ? "Saving" : "Save"}
+          disabled={busy || sum !== 100}
+          onPress={() => {
+            onSave(draft);
+            setDraft(null);
+          }}
+        />
+      </View>
+      <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setDraft(null)} style={{ alignSelf: "flex-start", marginTop: 12 }}>
+        <Text style={[mono(10, false, C.gray, 0.12), { textDecorationLine: "underline" }]}>Cancel</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 /* THE FIGURE, big: everything raised for charity (owner, 2026-11-25:
  * "let's just show a total amount raised and show where the donated money
  * is coming from"); under it, where it comes from. No cap anywhere. */
@@ -384,29 +505,38 @@ function Raised({ v }: { v: M2dView }) {
       <View style={{ marginTop: 22 }}>
         <Text style={{ fontFamily: F.black, fontSize: 44, lineHeight: 50, color: C.accent, textTransform: "uppercase" }}>{until <= 1 ? "Starts tomorrow" : `Starts in ${until} days`}</Text>
         <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 6 }]}>Nov 26 to Dec 24 · {t.registered} registered so far</Text>
+        <M2dGoal v={v} />
       </View>
     );
   }
+  /* THE ORDER (owner, 2026-11-25): the total, labelled just RAISED; the
+   * goal; the receipts, CONCEPT2 then ROWTEMBER with a line per charity;
+   * then the board. */
+  const sub = (k: string, d: number) => (
+    <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingVertical: 5, paddingLeft: 14 }}>
+      <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.gray }}>{k}</Text>
+      <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.gray, fontVariant: ["tabular-nums"] }}>{usd(d)}</Text>
+    </View>
+  );
   return (
     <View style={{ marginTop: 22 }}>
-      <Text accessibilityLabel={`${usd(total)} raised for charity`} style={{ fontFamily: F.black, fontSize: 64, lineHeight: 70, color: C.accent, fontVariant: ["tabular-nums"] }}>
+      <Text accessibilityLabel={`${usd(total)} raised`} style={{ fontFamily: F.black, fontSize: 64, lineHeight: 70, color: C.accent, fontVariant: ["tabular-nums"] }}>
         {usd(total)}
       </Text>
-      <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 4 }]}>Raised for charity · {fmtInt(t.meters)} m rowed</Text>
-      <View style={{ marginTop: 14, borderTopWidth: 2, borderColor: C.ink }}>
-        {line("From Concept2, for your meters", t.raised)}
-        {v.match?.on ? line(`Matched by ${v.match.by}`, t.matched ?? t.raised) : null}
-      </View>
-      {v.match?.on && v.charities?.length && (t.matched ?? 0) > 0 ? (
-        <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 8, lineHeight: 16 }]}>
-          {v.charities.map((c) => `${c.name} ${usd(t.split?.[c.key] ?? 0)}`).join(" · ")}
-          {(t.unpicked ?? 0) > 0 ? ` · Not picked yet ${usd(t.unpicked ?? 0)}` : ""}
-        </Text>
-      ) : null}
-      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 8, lineHeight: 16 }]}>
-        {t.registered} registered · {t.past100k} past 100K
-        {t.unclaimed > 0 ? ` · ${usd(t.unclaimed)} more from Concept2 if everyone registers` : ""}
+      <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 4 }]}>
+        Raised <Text style={mono(11, false, C.gray, 0.12)}>· {fmtInt(t.meters)} m rowed</Text>
       </Text>
+      <M2dGoal v={v} />
+      <View style={{ marginTop: 18, borderTopWidth: 2, borderColor: C.ink }}>
+        {line("Concept2", t.raised)}
+        {v.match?.on ? (
+          <>
+            {line(v.match.by, t.matched ?? t.raised)}
+            {(v.charities ?? []).map((c) => sub(c.name, t.split?.[c.key] ?? 0))}
+            {(t.unpicked ?? 0) > 0 ? sub("Not picked yet", t.unpicked ?? 0) : null}
+          </>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -455,17 +585,24 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
       <View style={{ paddingHorizontal: 20 }}>
         <Dateline left="Concept2 Holiday Challenge" right={!w.started ? "Starts Nov 26" : w.over ? "Final" : `Day ${w.day} of ${w.days}`} days={w.days} day={w.day} />
         <Raised v={v} />
-        <M2dGoal v={v} />
-        <Explained meters={v.me ? v.me.meters : null} by={v.match?.by ?? "ROWTEMBER"} isIn={!!v.me?.in} />
         {v.me && !v.me.in && !w.over ? (
           <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick ?? undefined)} />
         ) : null}
+        {/* Registered: one quiet line. The charity lives on the profile
+         * (owner, 2026-11-25: "Let's just have 1 spot and have it be on
+         * their profile"). */}
         {v.me?.in ? (
-          <>
-            <Status v={v} busy={inOut.busy} onUndo={() => inOut.say(false)} />
-            {matchOn && !inOut.pick && !w.over ? <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 12 }]}>Pick where {v.match?.by}'s match goes</Text> : null}
-            {matchOn ? <Picks v={v} pick={inOut.pick} busy={inOut.busy} onPick={inOut.onPick} /> : null}
-          </>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 16, rowGap: 6, marginTop: 18 }}>
+            <Text style={mono(10.5, true, C.accent, 0.12)}>
+              ✓ Registered{v.me.shares ? ` · ${sharesText(v, v.me.shares)}` : ""}
+            </Text>
+            <Pressable accessibilityRole="link" hitSlop={8} onPress={() => open(v.link)}>
+              <Text style={[mono(10.5, false, C.gray, 0.12), { textDecorationLine: "underline" }]}>Concept2 ↗</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {v.me?.in && matchOn && !v.me.shares && !w.over ? (
+          <Text style={[mono(10.5, true, C.ink, 0.12), { marginTop: 8, lineHeight: 16 }]}>Pick your charity on your profile, under M2D.</Text>
         ) : null}
         {!v.me ? (
           <View style={{ marginTop: 18 }}>
@@ -564,8 +701,7 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
       {own && v.me?.in ? (
         <>
           <Status v={v} busy={inOut.busy} onUndo={() => inOut.say(false)} />
-          {matchOn && !inOut.pick && !v.window.over ? <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 12 }]}>Pick where {v.match?.by}'s match goes</Text> : null}
-          {matchOn ? <Picks v={v} pick={inOut.pick} busy={inOut.busy} onPick={inOut.onPick} /> : null}
+          {matchOn ? <Split v={v} busy={inOut.busy} onSave={(s) => inOut.say(true, undefined, s)} /> : null}
         </>
       ) : null}
       {!own ? (

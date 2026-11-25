@@ -215,22 +215,38 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
   ];
 
   const mine = charities.find((c) => c.key === pick);
-  const picks = !match.on ? null : mine && !changing ? (
+  /* A split made in the app's profile (owner, 2026-11-25: the split lives
+   * on the profile, never at sign-up); here it is shown, and CHANGE puts
+   * the match back on one charity. */
+  const shares = isIn && !pick ? view.me?.shares : null;
+  const split = shares
+    ? charities
+        .filter((c) => (shares[c.key as keyof typeof shares] ?? 0) > 0)
+        .map((c) => `${c.name} ${shares[c.key as keyof typeof shares]}%`)
+        .join(" · ")
+    : null;
+  const picks = !match.on ? null : (mine || split) && !changing ? (
     <div className="m2-picks-wrap">
       <p className="m2-kick">Your match goes to</p>
-      <div className="m2-pickbox on m2-mine">
-        <div className="m2-pick" role="status">
-          <b>
-            <span className="m2-tick" aria-hidden="true">
-              ✓
-            </span>
-            {mine.name}
-          </b>
-          <span>{mine.what}</span>
+      {mine ? (
+        <div className="m2-pickbox on m2-mine">
+          <div className="m2-pick" role="status">
+            <b>
+              <span className="m2-tick" aria-hidden="true">
+                ✓
+              </span>
+              {mine.name}
+            </b>
+            <span>{mine.what}</span>
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="m2-words" role="status">
+          ✓ {split}
+        </p>
+      )}
       <div className="m2-mine-row">
-        {mine.url ? (
+        {mine?.url ? (
           <a className="m2-site" href={mine.url} target="_blank" rel="noopener noreferrer">
             Their site ↗
           </a>
@@ -299,46 +315,20 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
 
         {/* THE HEAD: the total, and where it comes from. */}
         <section className="m2-head" aria-label="Raised so far">
-          <p className="m2-kick">Raised for charity by Rowtember rowers</p>
+          {/* THE ORDER (owner, 2026-11-25): the total, labelled just
+              RAISED; the goal; the receipts, CONCEPT2 then ROWTEMBER with
+              a line per charity. */}
+          <p className="m2-kick">Raised</p>
           {w.started ? (
             <p className="m2-big">{usd(t.total)}</p>
           ) : (
             <p className="m2-big m2-soon">{w.until <= 1 ? "Starts tomorrow" : `Starts in ${w.until} days`}</p>
           )}
-          {w.started ? (
-            <>
-              <p className="m2-sub">
-                {num(t.meters)} m rowed since {day(w.first)} · {t.registered} registered
-              </p>
-              <dl className="m2-from">
-                <div>
-                  <dt>From Concept2, for your meters</dt>
-                  <dd>{usd(t.raised)}</dd>
-                </div>
-                {match.on ? (
-                  <div>
-                    <dt>Matched by {match.by}</dt>
-                    <dd>{usd(t.matched)}</dd>
-                  </div>
-                ) : null}
-              </dl>
-              {match.on && t.matched > 0 ? (
-                <p className="m2-split">
-                  {charities.map((c, i) => (
-                    <span key={c.key}>
-                      {i ? " · " : ""}
-                      {c.name} {usd(t.split[c.key as keyof typeof t.split] ?? 0)}
-                    </span>
-                  ))}
-                  {t.unpicked > 0 ? <span> · Not picked yet {usd(t.unpicked)}</span> : null}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <p className="m2-sub">
-              {day(w.first)} to {day(w.last)} · {t.registered} registered so far
-            </p>
-          )}
+          <p className="m2-sub">
+            {w.started
+              ? `${num(t.meters)} m rowed since ${day(w.first)} · ${t.registered} registered`
+              : `${day(w.first)} to ${day(w.last)} · ${t.registered} registered so far`}
+          </p>
           <div className="m2-goal">
             <div className="m2-goal-t">
               <span>Goal {usd(goal)} to charity</span>
@@ -348,6 +338,34 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               <i style={{ width: `${(Math.min(1, t.total / goal) * 100).toFixed(1)}%` }} />
             </div>
           </div>
+          {w.started ? (
+            <dl className="m2-from">
+              <div>
+                <dt>Concept2</dt>
+                <dd>{usd(t.raised)}</dd>
+              </div>
+              {match.on ? (
+                <>
+                  <div>
+                    <dt>{match.by}</dt>
+                    <dd>{usd(t.matched)}</dd>
+                  </div>
+                  {charities.map((c) => (
+                    <div key={c.key} className="sub">
+                      <dt>{c.name}</dt>
+                      <dd>{usd(t.split[c.key as keyof typeof t.split] ?? 0)}</dd>
+                    </div>
+                  ))}
+                  {t.unpicked > 0 ? (
+                    <div className="sub">
+                      <dt>Not picked yet</dt>
+                      <dd>{usd(t.unpicked)}</dd>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </dl>
+          ) : null}
         </section>
 
         {/* METERS TO DOLLARS: the graph and one plain line, the viewer's
@@ -381,7 +399,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
                 </a>
               </div>
               <p className="m2-note">Your rows logged on ROW count toward the match.</p>
-              {match.on && !pick && !w.over ? <p className="bd-say">Pick where {match.by}&apos;s match goes.</p> : null}
+              {match.on && !pick && !split && !w.over ? <p className="bd-say">Pick where {match.by}&apos;s match goes.</p> : null}
               {picks}
               {!w.over ? (
                 <p className="m2-undo">

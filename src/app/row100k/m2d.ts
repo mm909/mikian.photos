@@ -79,7 +79,51 @@ export const CHARITIES = [
 export type CharityKey = (typeof CHARITIES)[number]["key"];
 export type Charity = { key: string; name: string; full: string; what: string; url: string | null };
 export const isCharity = (k: unknown): k is CharityKey => typeof k === "string" && CHARITIES.some((c) => c.key === k);
-const charityName = (k: string | null | undefined): string => CHARITIES.find((c) => c.key === k)?.name ?? "no pick yet";
+
+/* THE SPLIT (owner, 2026-11-25: on the profile only, never at sign-up, a
+ * rower can split the match across the three, "1/3 each, 10/90, 0/50/50",
+ * the shares adding to 100%). Stored in RowMonthOptIn.choice: a lone key
+ * ("inclusion") is 100% to it, the sign-up's one pick; a split is
+ * "candlelighters:50,shine:50". Shares are whole percents in steps of 10,
+ * except 34/33/33 for thirds. */
+export type Shares = Partial<Record<CharityKey, number>>;
+export function parseShares(choice: string | null | undefined): Shares | null {
+  if (!choice) return null;
+  if (isCharity(choice)) return { [choice]: 100 } as Shares;
+  const s: Shares = {};
+  for (const part of choice.split(",")) {
+    const [k, v] = part.split(":");
+    const n = Number(v);
+    if (!isCharity(k) || !Number.isInteger(n) || n < 0 || n > 100) return null;
+    if (n > 0) s[k] = n;
+  }
+  return Object.values(s).reduce((a, b) => a + (b ?? 0), 0) === 100 ? s : null;
+}
+export function encodeShares(s: Shares): string {
+  const on = CHARITIES.filter((c) => (s[c.key] ?? 0) > 0);
+  if (on.length === 1) return on[0].key;
+  return on.map((c) => `${c.key}:${s[c.key]}`).join(",");
+}
+/* "Project Inclusion", or "Candlelighters 50% · Shine A Light 50%". */
+export function sharesName(s: Shares | null): string {
+  if (!s) return "no pick yet";
+  const on = CHARITIES.filter((c) => (s[c.key] ?? 0) > 0);
+  if (on.length === 1) return on[0].name;
+  return on.map((c) => `${c.name} ${s[c.key]}%`).join(" · ");
+}
+/* A split a rower may save: the three keys only, whole percents, adding to
+ * 100. */
+function readShares(x: unknown): Shares | null {
+  if (!x || typeof x !== "object") return null;
+  const s: Shares = {};
+  let sum = 0;
+  for (const [k, v] of Object.entries(x as Record<string, unknown>)) {
+    if (!isCharity(k) || typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 100) return null;
+    if (v > 0) s[k] = v;
+    sum += v;
+  }
+  return sum === 100 ? s : null;
+}
 
 /* What Concept2 says on its own page (read 2026-11-25): its group goal for
  * the whole challenge, and the rewards. */
@@ -126,13 +170,13 @@ export function m2dWindow(at = Number.isFinite(DEV_AT) ? DEV_AT : nowMs()): M2dW
   return { first: M2D_FIRST, last: M2D_LAST, days: M2D_DAYS, day, started, over, until };
 }
 
-/* Every registered rower, and the charity they picked (null: not yet). */
-export async function m2dOptIns(): Promise<Map<string, string | null>> {
+/* Every registered rower, and their shares of the match (null: no pick yet). */
+export async function m2dOptIns(): Promise<Map<string, Shares | null>> {
   const rows = await db.rowMonthOptIn.findMany({
     where: { challenge: CHALLENGE, month: M2D_KEY, cancelledAt: null },
     select: { participantId: true, choice: true },
   });
-  return new Map(rows.map((r) => [r.participantId, isCharity(r.choice) ? r.choice : null]));
+  return new Map(rows.map((r) => [r.participantId, parseShares(r.choice)]));
 }
 
 /* Each rower's meters in the window. */
@@ -162,7 +206,7 @@ export type M2dTotals = {
   registered: number;
   past100k: number;
 };
-export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, number>; ins: Map<string, string | null> }> {
+export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, number>; ins: Map<string, Shares | null> }> {
   const [by, ins] = await Promise.all([windowMeters(), m2dOptIns()]);
   const split = Object.fromEntries(CHARITIES.map((c) => [c.key, 0])) as Record<CharityKey, number>;
   const t: M2dTotals = { meters: 0, raised: 0, matched: 0, total: 0, split, unpicked: 0, locked: 0, unclaimed: 0, rowers: 0, registered: ins.size, past100k: 0 };
@@ -175,9 +219,9 @@ export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, 
       t.raised += w;
       t.locked += locked(m);
       if (m >= 100_000) t.past100k++;
-      const pick = ins.get(id);
+      const shares = ins.get(id);
       if (M2D_MATCH.on) {
-        if (pick && isCharity(pick)) split[pick] += w;
+        if (shares) for (const c of CHARITIES) split[c.key] += (w * (shares[c.key] ?? 0)) / 100;
         else t.unpicked += w;
       }
     } else t.unclaimed += w;
@@ -187,6 +231,15 @@ export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, 
   t.total = cents(t.raised + t.matched);
   for (const c of CHARITIES) split[c.key] = cents(split[c.key]);
   t.unpicked = cents(t.unpicked);
+  /* A split (thirds) rounds each line to the cent; the lines must still
+   * add up to the match, so the cent left over goes to the biggest. */
+  if (M2D_MATCH.on) {
+    const gap = cents(t.matched - t.unpicked - CHARITIES.reduce((a, c) => a + split[c.key], 0));
+    if (gap !== 0) {
+      const big = CHARITIES.reduce((a, c) => (split[c.key] > split[a.key] ? c : a), CHARITIES[0]);
+      split[big.key] = cents(split[big.key] + gap);
+    }
+  }
   t.locked = cents(t.locked);
   t.unclaimed = cents(t.unclaimed);
   return { totals: t, by, ins };
@@ -204,7 +257,9 @@ export type M2dView = {
   charities: Charity[];
   totals: M2dTotals;
   rows: M2dRow[];
-  me: { rowerNumber: number; in: boolean; choice: string | null; meters: number; dollars: number; locked: number } | null;
+  /* choice: the one charity when all of the match goes to one (null for a
+   * split or no pick); shares: the whole of it, percent by charity. */
+  me: { rowerNumber: number; in: boolean; choice: string | null; shares: Shares | null; meters: number; dollars: number; locked: number } | null;
 };
 
 /* THE M2D BOARD for one viewer: every rower with meters in the window, and
@@ -244,7 +299,12 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
       ? {
           rowerNumber: viewer.me.rowerNumber,
           in: !!meId && ins.has(meId),
-          choice: meId ? (ins.get(meId) ?? null) : null,
+          choice: (() => {
+            const s = meId ? ins.get(meId) : null;
+            const one = s ? CHARITIES.filter((c) => (s[c.key] ?? 0) === 100) : [];
+            return one.length === 1 ? one[0].key : null;
+          })(),
+          shares: meId ? (ins.get(meId) ?? null) : null,
           meters: mine,
           dollars: worth(mine),
           locked: locked(mine),
@@ -269,14 +329,24 @@ export async function m2dShare(participantId: string | null, row: { day: string;
   return { meters: m, dollars: worth(m), in: !!participantId && ins.has(participantId), allMeters: totals.meters, allRaised: totals.total, row: r };
 }
 
-/* The body both routes take, { in, choice? }, read once: the answer, or
- * the words to refuse with. A pick is refused once the window has closed. */
-export function readM2dBody(body: unknown): { in: boolean; choice: CharityKey | undefined } | string {
-  const b = (body ?? {}) as { in?: unknown; choice?: unknown };
+/* The body both routes take, { in, choice? , shares? }, read once: the
+ * answer (the pick as stored, encodeShares), or the words to refuse with.
+ * `choice` is one charity (the sign-up); `shares` a split (the profile). A
+ * pick is refused once the window has closed. */
+export function readM2dBody(body: unknown): { in: boolean; choice: string | undefined } | string {
+  const b = (body ?? {}) as { in?: unknown; choice?: unknown; shares?: unknown };
   if (typeof b.in !== "boolean") return "Say in or out.";
-  if (b.choice !== undefined && !isCharity(b.choice)) return "Pick one of the three charities.";
-  if (b.choice !== undefined && m2dWindow().over) return "Picks closed on Dec 24.";
-  return { in: b.in, choice: b.choice as CharityKey | undefined };
+  let choice: string | undefined;
+  if (b.shares !== undefined) {
+    const s = readShares(b.shares);
+    if (!s) return "The shares must add up to 100%.";
+    choice = encodeShares(s);
+  } else if (b.choice !== undefined) {
+    if (!isCharity(b.choice)) return "Pick one of the three charities.";
+    choice = b.choice;
+  }
+  if (choice !== undefined && m2dWindow().over) return "Picks closed on Dec 24.";
+  return { in: b.in, choice };
 }
 
 /* A ROWER SAYS THEY ARE REGISTERED (or takes it back), and which charity
@@ -289,7 +359,7 @@ export function readM2dBody(body: unknown): { in: boolean; choice: CharityKey | 
 export async function saveM2d(
   me: { id: string; rowerNumber: number; displayName: string },
   isIn: boolean,
-  choice: CharityKey | undefined,
+  choice: string | undefined,
   email: string | null | undefined,
   where: "the ROW app" | "rowtember.com",
 ): Promise<void> {
@@ -302,7 +372,7 @@ export async function saveM2d(
   });
   if (CHALLENGE !== CHALLENGE_LIVE) return;
   const word = isIn ? "registered for" : "took back their registration for";
-  const pick = charityName(saved.choice);
+  const pick = sharesName(parseShares(saved.choice));
   const subject = `M2D: #${me.rowerNumber} ${me.displayName} ${isIn ? `is in · ${pick}` : "is out"}`;
   /* And a push to his phone, the same line (owner, 2026-11-25: "Give me a
    * push notification for this"); a tap opens the M2D tab. Never throws. */

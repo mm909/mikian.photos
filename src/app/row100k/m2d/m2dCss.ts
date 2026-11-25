@@ -17,6 +17,10 @@ export const m2dCss = `
 .row100k .m2-from div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:10px 0 9px;border-bottom:1px solid var(--line)}
 .row100k .m2-from dt{font-size:15px;font-weight:700;color:var(--ink)}
 .row100k .m2-from dd{font-family:var(--row-mono),monospace;font-size:15px;font-weight:700;color:var(--water);font-variant-numeric:tabular-nums}
+.row100k .m2-from div.sub{padding:6px 0 5px 16px;border-bottom:0}
+.row100k .m2-from div.sub dt{font-size:13.5px;font-weight:400;color:var(--gray)}
+.row100k .m2-from div.sub dd{font-size:13px;font-weight:400;color:var(--gray)}
+.row100k .m2-goal + .m2-from{margin-top:22px}
 .row100k .m2-split{margin-top:8px;max-width:560px;font-family:var(--row-mono),monospace;font-size:11px;line-height:1.7;letter-spacing:.08em;text-transform:uppercase;color:var(--gray)}
 
 .row100k .m2-picks-wrap{margin-top:26px}
