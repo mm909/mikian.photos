@@ -42,7 +42,7 @@ export type M2dView = {
   signup: string;
   goal: number;
   /* The owner's match (row100k/m2d.ts M2D_MATCH): absent on an older site. */
-  match?: { on: boolean; cap: number; terms: string; matched: number };
+  match?: { on: boolean; cap: number; terms: string; raised: number; matched: number; toCharity: number; capped: boolean };
   totals: { meters: number; raised: number; locked: number; unclaimed: number; rowers: number; registered: number; past100k: number };
   rows: M2dRow[];
   me: { rowerNumber: number; in: boolean; meters: number; dollars: number; locked: number } | null;
@@ -130,12 +130,18 @@ function Raised({ v }: { v: M2dView }) {
         {usd(t.locked)} locked in by {t.past100k} {t.past100k === 1 ? "rower" : "rowers"} past 100K · {t.registered} registered
         {t.unclaimed > 0 ? ` · ${usd(t.unclaimed)} more if everyone registers` : ""}
       </Text>
-      {v.match?.on ? (
-        <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.gray, marginTop: 12 }}>
-          <Text style={{ fontFamily: F.bold, color: C.ink }}>Rowtember matches it, up to ${fmtInt(v.match.cap)}.</Text>{" "}
-          {v.match.matched > 0 ? `${usd(v.match.matched)} matched so far. ` : ""}
-          {v.match.terms}
-        </Text>
+      {v.match?.on && typeof v.match.toCharity === "number" ? (
+        <>
+          <Text style={[mono(11, true, C.ink, 0.1), { marginTop: 14, lineHeight: 18 }]}>
+            {usd(v.match.raised)} raised · {usd(v.match.matched)} matched ·{" "}
+            <Text style={{ color: C.accent }}>{usd(v.match.toCharity)} to charity</Text>
+          </Text>
+          <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.gray, marginTop: 6 }}>
+            <Text style={{ fontFamily: F.bold, color: C.ink }}>Rowtember matches it, up to ${fmtInt(v.match.cap)}.</Text>{" "}
+            {v.match.capped ? `The match has reached its $${fmtInt(v.match.cap)} cap. ` : ""}
+            {v.match.terms}
+          </Text>
+        </>
       ) : null}
     </View>
   );

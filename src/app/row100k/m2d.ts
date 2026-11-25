@@ -35,25 +35,40 @@ export const M2D_SIGNUP = "https://log.concept2.com/signup";
 export const M2D_GOAL = 100;
 
 /* THE OWNER'S MATCH (owner, 2026-11-25, relayed: he matches what Rowtember
- * rowers raise, a business donation; the cap read as $700). ONE PLACE: the
- * figure and the terms the site page and the app print. Change `cap` here
- * and both follow; `on: false` takes the line off everywhere. What counts
- * is Concept2's own money for a Rowtember rower who reaches 100K with the
- * rows logged on Rowtember (LOCKED below), checked against Concept2's
- * honor board when the challenge closes. `terms` names no figure, so the
- * cap is this one number. */
+ * rowers raise, a business donation; the cap read as $700; then "I think
+ * that I want to match the amount made, prob should include this
+ * somewhere?"). The match is the dollars raised, the figure the page and
+ * the app print big, up to the cap; the line under it reads "$181 raised ·
+ * $181 matched · $362 to charity" (m2dMatch). ONE PLACE: change `cap` here
+ * and the site and the app follow; `on: false` takes the line off
+ * everywhere. `terms` names no figure, so the cap is this one number.
+ * Checked against Concept2's honor board when the challenge closes. */
 export const M2D_MATCH = {
   on: true,
   cap: 700,
   terms:
-    "Every dollar Concept2 gives for a Rowtember rower, Rowtember gives again. It counts rowers who reach 100K with their rows logged on Rowtember, checked against Concept2's honor board when the challenge closes.",
+    "Whatever Rowtember rowers raise through Concept2, Rowtember gives the same again, checked against Concept2's honor board when the challenge closes.",
 } as const;
 /* The strip under the bar that leads to /m2d (M2dBanner.tsx): the cookie
  * its x sets. */
 export const M2D_BANNER_COOKIE = "row100k_m2d_banner";
 
-/* What the match stands at: the locked dollars, up to the cap. */
-export const matched = (lockedDollars: number): number => Math.min(M2D_MATCH.cap, Math.round(lockedDollars * 100) / 100);
+/* The match as figures: what was raised, the match (equal to it, up to the
+ * cap), what goes to charity in all, and whether the cap is reached. */
+export type M2dMatch = { on: boolean; cap: number; terms: string; raised: number; matched: number; toCharity: number; capped: boolean };
+export function m2dMatch(raised: number): M2dMatch {
+  const r = Math.round(raised * 100) / 100;
+  const matched = Math.min(M2D_MATCH.cap, r);
+  return {
+    on: M2D_MATCH.on,
+    cap: M2D_MATCH.cap,
+    terms: M2D_MATCH.terms,
+    raised: r,
+    matched,
+    toCharity: Math.round((r + matched) * 100) / 100,
+    capped: r >= M2D_MATCH.cap,
+  };
+}
 
 /* Dollars, to the cent. */
 export function worth(meters: number): number {
@@ -129,7 +144,7 @@ export type M2dView = {
   link: string;
   signup: string;
   goal: number;
-  match: { on: boolean; cap: number; terms: string; matched: number };
+  match: M2dMatch;
   totals: M2dTotals;
   rows: M2dRow[];
   me: { rowerNumber: number; in: boolean; meters: number; dollars: number; locked: number } | null;
@@ -163,7 +178,7 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
     link: M2D_LINK,
     signup: M2D_SIGNUP,
     goal: M2D_GOAL,
-    match: { on: M2D_MATCH.on, cap: M2D_MATCH.cap, terms: M2D_MATCH.terms, matched: matched(totals.locked) },
+    match: m2dMatch(totals.raised),
     totals,
     rows,
     me: viewer.me ? { rowerNumber: viewer.me.rowerNumber, in: !!meId && ins.has(meId), meters: mine, dollars: worth(mine), locked: locked(mine) } : null,

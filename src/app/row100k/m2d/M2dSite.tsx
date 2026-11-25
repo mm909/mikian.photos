@@ -105,11 +105,16 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
             </div>
           </div>
           {match.on ? (
-            <p className="m2-match">
-              <b>Rowtember matches it, up to ${num(match.cap)}.</b>{" "}
-              {match.matched > 0 ? `${usd(match.matched)} matched so far. ` : ""}
-              {match.terms}
-            </p>
+            <div className="m2-match">
+              <p className="m2-sum">
+                {usd(match.raised)} raised · {usd(match.matched)} matched · <b>{usd(match.toCharity)} to charity</b>
+              </p>
+              <p>
+                <b>Rowtember matches it, up to ${num(match.cap)}.</b>{" "}
+                {match.capped ? `The match has reached its $${num(match.cap)} cap. ` : ""}
+                {match.terms}
+              </p>
+            </div>
           ) : null}
         </section>
 

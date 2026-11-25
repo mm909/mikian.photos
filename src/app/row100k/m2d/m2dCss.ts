@@ -15,6 +15,8 @@ export const m2dCss = `
 .row100k .m2-track i{display:block;height:100%;background:var(--water)}
 .row100k .m2-match{margin-top:20px;max-width:640px;font-size:15px;line-height:1.5;color:var(--ink-soft)}
 .row100k .m2-match b{color:var(--ink)}
+.row100k .m2-match .m2-sum{margin-bottom:8px;font-family:var(--row-mono),monospace;font-size:13px;font-weight:700;line-height:1.6;letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+.row100k .m2-match .m2-sum b{color:var(--water)}
 
 .row100k .m2-call{margin-top:34px;border:2px solid var(--ink);padding:22px 18px}
 .row100k .m2-call h2{font-family:var(--row-archivo-black),sans-serif;font-size:clamp(30px,8vw,56px);font-weight:400;line-height:1;letter-spacing:-.01em;text-transform:uppercase;color:var(--ink)}
