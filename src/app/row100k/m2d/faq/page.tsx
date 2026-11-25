@@ -127,6 +127,60 @@ export default async function M2dFaqPage() {
                 ))}
               </dl>
 
+              {/* HOW TO LOG (owner, 2026-11-25: "say I just finished 5K. What do
+                  I do for my log to count ... for the Concept2 challenge ... For our
+                  challenge, it's just going to be log the meters"): two 1, 2, 3s. */}
+              <h2 id="log">How do I log a row?</h2>
+              <h3>For Concept2</h3>
+              <ol className="m2-steps">
+                <li>
+                  <span className="k">1</span>
+                  <div>
+                    <b>Row with ErgData</b>
+                    <p>Open ErgData (free, iPhone and Android) and connect it to the monitor by Bluetooth before you start. Row your 5K.</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="k">2</span>
+                  <div>
+                    <b>Let it sync</b>
+                    <p>When you finish, ErgData sends the row to your Concept2 Logbook on its own. No phone? Type it in at log.concept2.com: Add Workout, then the meters, time and date.</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="k">3</span>
+                  <div>
+                    <b>Check it counted</b>
+                    <p>Open the Holiday Challenge in your Logbook: your meters toward 100K are there. Meters can go in until Jan 4.</p>
+                  </div>
+                </li>
+              </ol>
+              <h3>For ROWTEMBER</h3>
+              <ol className="m2-steps">
+                <li>
+                  <span className="k">1</span>
+                  <div>
+                    <b>Tap Log a row</b>
+                    <p>The + at the top of the ROW app, or Log a row on rowtember.com.</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="k">2</span>
+                  <div>
+                    <b>Enter it, or row it live</b>
+                    <p>Type your meters and time (a photo if you like). Or connect to the monitor by Bluetooth in the app and the row logs itself, with the full telemetry.</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="k">3</span>
+                  <div>
+                    <b>Save</b>
+                    <p>It counts for M2D right away, from your first meter, on the board and in your dollars.</p>
+                  </div>
+                </li>
+              </ol>
+              <p className="m2-note">One app at a time: the monitor talks to one app by Bluetooth. Row live with ROW and add the row to your Concept2 Logbook by hand after; row with ErgData and log it on ROW after. Sending ROW rows to Concept2 on their own is coming.</p>
+
               <h2>Questions</h2>
               <h3>When is it?</h3>
               <p>Thursday, Nov 26 to Thursday, Dec 24. Concept2 takes meters into the Logbook until Jan 4.</p>

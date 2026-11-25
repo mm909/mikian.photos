@@ -820,6 +820,29 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
         {(t.unpicked ?? 0) > 0 ? row("No charity picked yet", usd(t.unpicked ?? 0)) : null}
       </View>
 
+      {/* HOW TO LOG (owner, 2026-11-25): Concept2's 1, 2, 3, then ours. The
+          site's twin is /m2d/faq#log. */}
+      <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, textTransform: "uppercase", marginTop: 30 }}>How do I log a row?</Text>
+      {(
+        [
+          ["For Concept2", [["Row with ErgData", "Open ErgData (free, iPhone and Android) and connect it to the monitor by Bluetooth before you start. Row your 5K."], ["Let it sync", "When you finish, ErgData sends the row to your Concept2 Logbook on its own. No phone? Type it in at log.concept2.com: Add Workout, then the meters, time and date."], ["Check it counted", "Open the Holiday Challenge in your Logbook: your meters toward 100K are there. Meters can go in until Jan 4."]]],
+          [`For ${by}`, [["Tap Log a row", "The + at the top of the ROW app, or Log a row on rowtember.com."], ["Enter it, or row it live", "Type your meters and time (a photo if you like). Or connect to the monitor by Bluetooth in the app and the row logs itself, with the full telemetry."], ["Save", "It counts for M2D right away, from your first meter, on the board and in your dollars."]]],
+        ] as [string, [string, string][]][]
+      ).map(([who, steps]) => (
+        <View key={who} style={{ marginTop: 16 }}>
+          <Text style={mono(10, true, C.ink, 0.12)}>{who}</Text>
+          {steps.map(([h, t], i) => (
+            <View key={h} style={{ flexDirection: "row", columnGap: 12, marginTop: 12 }}>
+              <Text style={{ width: 20, fontFamily: F.black, fontSize: 17, color: C.accent }}>{i + 1}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: F.bold, fontSize: 15, color: C.ink }}>{h}</Text>
+                <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.gray, marginTop: 2 }}>{t}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      ))}
+      <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 14, lineHeight: 15 }]}>One app at a time: the monitor talks to one app by Bluetooth. Row live with ROW and add the row to your Concept2 Logbook by hand after; row with ErgData and log it on ROW after. Sending ROW rows to Concept2 on their own is coming."</Text>
       <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, textTransform: "uppercase", marginTop: 30 }}>Questions</Text>
       {q("When is it?", "Thursday, Nov 26 to Thursday, Dec 24. Concept2 takes meters into the Logbook until Jan 4.")}
       {q("How do I register?", `Make a free Concept2 Logbook, pick a charity there, and get your meters into it (ErgData does that). Then press Opt in to M2D on the M2D tab, pick where ${by}'s part goes, and press I'm registered.`)}
