@@ -279,6 +279,44 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
         </>
       ) : null}
 
+      {/* Coaching sits above the pictures (owner, 2026-11-24: "Let's move up
+          the coaching insights ... above the steady charts"). */}
+      {/* COACHING (owner, 2026-11-21: "let's just add a coaching section
+          and have like a specific call to action for what to do next row,
+          like a cue or a reminder"). Each is the thing to do, in a line,
+          and under it the numbers of this row that say so. A piece too
+          thin for any of them keeps the plain sentences. */}
+      {cues.length ? (
+        <>
+          <Eye left="Coaching" right="By what you are after" />
+          {cues.map((c, i) => (
+            <View key={i} style={{ flexDirection: "row", gap: 12, paddingVertical: 12, borderBottomWidth: i < cues.length - 1 ? 1 : 0, borderColor: C.line }}>
+              <Text style={{ width: 18, fontFamily: F.black, fontSize: 17, lineHeight: 23, color: C.accent }}>{i + 1}</Text>
+              <View style={{ flex: 1 }}>
+                {/* The goal first, then the thing to do: "For a faster
+                    time: start 1.8 s a 500 quicker." */}
+                <Text style={{ fontFamily: F.black, fontSize: 17, lineHeight: 23, color: C.ink }}>
+                  <Text style={{ color: C.gray }}>{c.goal}: </Text>
+                  {c.act}
+                </Text>
+                <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.soft, marginTop: 4 }}>{c.why}</Text>
+              </View>
+            </View>
+          ))}
+        </>
+      ) : a.next.length ? (
+        <>
+          <Eye left="Coaching" right="For the next row" />
+          <View style={{ borderLeftWidth: 3, borderColor: C.accent, paddingLeft: 14, paddingVertical: 2 }}>
+            {a.next.map((line, i) => (
+              <Text key={i} style={{ fontFamily: F.sans, fontSize: 16, lineHeight: 24, color: C.soft, marginBottom: i < a.next.length - 1 ? 8 : 0 }}>
+                {plain(line)}
+              </Text>
+            ))}
+          </View>
+        </>
+      ) : null}
+
       {/* ONE SPLIT IS SHOWING: said over the pictures, with the way back. */}
       {sel ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Show the whole piece again" onPress={() => setPick(null)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 22, paddingHorizontal: 12, minHeight: 44, borderRadius: 8, backgroundColor: C.accent, opacity: pressed ? 0.7 : 1 })}>
@@ -373,42 +411,6 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
           <Eye left="Splits" right={a.splitsDerived ? `Derived, not the monitor's own figures${from ? ` · the first begins at ${from} m, where this recording starts` : ""}` : "As the monitor recorded them"} />
           <Text style={[mono(10, false, C.gray, 0.1), { marginBottom: 8, lineHeight: 15 }]}>{sel ? `${only}: the charts above show only its strokes. Press it again for the whole piece.` : "Press a split to see only its strokes in the charts above."}</Text>
           <SplitsTable splits={a.splits} fastest={a.fastestSplit} w={w} on={pick ?? -1} onPick={(k) => setPick((cur) => (cur === k ? null : k))} />
-        </>
-      ) : null}
-
-      {/* COACHING (owner, 2026-11-21: "let's just add a coaching section
-          and have like a specific call to action for what to do next row,
-          like a cue or a reminder"). Each is the thing to do, in a line,
-          and under it the numbers of this row that say so. A piece too
-          thin for any of them keeps the plain sentences. */}
-      {cues.length ? (
-        <>
-          <Eye left="Coaching" right="By what you are after" />
-          {cues.map((c, i) => (
-            <View key={i} style={{ flexDirection: "row", gap: 12, paddingVertical: 12, borderBottomWidth: i < cues.length - 1 ? 1 : 0, borderColor: C.line }}>
-              <Text style={{ width: 18, fontFamily: F.black, fontSize: 17, lineHeight: 23, color: C.accent }}>{i + 1}</Text>
-              <View style={{ flex: 1 }}>
-                {/* The goal first, then the thing to do: "For a faster
-                    time: start 1.8 s a 500 quicker." */}
-                <Text style={{ fontFamily: F.black, fontSize: 17, lineHeight: 23, color: C.ink }}>
-                  <Text style={{ color: C.gray }}>{c.goal}: </Text>
-                  {c.act}
-                </Text>
-                <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.soft, marginTop: 4 }}>{c.why}</Text>
-              </View>
-            </View>
-          ))}
-        </>
-      ) : a.next.length ? (
-        <>
-          <Eye left="Coaching" right="For the next row" />
-          <View style={{ borderLeftWidth: 3, borderColor: C.accent, paddingLeft: 14, paddingVertical: 2 }}>
-            {a.next.map((line, i) => (
-              <Text key={i} style={{ fontFamily: F.sans, fontSize: 16, lineHeight: 24, color: C.soft, marginBottom: i < a.next.length - 1 ? 8 : 0 }}>
-                {plain(line)}
-              </Text>
-            ))}
-          </View>
         </>
       ) : null}
 
