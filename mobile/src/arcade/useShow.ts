@@ -7,6 +7,7 @@ import { saveGame } from "./games";
 import { loadMode } from "./mode";
 import { grant } from "./locker";
 import { addXp, loadXp } from "./progress";
+import { endRow, loadRun } from "./run";
 import { loadRating, rate } from "./rating";
 import { createShow, type Show, type ShowCtx, type ShowPhase, type ShowView } from "./show";
 
@@ -80,9 +81,11 @@ export function useShow(erg: Erg, on: boolean): Showed {
     if (!live) return;
     let alive = true;
     const c = ctx.current;
-    Promise.all([loadRating(), loadXp(), loadMode(), loadBoat()]).then(([r, xp, mode, boat]) => {
+    Promise.all([loadRating(), loadXp(), loadMode(), loadBoat(), loadRun()]).then(([r, xp, mode, boat, run]) => {
       if (!alive) return;
       c.boat = { dmg: boat.dmg, hull: boat.hull, quick: boat.quick, ease: boat.ease };
+      /* The run goes on where the last row left it (run.ts). */
+      c.run = { at: run.at, run: run.run, stars: run.stars };
       /* PVE FIRST (owner, 2026-11-24: "I really want to focus on PvE first
        * and then do PvP"): every row plays the course; the match is kept in
        * the code, and the switch is off the profile. */
@@ -163,6 +166,8 @@ export function useShow(erg: Erg, on: boolean): Showed {
         const b = v.battle;
         const sw = v.swarmTot;
         if (b) addCoins(v.coins).catch(() => null);
+        /* The floor reached, the stars won, a box for every monster down. */
+        if (b) endRow({ at: b.at, run: b.run, lost: b.lost, stars: b.runsDone, box: b.loot.filter((l) => l.kind === "box").length, boss: b.loot.filter((l) => l.kind === "boss").length }).catch(() => null);
         saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: v.final.chest.items, coins: b ? v.coins : 0, fish: sw.kills, bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m) }).catch(() => null);
       }
     };

@@ -749,8 +749,11 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
     ),
   };
 
+  /* NO DOTS UNDER THE ARCADE WHILE ROWING (owner, 2026-11-24: "hide the
+   * page dots while rowing"): they come back as the row stops. */
+  const dotsOff = showOn && order[Math.min(page, last)] === "show" && !over;
   const dots = (
-    <View accessibilityLabel={`Page ${page + 1} of ${last + 1}`} style={{ flexDirection: "row", justifyContent: "center", gap: 8 }}>
+    <View accessibilityLabel={`Page ${page + 1} of ${last + 1}`} style={{ flexDirection: "row", justifyContent: "center", gap: 8, opacity: dotsOff ? 0 : 1 }}>
       {Array.from({ length: last + 1 }, (_, i) => i).map((i) => (
         <View key={i} style={{ width: i === page ? 18 : 6, height: 6, backgroundColor: i === page ? C.accent : C.line }} />
       ))}

@@ -1,5 +1,5 @@
 import type { Ghost } from "../erg/ghosts";
-import { pickBot, type Bot } from "./bots";
+import { botOf, pickBot, type Bot } from "./bots";
 import { NO_UPGRADES, TARGET, createPve, type BoatLv, type Pve, type PveView } from "./pve";
 import { HEALTH, createMatch, holds, paceOf, tenths, type Match, type MatchView } from "./match";
 import { prng, seedOf } from "./rng";
@@ -62,7 +62,15 @@ export type STick = { wall: number; t: number; m: number; pace: number; target: 
 /* `solo`: the single player island (pve.ts) after the intro, the default
  * from 2026-11-24; off, matchmaking and the match against bots. */
 /* `boat`: the upgrades bought with coins (boat.ts), for the island. */
-export type ShowCtx = { solo: boolean; boat: BoatLv; sigma?: number | null; assigned: number | null; elo: number; xp: number; lifetime: number; ghosts: Ghost[] | null; ghostM: number; loaded: boolean };
+/* `run`: where the rower's last row left the course (run.ts): the floor,
+ * the run, and the stars (runs finished) they have. */
+export type ShowCtx = { solo: boolean; boat: BoatLv; sigma?: number | null; assigned: number | null; elo: number; xp: number; lifetime: number; ghosts: Ghost[] | null; ghostM: number; loaded: boolean; run?: { at: number; run: number; stars: number } };
+
+/* THE DRAG RACE to the line (owner, 2026-11-24: the crawl to the finish was
+ * "the worst part"; "a drag race against a ghost", a real rower's pace that
+ * rises and falls): a saved row's own last stretch, from level with the
+ * rower at the moment the course stops. */
+export type Drag = { id: string; name: string; m0: number; t0: number; tg: number; gm0: number };
 
 export type Opp = { id: string; name: string; numStr: string; assigned: number; elo: number };
 
@@ -130,10 +138,17 @@ export type ShowView = {
   /* The chest at the end of the piece. */
   final: { id: string; chest: Chest } | null;
   matches: number;
+  drag: Drag | null;
 };
 
 /* ---- the running order, for a 5K; a shorter piece is cut to its share --- */
 export const INTRO_S = 60;
+/* SINGLE PLAYER'S INTRO, in meters (owner, 2026-11-24: 250 m "too long ...
+ * make it 125"), cut with the piece. */
+export const INTRO_M = 125;
+/* THE KICK-OUT, meters to go (owner, 2026-11-24: 500 "too early; make it
+ * about 250"). */
+export const KICK_M = 250;
 export const HOME_MIN_S = 60;
 /* Into the least time home, MATCH FOUND. */
 export const FOUND_AT = 0.7;
@@ -150,14 +165,8 @@ export const LEVELUP_WALL_S = 6;
  * number of people killed, things like that"): the chest is held this many
  * seconds of the wall (its reel, Chest.tsx), then the summary stays. */
 export const CHEST_WALL_S = 10;
-/* THE DIRECTOR: a swarm round after this many floors of the course, and
- * after a boss or a wreck. */
-const FLOORS_A_ROUND = 2;
-/* A swarm round: ROUND_S of a 5K's seconds, cut to the piece (never under
- * SWARM_LEAST); the course's card is held SWAP_WALL_S of the wall before it,
- * and the round's end SWARM_END_WALL_S. */
-const SWARM_LEAST = 45;
-const SWAP_WALL_S = 3.5;
+/* THE SWARM, kept but never started (2026-11-24): its round's end is held
+ * SWARM_END_WALL_S. */
 const SWARM_END_WALL_S = 3;
 export const LAST_MATCH = 0.8;
 export const FINALE = 0.9;
@@ -175,6 +184,8 @@ export type Show = {
   view(): ShowView;
   /* How far a piece had rowed by the row's second `t`: "me", or a bot's id. */
   metersAt(id: string, t: number): number;
+  /* Where the drag race's ghost is at the row's second `t`. */
+  dragM(t: number): number;
   /* Every phase as it began, and every match, for the check. */
   log: { phases: { phase: ShowPhase; t: number; m: number }[]; matches: { id: string; t0: number; m0: number; end: number; m1: number; result: Result | null; match: MatchView }[] };
 };
@@ -189,19 +200,18 @@ export function createShow(seed = 1): Show {
   let swarm: Swarm | null = null;
   /* The course's last stage card seen, and the wall's second to go to the
    * swarm. */
-  let seenEvent = -1;
-  let swapAt = -1;
   let swarmOverWall = -1;
   /* The meters the game began at (the intro's end). */
   let gameM0 = -1;
   let bot: Bot | null = null;
+  let dragBot: Bot | null = null;
   let played = new Set<string>();
   let waitFrom = -1;
   /* What the celebration goes to when it is over. */
   let finaleDue = false;
   const log: Show["log"] = { phases: [], matches: [] };
 
-  const blank = (tg: number, tick: STick): ShowView => ({ phase: "intro", since: 0, sinceWall: tick.wall, t: tick.t, wall: tick.wall, m: tick.m, target: tg, rate: 1, scale: scaleOf(tg), search: "looking", lobbyAt: 0, gunAt: 0, assigned: 0, opp: null, ready: null, match: null, result: null, battle: null, swarm: null, swarmTot: { rounds: 0, kills: 0, xp: 0, wrecked: 0 }, coins: 0, xpRow: 0, xpStart: -1, final: null, matches: 0 });
+  const blank = (tg: number, tick: STick): ShowView => ({ drag: null,  phase: "intro", since: 0, sinceWall: tick.wall, t: tick.t, wall: tick.wall, m: tick.m, target: tg, rate: 1, scale: scaleOf(tg), search: "looking", lobbyAt: 0, gunAt: 0, assigned: 0, opp: null, ready: null, match: null, result: null, battle: null, swarm: null, swarmTot: { rounds: 0, kills: 0, xp: 0, wrecked: 0 }, coins: 0, xpRow: 0, xpStart: -1, final: null, matches: 0 });
 
   const reset = (tick: STick) => {
     target = tick.target;
@@ -209,11 +219,10 @@ export function createShow(seed = 1): Show {
     match = null;
     pve = null;
     swarm = null;
-    seenEvent = -1;
-    swapAt = -1;
     swarmOverWall = -1;
     gameM0 = -1;
     bot = null;
+    dragBot = null;
     played = new Set();
     waitFrom = -1;
     finaleDue = false;
@@ -241,6 +250,31 @@ export function createShow(seed = 1): Show {
     return b.t > a.t ? a.m + ((t - a.t) / (b.t - a.t)) * (b.m - a.m) : b.m;
   };
   const metersAt = (id: string, t: number): number => (id === "me" ? mine(t) : bot && id === bot.id ? bot.metersAt(t) : 0);
+  const dragM = (t: number): number => {
+    const d = v?.drag;
+    if (!d || !dragBot) return 0;
+    return d.m0 + dragBot.metersAt(d.tg + Math.max(0, t - d.t0)) - d.gm0;
+  };
+  /* The drag race starts: a saved row near the rower's pace so far, from the
+   * second it had as many meters to go as the rower has now. */
+  const startDrag = (ctx: ShowCtx, tick: STick) => {
+    const T = v.target;
+    const meters = ctx.ghostM || 5000;
+    const avg = tick.m > 50 && tick.t > 0 ? (tick.t / tick.m) * 500 : (ctx.assigned ?? TARGET);
+    const left = Math.max(0, T - tick.m);
+    const b = (ctx.ghosts ?? []).length ? pickBot(ctx.ghosts ?? [], meters, Math.round(avg), seedOf(`${seed}/${T}/drag`), new Set(), 3600) : null;
+    dragBot = b ?? botOf({ id: `pace:${Math.round(avg)}`, kind: "pace", name: "", numStr: "", day: "", seconds: (avg / 500) * meters, spm: 28, marks: [] }, meters, seedOf(`${seed}/${T}/drag`), 3600);
+    const want = Math.max(0, meters - left * (meters / Math.max(1, T)));
+    let lo = 0;
+    let hi = 3600;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (dragBot.metersAt(mid) < want) lo = mid;
+      else hi = mid;
+    }
+    const name = b && !b.id.startsWith("bot:pace") ? b.name : "A ghost";
+    v.drag = { id: dragBot.id, name, m0: tick.m, t0: tick.t, tg: lo, gm0: dragBot.metersAt(lo) };
+  };
 
   const go = (phase: ShowPhase, tick: STick) => {
     v.phase = phase;
@@ -318,6 +352,7 @@ export function createShow(seed = 1): Show {
   return {
     log,
     metersAt,
+    dragM,
     view: () => v,
     step(tick, ctx) {
       if (tick.target !== target || !v || tick.m + 5 < last.m || tick.t + 5 < last.t) reset(tick);
@@ -338,7 +373,7 @@ export function createShow(seed = 1): Show {
       const complete = T > 0 && tick.m >= T - 0.5;
 
       /* ---- the finale, fixed in meters ---- */
-      if (T > 0 && tick.m >= FINALE * T && !finaleDue && !["levelup", "finish", "chest", "done"].includes(v.phase)) {
+      if (!ctx.solo && T > 0 && tick.m >= FINALE * T && !finaleDue && !["levelup", "finish", "chest", "done"].includes(v.phase)) {
         finaleDue = true;
         v.search = "closed";
         if (v.phase === "match" && match) endMatch(match.call(t), ctx, tick);
@@ -355,14 +390,16 @@ export function createShow(seed = 1): Show {
       switch (v.phase) {
         case "intro":
           if (tick.ended) go("done", tick);
-          else if (t >= scaled(INTRO_S) && ctx.solo) {
-            /* The skills fill at the rower's own pace: their median 5K. */
-            pve = createPve({ t0: t, seed: seedOf(`${seed}/${T}/island`), own: ctx.assigned ?? TARGET, boat: ctx.boat ?? NO_UPGRADES, scale: v.scale });
+          else if (ctx.solo && tick.m >= INTRO_M * v.scale && ctx.loaded) {
+            /* The skills' paces off the rower's own: their median 5K. The run
+             * goes on from the floor the last row reached. */
+            const r = ctx.run ?? { at: 0, run: 0, stars: 0 };
+            pve = createPve({ t0: t, m0: tick.m, seed: seedOf(`${seed}/${T}/island`), own: ctx.assigned ?? TARGET, boat: ctx.boat ?? NO_UPGRADES, scale: v.scale, from: { at: r.at, run: r.run }, stars: r.stars });
             gameM0 = tick.m;
             v.search = "closed";
-            v.battle = pve.step(t, tick.pace);
+            v.battle = pve.step(t, tick.pace, tick.m);
             go("battle", tick);
-          } else if (t >= scaled(INTRO_S)) home(tick);
+          } else if (!ctx.solo && t >= scaled(INTRO_S)) home(tick);
           break;
 
         case "battle":
@@ -374,25 +411,22 @@ export function createShow(seed = 1): Show {
             /* The pace the bar reads: the last four seconds of the row's own
              * meters, steadier than one stroke's. */
             const p4 = t > 4 ? paceOf(tick.m - mine(t - 4), 4) : tick.pace;
-            v.battle = pve.step(t, p4);
+            /* THE KICK-OUT, 250 m to go: no more monsters; a boss still
+             * standing is fought on in overtime. */
+            if (T > 0 && tick.m >= T - KICK_M * v.scale && !pve.view().out) pve.kickOut(t);
+            v.battle = pve.step(t, p4, tick.m);
             v.xpRow = soloXp();
-            /* Two floors, a boss or a wreck: its card, then the swarm. */
-            const ev = v.battle.event;
-            if (ev && ev.at > seenEvent) {
-              seenEvent = ev.at;
-              if (ev.kind !== "floor" || v.battle.events >= FLOORS_A_ROUND) swapAt = tick.wall + SWAP_WALL_S;
-            }
-            /* NEVER IN THE MIDDLE OF A FIGHT (owner, 2026-11-24: "the fish
-             * game interrupted me when I was in the middle of a battle ...
-             * it should be after the battle"): the next monster comes in
-             * RESPAWN_S after a KO, sooner than the card's SWAP_WALL_S, so
-             * the swarm goes the moment it would arrive, before a blow. */
-            if (swapAt > 0 && (tick.wall >= swapAt || !!v.battle.monster)) {
-              swapAt = -1;
-              swarm = createSwarm({ t0: t, seed: seedOf(`${seed}/${T}/swarm${v.swarmTot.rounds}`), own: ctx.assigned ?? TARGET, base: v.battle.floorPace, boat: ctx.boat ?? NO_UPGRADES, skills: v.battle.skills.map((s) => s.def), roundS: Math.max(SWARM_LEAST, scaled(ROUND_S)) });
-              v.swarm = swarm.step(t, p4);
-              swarmOverWall = -1;
-              go("swarm", tick);
+            /* NO FISH GAME (owner, 2026-11-24: "Fish game, poopy"): the swarm
+             * is kept in the code and never started. The course goes on to
+             * the kick-out; then, once the overtime is over, the drag race. */
+            const b = v.battle;
+            if (b.out && !b.overtime) {
+              const ev = b.event;
+              /* A KO or the wreck is seen before the course goes. */
+              if (!ev || t >= ev.at + 2.5) {
+                startDrag(ctx, tick);
+                go("finish", tick);
+              }
             }
           }
           break;

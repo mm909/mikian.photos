@@ -6,6 +6,7 @@ import { SITE, api, edits, type SocialSettings } from "../api";
 import { resetBoat, resetCoins, resetHull, resetSkills } from "../arcade/boat";
 import { resetLook, resetUnlocks, unlockAll } from "../arcade/locker";
 import { setXp } from "../arcade/progress";
+import { addBoxes, resetBoxes, resetRun } from "../arcade/run";
 import { useLookSwitch } from "../look";
 import { arcadeFor } from "../arcade/gate";
 import { useSession } from "../session";
@@ -430,17 +431,21 @@ type DevReset = { id: string; label: string; ask: string; done: string; run: () 
 const WHOLE: DevReset = {
   id: "whole",
   label: "Reset my whole character",
-  ask: "Level 1: XP, coins, boat, skills, appearance and unlocks all go. Press again.",
-  done: "Level 1: no XP, no coins, no upgrades, the plain box, an empty locker.",
+  ask: "Level 1: XP, coins, boat, skills, appearance, unlocks, the run, its stars and the boxes all go. Press again.",
+  done: "Level 1: no XP, no coins, no upgrades, the plain box, an empty locker, floor 1, no stars, no boxes.",
   run: async () => {
     await setXp(0);
     await resetBoat();
     await resetLook();
     await resetUnlocks();
+    await resetRun();
+    await resetBoxes();
   },
 };
 const ARCADE_DEV: DevReset[] = [
   { id: "level", label: "Reset my level", ask: "Your XP goes to 0. Press again.", done: "Level 1, no XP.", run: () => setXp(0) },
+  { id: "run", label: "Reset my run", ask: "Back to floor 1 of run 1, and the stars go. Press again.", done: "Floor 1, run 1, no stars.", run: () => resetRun() },
+  { id: "boxes", label: "Add 5 boxes and a boss box", ask: "Five boxes and a boss box, to open after your next row. Press again.", done: "Added: five boxes and a boss box.", run: () => addBoxes(5, 1) },
   { id: "coins", label: "Reset my coins", ask: "Your coins go to 0. Press again.", done: "No coins.", run: () => resetCoins() },
   { id: "boat", label: "Reset my boat", ask: "The HULL upgrade goes to level 0. Press again.", done: "The hull is at level 0.", run: () => resetHull() },
   { id: "skills", label: "Reset my skills", ask: "DAMAGE, QUICK and EASE go to level 0. Press again.", done: "The skills' upgrades are at 0.", run: () => resetSkills() },
