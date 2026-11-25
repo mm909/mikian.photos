@@ -5,6 +5,7 @@ import Svg, { Line, Path, Rect } from "react-native-svg";
 import { api, edits, type Best, type Blocked, type Counts, type FiveK, type LogRow, type Profile, type Rel } from "../api";
 import { MonthGrid, PaceLine } from "../charts";
 import { GridIcon, RingIcon, StatsIcon } from "../icons";
+import { arcadeFor } from "../arcade/gate";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt, isDark } from "../theme";
@@ -808,7 +809,7 @@ function Ratings({ p, onLocker }: { p: Profile; onLocker?: () => void }) {
    * on the rower's own page only, and for an admin only while the arcade is
    * the owner's alone. */
   const { me } = useSession();
-  const showRating = p.isMe && !!me.isAdmin;
+  const showRating = p.isMe && arcadeFor(me);
   const locker = useLocker();
   const prog = useProgress();
   const lv = levelOf(prog.xp);

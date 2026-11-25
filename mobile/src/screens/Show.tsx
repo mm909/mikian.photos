@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Rect } from "react-native-svg";
 import { DOT_ON, FlipDots, dotClock } from "../arcade/Art159";
 import { useWallClock } from "../arcade/BoatArt";
-import { Board, boardOf, pieceAt, sOf, type Piece } from "../arcade/Board";
+import { Board, ZONES, boardOf, pieceAt, sOf, zoneOf, type Piece } from "../arcade/Board";
 import { ChestOpen } from "../arcade/Chest";
 import { MonsterG } from "../arcade/Monster";
 import { useBoat } from "../arcade/boat";
@@ -19,6 +19,7 @@ import { TOKEN_U, TokenArt, ShotArt, star, type Paint } from "../arcade/Token";
 import type { Showed } from "../arcade/useShow";
 import { milestone } from "../erg/milestone";
 import type { Erg } from "../erg/useErg";
+import { useSession } from "../session";
 import { C, F, fmtClock, fmtInt, fmtPace } from "../theme";
 import { Eyebrow, Num } from "../ui";
 import { BEST } from "./GhostRace";
@@ -737,6 +738,94 @@ function Match(p: P) {
 /* ---- single player: the course (arcade/pve.ts) ------------------------- */
 
 /* A skill's colour on the board and in its box: quick, middle, heavy. */
+/* THE TAG OVER YOUR BOAT (owner, 2026-11-24: in place of YOU, "if your
+ * name isn't already shown anywhere on the screen, put it above the boat
+ * like a health-bar label", with the level before it). The course and the
+ * swarm show the name nowhere else, so it is here: LV 7 MIKIAN. The level
+ * counts this row's XP as it comes. */
+function useTag(v: ShowView): string {
+  const { me } = useSession();
+  const prog = useProgress();
+  const name = (me.me?.displayName || me.name || "").trim().split(/\s+/)[0]?.toUpperCase() || "";
+  const lv = levelOf(prog.xp + (v.xpRow || 0)).level;
+  return name ? `LV ${lv} ${name.slice(0, 12)}` : `LV ${lv}`;
+}
+
+/* THE PERCENTS COUNT UP, NEVER JUMP (owner, 2026-11-24: "it would go from
+ * like 15 ... 19%, 69%, 19%, 69%"; he wants "a nice smooth animation"). The
+ * engine's charge moves in steps, one a word from the monitor, and a quick
+ * skill can fill and fire between two words. So what is shown runs after
+ * it at no more than SHOWN_RATE a second: up to the charge, and when the
+ * skill has gone off, on up to 100 and round to 0, never back down a step
+ * it showed. At 10x it laps less often than the skill fires, which is the
+ * price of never skipping. */
+const SHOWN_RATE = 2.6;
+function useShown(skills: SkillView[], wall: number): (s: SkillView) => number {
+  const st = useRef(new Map<string, { d: number; last: number; lap: boolean; held: boolean; w: number }>()).current;
+  const out = new Map<string, number>();
+  for (const s of skills) {
+    const id = s.def.id;
+    const c = clamp(s.charge);
+    let e = st.get(id);
+    if (!e) {
+      e = { d: c, last: c, lap: false, held: false, w: wall };
+      st.set(id, e);
+    }
+    const dt = clamp(wall - e.w, 0, 0.25);
+    e.w = wall;
+    /* It went off since the last word: the charge fell back. */
+    if (c < e.last - 0.04) {
+      if (e.d >= 0.35) e.lap = true;
+    }
+    e.last = c;
+    const step = SHOWN_RATE * dt;
+    if (e.lap) {
+      if (e.held) {
+        e.d = 0;
+        e.lap = false;
+        e.held = false;
+      } else {
+        e.d = Math.min(1, e.d + step);
+        if (e.d >= 1) e.held = true;
+      }
+    } else if (c > e.d) {
+      e.d = Math.min(c, e.d + step);
+    } else if (c < e.d) {
+      e.d = Math.max(c, e.d - step);
+    }
+    out.set(id, e.d);
+  }
+  return (s) => out.get(s.def.id) ?? clamp(s.charge);
+}
+
+/* DAMAGE NUMBERS, after the RPGs' (owner, 2026-11-24: they overlapped and
+ * were hard to read; "take a cue from Chinese/Japanese RPG damage
+ * numbers"): each one pops in big and settles, floats up and fades, in its
+ * colour inside a dark outline, so it reads on the water, the sand and
+ * either look. They are set out in five columns, in turn, so the newest
+ * five never sit on each other, and only the newest five are drawn (at 10x
+ * the throws come faster than anybody reads them). */
+const POP_LIFE = 1.0;
+const POP_INK = "#10161C";
+const RING8 = [[-2, 0], [2, 0], [0, -2], [0, 2], [-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]];
+function DmgPop({ x, y, text, size, color, e }: { x: number; y: number; text: string; size: number; color: string; e: number }) {
+  const sc = e < 0.12 ? 1.7 - 0.7 * (e / 0.12) : 1;
+  const o = 1 - clamp((e - POP_LIFE * 0.65) / (POP_LIFE * 0.35));
+  const h = Math.round(size * 1.3);
+  const w = Math.round(size * 4);
+  const face = { position: "absolute" as const, left: 0, width: w, textAlign: "center" as const, fontFamily: F.black, fontSize: size, lineHeight: h };
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", left: x - w / 2, top: y - e * 46 - h / 2, width: w, height: h, opacity: o, transform: [{ scale: sc }] }}>
+      {RING8.map(([dx, dy], i) => (
+        <Text key={i} style={[face, { top: dy, left: dx, color: POP_INK }]}>
+          {text}
+        </Text>
+      ))}
+      <Text style={[face, { top: 0, color }]}>{text}</Text>
+    </View>
+  );
+}
+
 const SLOT_COLOR = ["#2BB673", "#0077B6", "#E2725B"];
 const SLOT_R = [4.5, 7, 11];
 
@@ -755,6 +844,7 @@ const SLOT_R = [4.5, 7, 11];
  *             hull at the top, then the three skills as big numbers. */
 function Battle(p: P) {
   const { v, width, height, wall, rt, myM, paint, hop } = p;
+  const tag = useTag(v);
   const b = v.battle;
   if (!b) return null;
   const wide = width >= 520 && width > height * 0.9;
@@ -774,13 +864,15 @@ function Battle(p: P) {
   const at = pieceAt(geo, meS);
   const mx = geo.cx;
   const my = geo.cy - geo.unit * 0.08;
-  const mr = geo.unit * 0.42;
+  /* A little larger (owner, 2026-11-24: "enemies a little larger"). */
+  const mr = geo.unit * 0.52;
   /* The last hit on the hull, for the piece's wobble (a small one). */
   const lastHit = b.hits[b.hits.length - 1];
   const hitE = lastHit ? wall - wallAt(lastHit.at) : 99;
-  const pieces: Piece[] = [{ id: "me", paint, s: meS, hop, wobble: hitE >= 0 && hitE < 0.3 ? 0.5 * (1 - hitE / 0.3) : 0, mine: true, firing: b.shots.some((s) => wall - wallAt(s.at) < FLY) }];
+  const pieces: Piece[] = [{ id: "me", paint, s: meS, hop, wobble: hitE >= 0 && hitE < 0.3 ? 0.5 * (1 - hitE / 0.3) : 0, label: tag, mine: true, firing: b.shots.some((s) => wall - wallAt(s.at) < FLY) }];
   const shots: ReactElement[] = [];
   const pops: ReactNode[] = [];
+  const mine: { n: number; kb: number; slot: number; dmg: number }[] = [];
   let hurt = 0;
   /* What is still in the air on this monster: its health shows them when
    * they land, not when they leave. */
@@ -807,15 +899,7 @@ function Battle(p: P) {
         const big = s.slot === 2;
         shots.push(<Path key={`h${s.n}`} d={burst(mx + ((s.n * 37) % 21) - 10, my + ((s.n * 53) % 17) - 8, (big ? 26 : 12 + 4 * s.slot) * k * (0.6 + kb * 2), (big ? 13 : 6 + 2 * s.slot) * k, 8, s.n)} fill={big ? DOT_ON : C.paper} stroke={col} strokeWidth={2} strokeLinejoin="round" opacity={1 - kb / 0.3} />);
       }
-      if (kb < 1.1) {
-        const dx = ((s.n * 41) % 60) - 30;
-        const size = [20, 26, 34][s.slot];
-        pops.push(
-          <Text key={`p${s.n}`} style={{ position: "absolute", left: mx + dx - 60, width: 120, top: HUD + my - mr * 1.5 - kb * 34, textAlign: "center", fontFamily: F.black, fontSize: size, color: col, opacity: 1 - clamp((kb - 0.7) / 0.4), textShadowColor: C.paper, textShadowRadius: 4, textShadowOffset: { width: 0, height: 0 } }}>
-            {`−${s.dmg}`}
-          </Text>,
-        );
-      }
+      if (kb < POP_LIFE) mine.push({ n: s.n, kb, slot: s.slot, dmg: s.dmg });
     }
   }
   /* The monster's throws: a rock (a boss's bigger, red) that spins in an
@@ -837,13 +921,14 @@ function Battle(p: P) {
     } else {
       const kb = (e - 1) * FLY_HIT;
       if (kb < 0.3) shots.push(<Path key={`mh${h.n}`} d={burst(at.x, at.y, 22 * k * (0.6 + kb * 2), 10 * k, 8, h.n)} fill={BEST} fillOpacity={0.85} stroke={C.ink} strokeWidth={1.8} opacity={1 - kb / 0.3} />);
-      if (kb < 1)
-        pops.push(
-          <Text key={`mp${h.n}`} style={{ position: "absolute", left: at.x - 50, width: 100, top: HUD + at.y - geo.unit * 0.8 - kb * 28, textAlign: "center", fontFamily: F.black, fontSize: 24, color: BEST, opacity: 1 - clamp((kb - 0.6) / 0.4), textShadowColor: C.paper, textShadowRadius: 4, textShadowOffset: { width: 0, height: 0 } }}>
-            {`−${Math.max(1, Math.round(h.dmg))}`}
-          </Text>,
-        );
+      if (kb < POP_LIFE) pops.push(<DmgPop key={`mp${h.n}`} x={at.x + (h.n % 2 ? 22 : -22)} y={HUD + Math.max(30, at.y - geo.unit * 0.95)} text={`−${Math.max(1, Math.round(h.dmg))}`} size={24} color={BEST} e={kb} />);
     }
+  }
+  /* Your hits on it: the newest five, one to a column, in turn. */
+  const colW = Math.min(64, (g.W - 40) / 5);
+  for (const d of mine.sort((a, z) => a.kb - z.kb).slice(0, 5)) {
+    const c = (d.n % 5) - 2;
+    pops.push(<DmgPop key={`p${d.n}`} x={mx + c * colW} y={HUD + my - mr * 1.45 - (d.n % 2) * 14} text={`−${d.dmg}`} size={[22, 28, 36][d.slot]} color={SLOT_COLOR[d.slot]} e={d.kb} />);
   }
   /* The monster: rising out of the water, on the island, or going KO. The
    * KO plays once the throw that did it has landed. */
@@ -864,7 +949,7 @@ function Battle(p: P) {
   const evOn = !!ev && ev.kind !== "floor" && evE >= 0 && evE < 3.4;
   const word = evOn
     ? ev.kind === "clear"
-      ? { big: "BOSS DOWN", small: `FLOOR ${ev.floor} CLEAR · THE HULL IS MENDED`, c: C.good }
+      ? { big: "BOSS DOWN", small: `FLOOR ${ev.floor} CLEAR · ON TO ${ZONES[zoneOf(ev.floor + 1)].name}`, c: C.good }
       : { big: "WRECKED", small: "BACK TO FLOOR 1 · THE XP IS KEPT", c: BEST }
     : ko && koE >= 0 && koE < 1.8
       ? { big: `${ko.name} DOWN`, small: `FLOOR ${ko.floor} · +${ko.xp} XP`, c: C.good }
@@ -872,8 +957,12 @@ function Battle(p: P) {
   const hp = m ? Math.min(m.max, m.hp + inAir) : 0;
   const nextFloor = b.at + 1;
   const toBoss = 5 - (b.at % 5);
-  const eyebrow = m ? `FLOOR ${m.floor}${m.boss ? " · THE BOSS" : toBoss > 1 ? ` · BOSS ON FLOOR ${m.floor + toBoss - 1}` : ""} · ITS PACE ${whole(m.pace)}` : `FLOOR ${nextFloor} · ITS PACE ${whole(b.floorPace)}`;
+  const eyebrow = m ? `FLOOR ${m.floor}${m.boss ? " · THE BOSS" : toBoss > 1 ? ` · BOSS ON ${m.floor + toBoss - 1}` : ""} · ITS PACE ${whole(m.pace)}` : `FLOOR ${nextFloor} · ITS PACE ${whole(b.floorPace)}`;
   const hudW = g.W - 28;
+  /* THE SETTING CHANGES EVERY FIVE FLOORS (owner, 2026-11-24: "copy and
+   * pasting the clicker hero format"; the next one should "just look a
+   * little different"): Board.tsx, ZONES. */
+  const zone = zoneOf(m ? m.floor : nextFloor);
   const hud = (
     <View style={{ height: HUD, width: g.W, paddingHorizontal: 14, paddingTop: 4 }}>
       <Text numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 1.2, color: m?.boss ? BEST : C.soft }}>
@@ -891,7 +980,7 @@ function Battle(p: P) {
   );
   const board = (
     <View style={{ width: g.W, height: g.H }}>
-      <Board W={g.W} H={g.H} pieces={pieces} t={wall} uid="isle" palm={false}>
+      <Board W={g.W} H={g.H} pieces={pieces} t={wall} uid="isle" palm={false} zone={zone}>
         {monster}
         {shots}
       </Board>
@@ -943,6 +1032,7 @@ function skillState(s: SkillView, pace: number, dim: boolean): { rising: boolean
 /* Upright: the hull, and three boxes side by side. */
 function SkillBoxes({ width, height, hull, hullMax, skills, pace, wall, dim }: { width: number; height: number; hull: number; hullMax: number; skills: SkillView[]; pace: number; wall: number; dim: boolean }) {
   const boxW = (width - 28 - 16) / 3;
+  const shown = useShown(skills, wall);
   return (
     <View style={{ height, borderTopWidth: 2, borderColor: C.ink, paddingHorizontal: 14, paddingTop: 6, rowGap: 6 }}>
       <HealthBar name="YOUR HULL" h={Math.ceil(hull)} max={hullMax} mine wall={wall} right={`/ ${hullMax}`} />
@@ -950,7 +1040,7 @@ function SkillBoxes({ width, height, hull, hullMax, skills, pace, wall, dim }: {
         {skills.map((s) => {
           const st = skillState(s, pace, dim);
           const col = SLOT_COLOR[s.def.slot];
-          const pct = Math.floor(100 * clamp(s.charge));
+          const pct = Math.floor(100 * shown(s));
           return (
             <View key={s.def.id} style={{ width: boxW, borderWidth: 2, borderColor: st.rising ? col : C.line, borderRadius: 6, paddingHorizontal: 7, paddingTop: 3, paddingBottom: 5, backgroundColor: C.paper, overflow: "hidden" }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -975,6 +1065,7 @@ function SkillBoxes({ width, height, hull, hullMax, skills, pace, wall, dim }: {
 /* On its side: a right column the shape of the figures on the left, the
  * hull at the top and the three skills as its big numbers. */
 function SkillColumn({ width, height, hull, hullMax, skills, pace, wall, dim }: { width: number; height: number; hull: number; hullMax: number; skills: SkillView[]; pace: number; wall: number; dim: boolean }) {
+  const shown = useShown(skills, wall);
   const size = Math.max(20, Math.min(34, Math.floor((height - 16) / 4) - 36, Math.floor((width - 28) / 4.3)));
   return (
     <View style={{ width, height, paddingLeft: 14, paddingRight: 14, justifyContent: "center", borderLeftWidth: 1, borderColor: C.line, rowGap: 2 }}>
@@ -988,7 +1079,7 @@ function SkillColumn({ width, height, hull, hullMax, skills, pace, wall, dim }: 
       {skills.map((s) => {
         const st = skillState(s, pace, dim);
         const col = SLOT_COLOR[s.def.slot];
-        const pct = Math.floor(100 * clamp(s.charge));
+        const pct = Math.floor(100 * shown(s));
         return (
           <View key={s.def.id} style={{ paddingVertical: 2 }}>
             <Eyebrow>{`${s.def.name} · AT ${whole(Math.round(s.target))}`}</Eyebrow>
@@ -1029,6 +1120,7 @@ function Swarm(p: P) {
   const { v, width, height, wall, rt, paint, hop } = p;
   const s = v.swarm;
   const cam = useRef({ x: 0, y: 0, wall: 0, t0: -1 });
+  const tag = useTag(v);
   if (!s) return null;
   const wide = width >= 520 && width > height * 0.9;
   const HUD = 58;
@@ -1102,7 +1194,7 @@ function Swarm(p: P) {
     if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
     const a = Math.atan2(by - fy, bx - fx);
     const hit = wall - wallAt(f.hitAt) < 0.15;
-    const L = (f.kind === 3 ? 2.6 : 1.8) * px;
+    const L = (f.kind === 3 ? 3.1 : 2.2) * px;
     art.push(<Path key={`f${f.id}`} d={fishPath(x, y, a, L, wall, f.id)} fill={hit ? C.paper : FISH_COLOR[f.kind]} stroke={C.ink} strokeWidth={1.3} strokeLinejoin="round" />);
     art.push(<Circle key={`e${f.id}`} cx={x + Math.cos(a) * L * 0.28} cy={y + Math.sin(a) * L * 0.28} r={Math.max(1, L * 0.07)} fill={C.ink} />);
   }
@@ -1133,7 +1225,7 @@ function Swarm(p: P) {
     </View>
   );
   const water = (
-    <View style={{ width: W, height: H, backgroundColor: "#DDEFF7", overflow: "hidden" }}>
+    <View style={{ width: W, height: H, backgroundColor: ZONES[zoneOf((v.battle?.at ?? 0) + 1)].swarm, overflow: "hidden" }}>
       <Svg width={W} height={H} style={{ position: "absolute", left: 0, top: 0 }}>
         {marks}
         {art}
@@ -1141,6 +1233,9 @@ function Swarm(p: P) {
       <View style={{ position: "absolute", left: X(bx) - (36 * tk) / TOKEN_U, top: Y(by) - (52 * tk) / TOKEN_U, transform: [{ translateX: bit < 0.25 ? Math.sin(bit * 60) * 2 : 0 }] }}>
         <TokenArt paint={paint} size={tk} t={wall} hop={hop} look={Math.cos(s.heading)} uid="swarm" />
       </View>
+      <Text pointerEvents="none" numberOfLines={1} style={{ position: "absolute", left: X(bx) - 80, width: 160, top: Y(by) - (60 * tk) / TOKEN_U - 16, textAlign: "center", fontFamily: F.monoBold, fontSize: 12, letterSpacing: 1, color: C.accent, textShadowColor: C.paper, textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } }}>
+        {tag}
+      </Text>
       {bit >= 0 && bit < 0.3 ? <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: W, height: H, borderWidth: 6, borderColor: BEST, opacity: 0.5 * (1 - bit / 0.3) }} /> : null}
       {done ? (
         <View pointerEvents="none" style={{ position: "absolute", top: H * 0.3, alignSelf: "center", alignItems: "center", backgroundColor: C.paper, paddingHorizontal: 12, paddingVertical: 4, borderWidth: 2, borderColor: C.ink, borderRadius: 4 }}>

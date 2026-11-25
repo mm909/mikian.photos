@@ -5,6 +5,7 @@ import Svg, { Line, Path } from "react-native-svg";
 import { milestone, projectedMeters } from "../erg/milestone";
 import type { DemoCtl, Erg } from "../erg/useErg";
 import type { TelemetryDoc } from "../pm5/session";
+import { arcadeFor } from "../arcade/gate";
 import { useSession } from "../session";
 import { mono } from "../site";
 import { ApiError, api } from "../api";
@@ -226,7 +227,7 @@ export function RowScreen({ erg, opened, onLogged, onLeave, onDemoRead }: { erg:
       />
     );
   }
-  if (erg.phase === "live" && me.isAdmin && mode === null) {
+  if (erg.phase === "live" && arcadeFor(me) && mode === null) {
     return (
       <View style={{ flex: 1, padding: 20, justifyContent: "center" }}>
         <Eyebrow>{erg.demo ? "Demo" : `Connected · ${erg.name || "PM5"}`}</Eyebrow>
@@ -617,7 +618,7 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
    * was. (The single-player 159 against rocks, arcade/useArcade.ts, is kept
    * in the code and no longer dropped into the row.) */
   const { me } = useSession();
-  const showOn = !!me.isAdmin && arcade;
+  const showOn = arcadeFor(me) && arcade;
   const directed = useDirector(erg, shared);
   const showed = useShow(erg, showOn);
   /* THE PAGES IN THEIR ORDER, each with the name the top bar gives it

@@ -5,6 +5,7 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { api, type BoardData, type BoardRow, type FollowState, type Me, type Photo } from "../api";
 import { CloseIcon, ShareIcon } from "../icons";
 import type { TelemetryDoc } from "../pm5/session";
+import { arcadeFor } from "../arcade/gate";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, mono } from "../site";
 import type { Fetched } from "../files";
@@ -790,11 +791,13 @@ function Slice({ rows, at, meters, word, onRower }: { rows: BoardRow[]; at: numb
  * the items out of its chest, each with EQUIP. */
 function GameSummary({ rowId }: { rowId: string }) {
   const g = useGame(rowId);
-  return g ? <GameLines g={g} /> : null;
+  const { me } = useSession();
+  return g && arcadeFor(me) ? <GameLines g={g} /> : null;
 }
 function DemoGame() {
   const g = useLastDemoGame();
-  return g ? <GameLines g={g} /> : null;
+  const { me } = useSession();
+  return g && arcadeFor(me) ? <GameLines g={g} /> : null;
 }
 function GameLines({ g }: { g: Game }) {
   const l = useLocker();

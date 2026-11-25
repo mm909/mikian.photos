@@ -48,6 +48,8 @@ export const PAGES: Page[] = [
         "Coins are your meters in the game. Spend them on your profile's arcade tab: DAMAGE, HULL, QUICK, EASE, or a CHEST for 2,000.",
         "The chest opens with a reel that slows to the prize; it is yours the moment the row ends. Then the summary.",
         "Settings, DEVELOPER: reset your level, boat, skills, appearance or unlocks, or unlock everything. Arcade only; rows and meters are never touched.",
+        "Hidden from every rower but you until you say (January, or later); one line opens it.",
+        "Smooth percents, LV and your name over the boat, larger monsters, a new setting every five floors, outlined damage numbers.",
       ] },
       { h: "Try on the phone" },
       { list: [
@@ -90,6 +92,15 @@ export const PAGES: Page[] = [
     title: "Today",
     sub: "What makes a killer day",
     blocks: [
+      { h: "Tuesday, Nov 24, late: after you played the preview" },
+      { list: [
+        "HIDDEN FROM EVERYBODY BUT YOU, until you open it (\"Wait until January to launch it, if not later\"). Not switched off, only no door drawn: the profile's arcade panel, FREE ROW or PLAY THE ARCADE on connect, the game on a row's page, the locker, the developer buttons. Opening it is one line, ARCADE_OPEN in src/arcade/gate.ts.",
+        "The skill percents count up smoothly and never jump back: what is shown runs after the charge, and when a skill goes off it runs on to 100 and round to 0. At 10x it laps less often than the skill really fires.",
+        "Your boat wears LV 7 MIKIAN in place of YOU, on the course and in the swarm (your name is nowhere else on those screens). The level counts this row's XP as it comes.",
+        "The monsters are a fifth larger, the swarm's fish too.",
+        "THE SETTING CHANGES EVERY FIVE FLOORS: THE ISLES (floors 1 to 5), THE REEF (6 to 10), THE ICE, THE EMBERS, THE MARSH, then round again. The same board in new colours (water, sand, grass; the lighthouse comes and goes). BOSS DOWN says which one is next.",
+        "Damage numbers as the RPGs draw them: in their colour inside a dark outline, popping in big and settling, floating up and fading; five columns taken in turn, so the newest five never sit on each other, and no more than five at once.",
+      ] },
       { h: "Tuesday, Nov 24, night: after your demo row" },
       { list: [
         "The course is FLOORS now: floor 1, 2, 3, 4, then the boss on floor 5, and on. Each floor has a pace of its own (yours plus a few seconds; a boss's a little faster), shown at the top.",

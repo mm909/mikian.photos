@@ -163,21 +163,40 @@ export type Piece = {
   firing?: boolean;
 };
 
+/* THE ZONES: the setting changes every five floors of the course (owner,
+ * 2026-11-24: "copying and pasting the clicker hero format"; the first is
+ * the four islands with one in the middle, the next should "just look a
+ * little different"). The same board, its water, sand and grass in a new
+ * set of colours, and round again after the fifth. Each zone is a kind of
+ * monster's run (crabs on floors 1 to 5, gulpers 6 to 10, and so on). The
+ * home board, the lobby and the match always wear the first. */
+export type Zone = { name: string; water: string; sand: [string, string]; grass: [string, string]; swarm: string; tower: boolean };
+export const ZONES: Zone[] = [
+  { name: "THE ISLES", water: "#0077B6", sand: ["#F7EBCB", "#3A3120"], grass: ["#CDE8C4", "#1E3F2C"], swarm: "#DDEFF7", tower: true },
+  { name: "THE REEF", water: "#12A39A", sand: ["#F8DCD2", "#3E2A27"], grass: ["#F4A99A", "#5A2E2A"], swarm: "#D6F2EE", tower: false },
+  { name: "THE ICE", water: "#4F8FC0", sand: ["#F4F8FB", "#2C3640"], grass: ["#D3E6F3", "#3B5266"], swarm: "#E7F1F8", tower: true },
+  { name: "THE EMBERS", water: "#5D4F9E", sand: ["#E9D5C3", "#3A2A24"], grass: ["#F2A774", "#6B321C"], swarm: "#E6E1F3", tower: false },
+  { name: "THE MARSH", water: "#4F7F45", sand: ["#DCCFA2", "#352F1E"], grass: ["#A9C98A", "#2C4224"], swarm: "#E2ECD8", tower: true },
+];
+/* Floor 1 to 5 is zone 0, 6 to 10 zone 1, and round. */
+export const zoneOf = (floor: number): number => Math.floor(Math.max(0, floor - 1) / 5) % ZONES.length;
+
 /* Where a piece's box sits on the board, for what is drawn over it. */
 export function pieceAt(g: BoardGeo, s: number): { x: number; y: number } {
   const p = along(g, s);
   return { x: p.x, y: p.y - (TOKEN_CY - 44) * (g.unit / TOKEN_U) };
 }
 
-export function Board({ W, H, pieces, t, uid = "bd", fish = true, palm = true, children }: { W: number; H: number; pieces: Piece[]; t: number; uid?: string; fish?: boolean; /* Off when a monster has the island (single player). */ palm?: boolean; children?: ReactNode }) {
+export function Board({ W, H, pieces, t, uid = "bd", fish = true, palm = true, zone = 0, children }: { W: number; H: number; pieces: Piece[]; t: number; uid?: string; fish?: boolean; /* Off when a monster has the island (single player). */ palm?: boolean; /* The course's setting (ZONES). */ zone?: number; children?: ReactNode }) {
   const g = boardOf(W, H);
   const k = g.unit / TOKEN_U;
   const ink = C.ink;
-  const water = C.accent;
+  const Z = ZONES[zone % ZONES.length] ?? ZONES[0];
+  const water = zone ? Z.water : C.accent;
   const dark = isDark();
   /* The board's own colours, matte, one set for each look. */
-  const SAND = dark ? "#3A3120" : "#F7EBCB";
-  const GRASS = dark ? "#1E3F2C" : "#CDE8C4";
+  const SAND = Z.sand[dark ? 1 : 0];
+  const GRASS = Z.grass[dark ? 1 : 0];
   const SURF = dark ? "#9FD3F2" : "#FFFFFF";
   const lands = [...g.corners, g.island];
   /* Little waves, set once by the board's size, drifting. */
@@ -266,7 +285,7 @@ export function Board({ W, H, pieces, t, uid = "bd", fish = true, palm = true, c
           ) : null}
         </G>
       ))}
-      <Lighthouse x={lx} y={ly} s={ls} t={t} />
+      {Z.tower ? <Lighthouse x={lx} y={ly} s={ls} t={t} /> : null}
       {/* The island: a pebble or two on its sand, and its palm. */}
       <Ellipse cx={g.cx - W * 0.1} cy={g.cy + H * 0.045} rx={3.4} ry={2.4} fill={C.gray} fillOpacity={0.55} stroke={ink} strokeWidth={1} />
       <Ellipse cx={g.cx + W * 0.085} cy={g.cy - H * 0.075} rx={2.6} ry={1.9} fill={C.gray} fillOpacity={0.55} stroke={ink} strokeWidth={1} />
