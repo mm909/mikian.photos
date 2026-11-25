@@ -151,7 +151,9 @@ export const m2dCss = `
 /* THE GIVING PAGE (give/page.tsx). */
 .row100k .m2-give .m2-head{max-width:640px;margin-left:auto;margin-right:auto}
 .row100k .m2-give-lede{margin-top:16px;font-size:16px;line-height:1.55;color:var(--ink);text-align:left}
-.row100k .m2-give .m2-from,.row100k .m2-give .m2-worth,.row100k .m2-calc,.row100k .m2-give-fine{max-width:560px;margin-left:auto;margin-right:auto}
+.row100k .m2-give .m2-from,.row100k .m2-give .m2-worth,.row100k .m2-calc,.row100k .m2-give-est{font-weight:400;color:var(--gray);font-size:12px}
+.row100k .m2-give-now dt small{display:block;margin-top:3px;font-family:var(--row-mono),monospace;font-size:10px;font-weight:400;letter-spacing:.08em;text-transform:uppercase;color:var(--gray)}
+.row100k .m2-give-fine{max-width:560px;margin-left:auto;margin-right:auto}
 .row100k .m2-give-now{margin-top:30px}
 .row100k .m2-give-big{margin-top:14px;font-family:var(--row-archivo-black),sans-serif;font-size:24px;line-height:1.2;text-transform:uppercase}
 .row100k .m2-give-big b{color:var(--water);font-weight:400}

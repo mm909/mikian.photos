@@ -51,7 +51,6 @@ export type M2dView = {
   /* ROWTEMBER's rate and every other giver's together (totals.givers). */
   perKm?: number;
   charities?: Charity[];
-  c2Goal?: number;
   /* raised: CONCEPT2 (past 100K only); matched: ROWTEMBER (every meter);
    * total: both, THE figure; split: ROWTEMBER's part by charity picked;
    * inMeters: the meters ROWTEMBER's part is paid on. */
@@ -63,7 +62,7 @@ export type M2dView = {
     split?: Record<string, number>;
     unpicked?: number;
     inMeters?: number;
-    givers?: { name: string; rate: number; dollars: number }[];
+    givers?: { name: string; gift?: number; dollars: number }[];
     locked: number;
     unclaimed: number;
     rowers: number;
@@ -99,7 +98,7 @@ const rateOf = (v: M2dView): number => v.rate ?? 4;
 /* ROWTEMBER's line, said as a match (owner, 2026-11-25). */
 const matchWord = (v: M2dView): string => `Matches Concept2's ${centsWord(rateOf(v))}/km, from your first meter`;
 const giversOf = (v: M2dView) => v.totals.givers ?? [];
-const perKmOf = (v: M2dView): number => v.perKm ?? rateOf(v) + giversOf(v).reduce((a, g) => a + g.rate, 0);
+const perKmOf = (v: M2dView): number => v.perKm ?? rateOf(v);
 const windowWord = (v: M2dView): string => (!v.window.started ? "Nov 26 – Dec 24" : v.window.over ? "Final" : `Day ${v.window.day} of ${v.window.days}`);
 
 /* ONE LINE OF A RECEIPT (owner, 2026-11-25: "a really good like itemized
@@ -533,7 +532,7 @@ function Raised({ v, onFaq }: { v: M2dView; onFaq: (k: "concept2" | "rowtember")
         <Item who="Concept2" rate="2¢/km once a rower passes 100K, 4¢ after" d={usd(t.raised)} onPress={() => onFaq("concept2")} />
         <Item who={by} rate={matchWord(v)} d={usd(t.matched ?? 0)} onPress={() => onFaq("rowtember")} />
         {giversOf(v).map((g) => (
-          <Item key={g.name} who={g.name} rate={`${centsWord(g.rate)}/km pledged, every meter`} d={usd(g.dollars)} />
+          <Item key={g.name} who={g.name} rate="A gift" d={usd(g.dollars)} />
         ))}
         {(v.charities ?? []).map((c) => sub(c.name, t.split?.[c.key] ?? 0))}
         {(t.unpicked ?? 0) > 0 ? sub("No charity picked yet", t.unpicked ?? 0) : null}
@@ -663,7 +662,8 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
   const hidden = !own && row?.blocks !== undefined;
   const c2 = own && v.me?.concept2 !== undefined ? v.me.concept2 : concept2Of(meters);
   const ours = own && v.me?.rowtember !== undefined ? v.me.rowtember : rowtemberOf(meters, rateOf(v));
-  const theirs = giversOf(v).map((g) => ({ ...g, d: rowtemberOf(meters, g.rate) }));
+  /* Gifts are fixed sums on the M2D tab's receipt, not a rower's own. */
+  const theirs: { name: string; rate: number; d: number }[] = [];
   const d = own ? (v.me?.dollars ?? 0) : (row?.dollars ?? 0);
   return (
     <View style={{ paddingTop: 18, paddingBottom: 40 }}>
@@ -892,7 +892,7 @@ export function M2dStatsView({ onRower }: { onRower: (n: number) => void }) {
 type Plan = {
   window: { day: number; days: number };
   rate: number;
-  givers?: { name: string; rate: number }[];
+  givers?: { name: string; gift: number }[];
   picks?: { key: string; name: string; rowers: number; pct: number }[];
   unpicked?: number;
   soFar: { meters: number; inMeters: number; rowers: number; registered: number; cost: number };
@@ -935,7 +935,7 @@ export function M2dPlanner() {
   };
   const givers = plan.givers ?? [];
   const g = Number(gift) || 0;
-  const saveGivers = async (next: { name: string; rate: number }[]) => {
+  const saveGivers = async (next: { name: string; gift: number }[]) => {
     setBusy(true);
     setSay("");
     try {
@@ -969,14 +969,14 @@ export function M2dPlanner() {
   );
   /* THE EXPOSURE, first and big (owner, 2026-11-25: "exposure liability
    * for M2D"): the high case at the rate, then what is owed so far. */
-  const givRate = (plan.givers ?? []).reduce((a, x) => a + x.rate, 0);
+  const gifts = (plan.givers ?? []).reduce((a, x) => a + x.gift, 0);
   return (
     <View>
       <Text style={[mono(10, true, C.ink, 0.12), { marginTop: 8 }]}>Exposure · high case at {centsWord(plan.rate)}/km</Text>
       <Text style={{ fontFamily: F.black, fontSize: 56, lineHeight: 62, color: C.accent, fontVariant: ["tabular-nums"], marginTop: 6 }}>{usd(costOf(high, plan.rate))}</Text>
       <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 4, lineHeight: 16 }]}>
         Likely {usd(costOf(likely, plan.rate))} · low {usd(costOf(low, plan.rate))} · owed so far {usd(plan.soFar.cost)}
-        {givRate ? ` · pledges cover ${centsWord(givRate)}/km on top` : ""}
+        {gifts ? ` · gifts ${usd(gifts)} on top` : ""}
       </Text>
       {head(`So far · day ${plan.window.day} of ${plan.window.days}`)}
       {row("Meters in the window", `${fmtInt(plan.soFar.meters)} m`)}
@@ -1020,11 +1020,11 @@ export function M2dPlanner() {
       {row("Low · likely · high", `${usd(costOf(low, r))} · ${usd(costOf(likely, r))} · ${usd(costOf(high, r))}`)}
       {/* THE OTHER GIVERS: a line each on the receipts, a pledge in cents a
           kilometer. Live at once. */}
-      {head(`Other givers · ${givers.length}`)}
+      {head(`Gifts · ${givers.length} · ${usd(givers.reduce((a, x) => a + x.gift, 0))}`)}
       {givers.map((x, i) => (
         <View key={x.name} style={{ flexDirection: "row", alignItems: "center", columnGap: 10, paddingVertical: 8, borderBottomWidth: 1, borderColor: C.line }}>
           <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: C.ink }}>{x.name}</Text>
-          <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.accent }}>{centsWord(x.rate)}/km</Text>
+          <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.accent }}>{usd(x.gift)} · ≈{centsWord(costOf(likely, 1) > 0 ? x.gift / costOf(likely, 1) : 0)}/km</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={`Take ${x.name} off`} hitSlop={8} disabled={busy} onPress={() => void saveGivers(givers.filter((_, j) => j !== i))}>
             <Text style={[mono(10, true, C.gray, 0.1), { textDecorationLine: "underline" }]}>Remove</Text>
           </Pressable>
@@ -1039,9 +1039,9 @@ export function M2dPlanner() {
         maxLength={40}
         style={{ marginTop: 10, borderWidth: 1, borderColor: C.ink, paddingHorizontal: 10, paddingVertical: 8, fontFamily: F.sans, fontSize: 16, color: C.ink }}
       />
-      {input(gRate, setGRate, "Pledge, cents a km")}
+      {input(gRate, setGRate, "Gift, $")}
       <View style={{ marginTop: 12 }}>
-        <Go label={busy ? "Saving" : "Add the giver"} disabled={busy || !gName.trim() || !(Number(gRate) > 0)} onPress={() => void saveGivers([...givers, { name: gName.trim(), rate: Math.round(Number(gRate) * 100) / 100 }])} />
+        <Go label={busy ? "Saving" : "Add the giver"} disabled={busy || !gName.trim() || !(Number(gRate) > 0)} onPress={() => void saveGivers([...givers, { name: gName.trim(), gift: Math.round(Number(gRate) * 100) / 100 }])} />
       </View>
       {head(`ROWTEMBER's rate · ${centsWord(plan.rate)}/km`)}
       <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.gray, marginTop: 8 }}>Live at once, no update. It applies to every meter in the window, the ones already rowed included.</Text>

@@ -253,7 +253,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               <div key={g.name}>
                 <dt>
                   {g.name}
-                  <small>{cents(g.rate)}/km pledged, every meter</small>
+                  <small>A gift</small>
                 </dt>
                 <dd>{usd(g.dollars)}</dd>
               </div>
@@ -330,8 +330,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
             </h2>
             <p className="m2-lede">
               The Concept2 Holiday Challenge, {day(w.first)} to {day(w.last)}. Concept2 gives once you pass 100K: 2 cents a
-              kilometer to the charity you pick in your Logbook, then 4 cents for every kilometer past 100K, toward its{" "}
-              {usd(view.c2Goal)} goal. {by} matches Concept2&apos;s {cents(rate)} on every kilometer you row, from your first meter, to the charity you
+              kilometer to the charity you pick in your Logbook, then 4 cents for every kilometer past 100K. {by} matches Concept2&apos;s {cents(rate)} on every kilometer you row, from your first meter, to the charity you
               pick here.
             </p>
             <h3>Opt in to M2D: {steps.length} steps</h3>

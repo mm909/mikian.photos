@@ -10,9 +10,9 @@ import { giversOk, m2dPlan, rateOk, setM2dGivers, setM2dRate } from "@/app/row10
  *   POST { rate }       ROWTEMBER's rate, cents a kilometer, stored with no
  *                       deploy (M2D_RATE_KEY). It applies to every meter in
  *                       the window, the ones already rowed included.
- *   POST { givers }     the other givers, [{ name, rate }], each a pledge in
- *                       cents a kilometer on the same meters (M2D_GIVERS_KEY);
- *                       the whole list, replacing the one stored. */
+ *   POST { givers }     the other givers, [{ name, gift }], each a fixed
+ *                       gift in dollars (M2D_GIVERS_KEY); the whole list,
+ *                       replacing the one stored. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   if (!v.actor || !v.isAdmin) return no("Not here.", 404);
   const body = (await req.json().catch(() => null)) as { rate?: unknown; givers?: unknown } | null;
   if (body && "givers" in body) {
-    if (!giversOk(body.givers)) return no("Each giver needs a name (40 letters at most) and cents a kilometer above 0, to a hundredth.", 400);
+    if (!giversOk(body.givers)) return no("Each giver needs a name (40 letters at most) and a gift in dollars above 0.", 400);
     try {
       await setM2dGivers(body.givers, v.actor.email ?? "admin");
       return NextResponse.json({ ok: true, ...(await m2dPlan()) }, { headers: NO_STORE });
