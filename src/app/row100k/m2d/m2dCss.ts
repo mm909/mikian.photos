@@ -12,18 +12,18 @@ export const m2dCss = `
 .row100k .m2-from div.total dt{font-family:var(--row-archivo-black),sans-serif;font-weight:400;text-transform:uppercase}
 .row100k .m2-worth{margin-top:34px;max-width:560px}
 .row100k .m2-worth-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-bottom:8px;border-bottom:2px solid var(--ink)}
-.row100k .m2-worth-h h2{padding-bottom:0;border-bottom:0}
+.row100k .m2-worth-h h2{padding-bottom:0;border-bottom:0;color:var(--ink)}
 .row100k .m2-worth-h .m2-quiet,.row100k .m2-worth-h .m2-quiet-t{font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--water);text-align:right}
 .row100k .m2 .bd-row{--bd-figs:156px}
 .row100k .m2 .bd-row.past .bd-bar{background:color-mix(in srgb,var(--water) 22%,transparent)}
 @media (min-width:640px){.row100k .m2 .bd-row{--bd-figs:324px}}
-.row100k .m2-worth h2{font-family:var(--row-archivo-black),sans-serif;font-size:19px;font-weight:400;text-transform:uppercase;padding-bottom:8px;border-bottom:2px solid var(--ink)}
-.row100k .m2-worth div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:9px 0;border-bottom:1px solid var(--line)}
+.row100k .m2-worth h2{font-family:var(--row-archivo-black),sans-serif;font-size:19px;font-weight:400;text-transform:uppercase;color:var(--ink)}
+.row100k .m2-worth dl div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:9px 0;border-bottom:1px solid var(--line)}
 .row100k .m2-worth dt{font-size:15px;font-weight:700;color:var(--ink)}
 .row100k .m2-worth dd{font-family:var(--row-mono),monospace;font-size:15px;font-weight:700;color:var(--water);font-variant-numeric:tabular-nums}
-.row100k .m2-worth div.rate dd{color:var(--ink)}
-.row100k .m2-worth div.you{border-top:2px solid var(--ink);border-bottom:0}
-.row100k .m2-worth div.you dt{font-family:var(--row-archivo-black),sans-serif;font-weight:400;text-transform:uppercase}
+.row100k .m2-worth dl div.rate dd{color:var(--ink)}
+.row100k .m2-worth dl div.you{border-top:2px solid var(--ink);border-bottom:0}
+.row100k .m2-worth dl div.you dt{font-family:var(--row-archivo-black),sans-serif;font-weight:400;text-transform:uppercase}
 .row100k .m2-kick{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;line-height:1.5;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
 .row100k .m2-big{margin-top:6px;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(64px,17vw,168px);font-weight:400;line-height:.95;letter-spacing:-.02em;color:var(--water);font-variant-numeric:tabular-nums}
 .row100k .m2-sub{margin-top:10px;font-family:var(--row-mono),monospace;font-size:11px;line-height:1.6;letter-spacing:.12em;text-transform:uppercase;color:var(--gray)}
