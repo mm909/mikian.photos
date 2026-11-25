@@ -109,6 +109,10 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
           }}
         />
         <About />
+        {/* THE FOOT OF SETTINGS (owner, 2026-11-24: "we just put it just not
+            a link to my Instagram. We just put for yourself and others as a
+            footer there in the settings tab"): the splash's line, plain. */}
+        <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 1.2, color: C.gray, textAlign: "center", marginTop: 40 }}>FOR YOURSELF AND OTHERS</Text>
       </>,
     );
   }
