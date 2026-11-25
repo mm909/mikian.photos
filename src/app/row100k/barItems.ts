@@ -19,7 +19,11 @@ export type NavKey = "home" | "raceday" | "board" | "m2d" | "rankings" | "stats"
 export type NavItem = { key: NavKey; href: string; label: string };
 
 export const ITEMS: NavItem[] = [
-  /* Ahead of every section link: the rail reads race, then sections. */
+  /* M2D IS THE STAMP (owner, 2026-11-25: "instead of race day up in the top
+   * left, let's make that M2D ... bold ... that black background, white
+   * lettering"): first on the rail, white on black, while the app is not
+   * live. RACE DAY leaves the rail for the account menu. */
+  { key: "m2d", href: "/m2d", label: "M2D" },
   { key: "raceday", href: "/raceday", label: "RACE DAY" },
   /* BOARD is the month's 100K, the rowers who opted in (owner, 2026-10-01:
    * "we have the board, which is what's currently in dev, and then we have
@@ -27,9 +31,6 @@ export const ITEMS: NavItem[] = [
    * RANKINGS is the full rankings, opened on total meters; no ?m= and no
    * ?d=, so the records page reads the plain URL as this month, All. */
   { key: "board", href: "/board", label: "BOARD" },
-  /* M2D, the Concept2 Holiday Challenge in dollars (owner, 2026-11-25:
-   * the sign-up page on the site while the app is not live; m2d/page.tsx). */
-  { key: "m2d", href: "/m2d", label: "M2D" },
   { key: "rankings", href: "/records/total", label: "RANKINGS" },
   { key: "stats", href: "/stats", label: "STATS" },
   { key: "feed", href: "/feed", label: "FEED" },
@@ -38,7 +39,7 @@ export const ITEMS: NavItem[] = [
 
 /* The one item the pill may not address. It stays in ITEMS whether or not it
  * renders, so isKey keeps accepting the key and `active` stays typed. */
-export const STAMP: NavKey = "raceday";
+export const STAMP: NavKey = "m2d";
 
 /* PARTNERS and FEED are September's (owner, 2026-09-24: "on October 1st
  * we're going to hide the partner page"; "hide the feed on October 1st,
@@ -53,16 +54,15 @@ const SEPTEMBER_ONLY: NavKey[] = ["partners", "feed"];
  * when there is no account. */
 /* M2D too: a phone holds three words beside the wordmark, so on a narrow
  * screen it is in the account menu (and the front page links it). */
-const SOMETIMES: NavKey[] = [STAMP, "m2d", ...SEPTEMBER_ONLY];
+const SOMETIMES: NavKey[] = [STAMP, "raceday", ...SEPTEMBER_ONLY];
 
 /* What the rail carries right now. `raceOpen` is raceOpenFor(isAdmin) AND
  * (raceAnnounced() OR the race has been run), resolved by RowBar: the gate
  * the race wears, and whether there is a race or its results to lead to.
  * Otherwise the stamp is not in the markup at all. */
 export function railItems(raceOpen: boolean): NavItem[] {
-  return ITEMS.filter(
-    (it) => (raceOpen || it.key !== STAMP) && (MONTH.month === 9 || !SEPTEMBER_ONLY.includes(it.key)),
-  );
+  void raceOpen;
+  return ITEMS.filter((it) => it.key !== "raceday" && (MONTH.month === 9 || !SEPTEMBER_ONLY.includes(it.key)));
 }
 
 export function isSometimes(key: NavKey): boolean {
@@ -72,5 +72,6 @@ export function isSometimes(key: NavKey): boolean {
 /* The same words for a narrow screen, in rail order, title-cased by the
  * account menu the way its own items are. */
 export function overflowItems(raceOpen: boolean): NavItem[] {
-  return railItems(raceOpen).filter((it) => isSometimes(it.key));
+  /* RACE DAY lives here now, while a race is open or just run. */
+  return ITEMS.filter((it) => isSometimes(it.key) && (it.key !== "raceday" || raceOpen) && (MONTH.month === 9 || !SEPTEMBER_ONLY.includes(it.key)));
 }

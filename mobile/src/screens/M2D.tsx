@@ -140,33 +140,24 @@ function TotalItem({ d, label = "Total" }: { d: string; label?: string }) {
  * then 4 cents"). Each giver a line in cents a kilometer, and the sum,
  * under and past 100K. */
 function PerKm({ v }: { v: M2dView }) {
-  const by = v.match?.by ?? "ROWTEMBER";
   const all = perKmOf(v);
-  const line = (who: string, c: string, note: string) => (
-    <View key={who} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", columnGap: 12, paddingVertical: 8, borderBottomWidth: 1, borderColor: C.line }}>
+  /* Only the sums (owner, 2026-11-25: "we actually don't need the rows for
+   * Concept2 and ROWTEMBER. I only care about the under 100K, after 100K");
+   * the givers and their rates are on the receipt above. */
+  const sum = (k: string, note: string, c: number) => (
+    <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", columnGap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line }}>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: F.bold, fontSize: 14, color: C.ink, textTransform: "uppercase" }}>{who}</Text>
-        <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 2, lineHeight: 14 }]}>{note}</Text>
+        <Text style={{ fontFamily: F.black, fontSize: 15, color: C.ink, textTransform: "uppercase" }}>{k}</Text>
+        <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 3 }]}>{note}</Text>
       </View>
-      <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.ink, fontVariant: ["tabular-nums"] }}>{c}</Text>
-    </View>
-  );
-  const sum = (k: string, c: number) => (
-    <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingTop: 8 }}>
-      <Text style={{ fontFamily: F.black, fontSize: 15, color: C.ink, textTransform: "uppercase" }}>{k}</Text>
-      <Text style={{ fontFamily: F.black, fontSize: 15, color: C.accent, fontVariant: ["tabular-nums"] }}>{centsWord(c)} / km</Text>
+      <Text style={{ fontFamily: F.black, fontSize: 17, color: C.accent, fontVariant: ["tabular-nums"] }}>{centsWord(c)} / km</Text>
     </View>
   );
   return (
     <View style={{ marginTop: 34 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>
-        <Text style={{ fontFamily: F.black, fontSize: 17, color: C.ink, textTransform: "uppercase" }}>What a kilometer is worth</Text>
-      </View>
-      {line("Concept2", "2¢ → 4¢", "Once you pass 100K: 2¢ for each of the first 100 km, 4¢ for every one after")}
-      {line(by, centsWord(rateOf(v)), "Every meter logged on ROW, from the first")}
-      {giversOf(v).map((g) => line(g.name, centsWord(g.rate), "Pledged on every meter logged on ROW"))}
-      {sum("Under 100K", all)}
-      {sum("Past 100K", all + 4)}
+      <Text style={{ fontFamily: F.black, fontSize: 17, color: C.ink, textTransform: "uppercase", paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>What a kilometer is worth</Text>
+      {sum("Under 100K", "Before Concept2 starts giving", all)}
+      {sum("Past 100K", "Concept2's 4¢ on top", all + 4)}
     </View>
   );
 }
@@ -175,15 +166,14 @@ function PerKm({ v }: { v: M2dView }) {
  * ground the stickers are made for (owner, 2026-11-25: "this is where a
  * share button should be"). */
 function ShareBtn({ label, only }: { label: string; only: string }) {
+  /* Small (owner, 2026-11-25: "the share the total button is too big ...
+   * what I want people to see first is the amount of money"); a press opens
+   * the sticker itself to look at before sharing. */
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => setOpen(true)}
-        style={({ pressed }) => ({ alignSelf: "stretch", marginTop: 18, backgroundColor: C.ink, paddingVertical: 13, alignItems: "center", opacity: pressed ? 0.7 : 1 })}
-      >
-        <Text style={{ fontFamily: F.black, fontSize: 14, color: C.paper, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={10} onPress={() => setOpen(true)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+        <Text style={[mono(10, true, C.accent, 0.12), { textDecorationLine: "underline" }]}>{label} ↗</Text>
       </Pressable>
       {open ? <StickerViewer only={only} empty="The M2D stickers open Nov 26, with the first meters." onClose={() => setOpen(false)} /> : null}
     </>
@@ -296,17 +286,20 @@ function useIn(v: M2dView | null, reload: () => Promise<void>) {
  * UNDO row needed to be clear): a status, not a link; Open Concept2 is the
  * one link; Undo small, quiet and set apart, so it is not hit by mistake. */
 function Status({ v, busy, onUndo }: { v: M2dView; busy: boolean; onUndo: () => void }) {
+  /* One line, no box (owner, 2026-11-25: "there's just a lot of buttons"). */
   return (
-    <View style={{ marginTop: 20 }}>
-      <View style={{ borderWidth: 1, borderColor: C.accent, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Text style={mono(12, true, C.accent, 0.12)}>✓ Registered</Text>
-        <Ctl label="Open Concept2 ↗" onPress={() => open(v.link)} />
-      </View>
-      {!v.window.over ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Undo, I'm not registered" hitSlop={6} disabled={busy} onPress={onUndo} style={{ alignSelf: "flex-end", marginTop: 14 }}>
-          <Text style={mono(9, false, C.gray, 0.1)}>{busy ? "Saving" : "Not registered? Undo"}</Text>
+    <View style={{ marginTop: 26, paddingTop: 12, borderTopWidth: 1, borderColor: C.line, flexDirection: "row", alignItems: "center", justifyContent: "space-between", columnGap: 12 }}>
+      <Text style={mono(10, true, C.accent, 0.12)}>✓ Registered with Concept2</Text>
+      <View style={{ flexDirection: "row", columnGap: 16 }}>
+        <Pressable accessibilityRole="link" hitSlop={8} onPress={() => open(v.link)}>
+          <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>Concept2 ↗</Text>
         </Pressable>
-      ) : null}
+        {!v.window.over ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Undo, I'm not registered" hitSlop={8} disabled={busy} onPress={onUndo}>
+            <Text style={[mono(10, false, C.gray, 0.12), { textDecorationLine: "underline" }]}>{busy ? "Saving" : "Undo"}</Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -405,8 +398,10 @@ function Split({ v, busy, onSave }: { v: M2dView; busy: boolean; onSave: (s: Rec
   const list = v.charities ?? [];
   const saved = v.me?.shares ?? null;
   const [draft, setDraft] = useState<Record<string, number> | null>(null);
-  const by = v.match?.by ?? "ROWTEMBER";
   const start = () => setDraft(Object.fromEntries(list.map((c) => [c.key, saved?.[c.key] ?? (saved ? 0 : Math.round(100 / list.length))])) as Record<string, number>);
+  /* Thirds come out 34 / 33 / 33: the shares always add to 100. */
+  const even = () => setDraft(Object.fromEntries(list.map((c, i) => [c.key, Math.floor(100 / list.length) + (i < 100 % list.length ? 1 : 0)])) as Record<string, number>);
+  const all = (k: string) => setDraft(Object.fromEntries(list.map((x) => [x.key, x.key === k ? 100 : 0])) as Record<string, number>);
   const step = (i: number, d: 10 | -10) => {
     if (!draft) return;
     const k = list[i].key;
@@ -434,79 +429,75 @@ function Split({ v, busy, onSave }: { v: M2dView; busy: boolean; onSave: (s: Rec
       setDraft(next);
     }
   };
+  const link = (label: string, on: () => void, a11y?: string) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={a11y ?? label} hitSlop={8} disabled={busy} onPress={on}>
+      <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>{label}</Text>
+    </Pressable>
+  );
+  /* SAVED: plain lines, the name and its share (owner, 2026-11-25: "a
+   * little too many boxes here"). */
   if (!draft) {
+    const on = saved ? list.filter((c) => (saved[c.key] ?? 0) > 0) : [];
     return (
-      <View style={{ marginTop: 22 }}>
-        <Text style={mono(10, true, C.ink, 0.12)}>Your charity</Text>
-        {saved ? (
-          list
-            .filter((c) => (saved[c.key] ?? 0) > 0)
-            .map((c) => (
-              <View key={c.key} style={{ marginTop: 8, backgroundColor: C.accent, padding: 12, flexDirection: "row", alignItems: "center", columnGap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: F.black, fontSize: 15, color: "#FFFFFF", textTransform: "uppercase" }}>✓ {c.name}</Text>
-                  <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: "#FFFFFF", marginTop: 3 }}>{c.what}</Text>
-                </View>
-                <Text style={{ fontFamily: F.black, fontSize: 20, color: "#FFFFFF", fontVariant: ["tabular-nums"] }}>{saved[c.key]}%</Text>
-              </View>
-            ))
+      <View style={{ marginTop: 26 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>
+          <Text style={{ fontFamily: F.black, fontSize: 15, color: C.ink, textTransform: "uppercase" }}>Your charity</Text>
+          {!v.window.over ? link(saved ? "Change" : "Pick one", start, "Change or split the charity") : null}
+        </View>
+        {on.length ? (
+          on.map((c) => (
+            <View key={c.key} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line }}>
+              <Text style={{ fontFamily: F.bold, fontSize: 15, color: C.ink }}>✓ {c.name}</Text>
+              <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.accent }}>{saved?.[c.key]}%</Text>
+            </View>
+          ))
         ) : (
-          <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 8 }]}>No charity picked yet</Text>
+          <Text style={[mono(10, false, C.gray, 0.1), { paddingVertical: 10 }]}>No charity picked yet.</Text>
         )}
-        {!v.window.over ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Change or split the charity" hitSlop={8} disabled={busy} onPress={start} style={{ alignSelf: "flex-start", marginTop: 10 }}>
-            <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>{saved ? "Change or split" : "Pick a charity"}</Text>
-          </Pressable>
-        ) : null}
       </View>
     );
   }
   const sum = list.reduce((a, c) => a + (draft[c.key] ?? 0), 0);
   const btn = (label: string, on: () => void, off: boolean, a11y: string) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={a11y} disabled={off || busy} onPress={on} hitSlop={6} style={({ pressed }) => ({ width: 40, height: 40, borderWidth: 1, borderColor: off ? C.line : C.ink, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.5 : 1 })}>
-      <Text style={{ fontFamily: F.black, fontSize: 20, color: off ? C.line : C.ink }}>{label}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={a11y} disabled={off || busy} onPress={on} hitSlop={6} style={({ pressed }) => ({ width: 36, height: 36, borderWidth: 1, borderColor: off ? C.line : C.ink, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.5 : 1 })}>
+      <Text style={{ fontFamily: F.black, fontSize: 18, color: off ? C.line : C.ink }}>{label}</Text>
     </Pressable>
   );
+  /* CHANGING: each charity its − share +, and 100% beside it to give it
+   * all (owner, 2026-11-25: "the all to a certain one ... can probably
+   * just be in line here"); SPLIT EVENLY and SAVE under them. The shares
+   * are said once, on the lines. */
   return (
-    <View style={{ marginTop: 22 }}>
-      <Text style={{ fontFamily: F.black, fontSize: 16, color: C.ink, textTransform: "uppercase" }}>Your charity</Text>
-      <Text style={{ fontFamily: F.sans, fontSize: 13.5, lineHeight: 19, color: C.gray, marginTop: 4 }}>
-        {by} gives {centsWord(rateOf(v))} for every kilometer you row. All to one charity, or split it; the shares always add up to 100%.
-      </Text>
+    <View style={{ marginTop: 26 }}>
+      <Text style={{ fontFamily: F.black, fontSize: 15, color: C.ink, textTransform: "uppercase", paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>Your charity</Text>
       {list.map((c, i) => (
-        <View key={c.key} style={{ flexDirection: "row", alignItems: "center", columnGap: 10, paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line }}>
-          <Text style={{ flex: 1, fontFamily: F.black, fontSize: 14, color: draft[c.key] > 0 ? C.ink : C.gray, textTransform: "uppercase" }}>{c.name}</Text>
+        <View key={c.key} style={{ flexDirection: "row", alignItems: "center", columnGap: 8, paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line }}>
+          <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.bold, fontSize: 14, color: draft[c.key] > 0 ? C.ink : C.gray }}>{c.name}</Text>
           {btn("−", () => step(i, -10), draft[c.key] <= 0, `Less to ${c.name}`)}
-          <Text style={{ width: 52, textAlign: "center", fontFamily: F.black, fontSize: 18, color: draft[c.key] > 0 ? C.accent : C.gray, fontVariant: ["tabular-nums"] }}>{draft[c.key]}%</Text>
+          <Text style={{ width: 48, textAlign: "center", fontFamily: F.black, fontSize: 16, color: draft[c.key] > 0 ? C.accent : C.gray, fontVariant: ["tabular-nums"] }}>{draft[c.key]}%</Text>
           {btn("+", () => step(i, 10), draft[c.key] >= 100, `More to ${c.name}`)}
+          <Pressable accessibilityRole="button" accessibilityLabel={`All to ${c.name}`} hitSlop={6} disabled={busy || draft[c.key] === 100} onPress={() => all(c.key)} style={({ pressed }) => ({ marginLeft: 4, paddingHorizontal: 6, height: 36, justifyContent: "center", borderWidth: 1, borderColor: draft[c.key] === 100 ? C.line : C.ink, opacity: pressed ? 0.5 : 1 })}>
+            <Text style={mono(9.5, true, draft[c.key] === 100 ? C.line : C.ink, 0.06)}>100%</Text>
+          </Pressable>
         </View>
       ))}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 16, rowGap: 8, marginTop: 10 }}>
-        {list.map((c) => (
-          <Pressable key={c.key} accessibilityRole="button" hitSlop={6} onPress={() => setDraft(Object.fromEntries(list.map((x) => [x.key, x.key === c.key ? 100 : 0])) as Record<string, number>)}>
-            <Text style={[mono(9.5, false, C.gray, 0.1), { textDecorationLine: "underline" }]}>All to {c.name}</Text>
-          </Pressable>
-        ))}
-        {list.length === 3 ? (
-          <Pressable accessibilityRole="button" hitSlop={6} onPress={() => setDraft({ [list[0].key]: 34, [list[1].key]: 33, [list[2].key]: 33 })}>
-            <Text style={[mono(9.5, false, C.gray, 0.1), { textDecorationLine: "underline" }]}>⅓ each</Text>
-          </Pressable>
-        ) : null}
-      </View>
-      <Text style={{ fontFamily: F.bold, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 14 }}>{sharesText(v, draft)}</Text>
-      <View style={{ marginTop: 12 }}>
-        <Go
-          label={busy ? "Saving" : "Save"}
+      <View style={{ flexDirection: "row", columnGap: 10, marginTop: 14 }}>
+        <Pressable accessibilityRole="button" disabled={busy} onPress={even} style={({ pressed }) => ({ flex: 1, borderWidth: 2, borderColor: C.ink, paddingVertical: 12, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+          <Text style={{ fontFamily: F.black, fontSize: 14, color: C.ink, textTransform: "uppercase" }}>Split evenly</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
           disabled={busy || sum !== 100}
           onPress={() => {
             onSave(draft);
             setDraft(null);
           }}
-        />
+          style={({ pressed }) => ({ flex: 1, backgroundColor: C.accent, borderWidth: 2, borderColor: C.accent, paddingVertical: 12, alignItems: "center", opacity: busy || sum !== 100 ? 0.4 : pressed ? 0.7 : 1 })}
+        >
+          <Text style={{ fontFamily: F.black, fontSize: 14, color: "#FFFFFF", textTransform: "uppercase" }}>{busy ? "Saving" : "Save"}</Text>
+        </Pressable>
       </View>
-      <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setDraft(null)} style={{ alignSelf: "flex-start", marginTop: 12 }}>
-        <Text style={[mono(10, false, C.gray, 0.12), { textDecorationLine: "underline" }]}>Cancel</Text>
-      </Pressable>
+      <View style={{ alignSelf: "flex-start", marginTop: 12 }}>{link("Cancel", () => setDraft(null))}</View>
     </View>
   );
 }
@@ -583,13 +574,12 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
       <View style={{ paddingHorizontal: 20 }}>
         <Dateline left="Concept2 Holiday Challenge" right={windowWord(v)} days={w.days} day={w.day} />
         <Raised v={v} onFaq={setFaq} />
-        {v.me ? <ShareBtn label="Share the total" only="m2d-all" /> : null}
         <PerKm v={v} />
       </View>
 
       <View style={{ marginHorizontal: 20, marginTop: 36, paddingBottom: 9, borderBottomWidth: 1, borderColor: C.ink, flexDirection: "row", alignItems: "baseline" }}>
         <Text style={{ flex: 1, fontFamily: F.black, fontSize: 17, lineHeight: 18, color: C.ink, textTransform: "uppercase" }}>The board</Text>
-        <Text style={mono(10, false, C.gray, 0.1)}>Meters · $</Text>
+        {v.me ? <ShareBtn label="Share the total" only="m2d-all" /> : <Text style={mono(10, false, C.gray, 0.1)}>Meters · $</Text>}
       </View>
       {!w.started ? (
         <Text style={[mono(11, false, C.gray), { paddingHorizontal: 20, paddingVertical: 14, lineHeight: 18 }]}>The board opens Nov 26. Every meter from then counts.</Text>
@@ -619,7 +609,6 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
           )
         ) : null}
         {inOut.note ? <Text style={[mono(11, true, C.ink, 0.14), { marginTop: 10, lineHeight: 18 }]}>{inOut.note}</Text> : null}
-        {v.me?.in ? <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 18, lineHeight: 16 }]}>You are registered. Your charity and your dollars are on your profile, under M2D.</Text> : null}
       </View>
       <Pressable accessibilityRole="link" hitSlop={8} onPress={() => setFaq("all")} style={{ alignSelf: "flex-start", marginHorizontal: 20, marginTop: 14 }}>
         <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>How it adds up</Text>
@@ -676,7 +665,10 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
   const d = own ? (v.me?.dollars ?? 0) : (row?.dollars ?? 0);
   return (
     <View style={{ paddingTop: 18, paddingBottom: 40 }}>
-      <Eye left="M2D" right={windowWord(v)} />
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Text style={mono(10, true, C.ink, 0.12)}>M2D · {windowWord(v)}</Text>
+        {own && v.me ? <ShareBtn label="Share" only="m2d-me" /> : null}
+      </View>
       {hidden ? (
         <View style={{ marginTop: 18 }}>
           <Blocks n={row?.blocks ?? 5} size={20} />
@@ -712,7 +704,6 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
         </>
       )}
       {own && v.me?.in && matchOn ? <Split v={v} busy={inOut.busy} onSave={(s) => inOut.say(true, undefined, s)} /> : null}
-      {own && v.me ? <ShareBtn label="Share my dollars" only="m2d-me" /> : null}
       {/* Registering and Concept2 at the foot (owner, 2026-11-25). */}
       {own && v.me && !v.me.in && !v.window.over ? (
         <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick ?? undefined)} />
@@ -732,7 +723,16 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
  * receipts opens a page that shows it). Concept2's rule and its total;
  * ROWTEMBER's meters x rate and its split by charity; the short questions.
  * The site's twin is /m2d/faq (row100k/m2d/faq/page.tsx). */
-export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "concept2" | "rowtember" | "all"; onBack: () => void; onScrollDir?: (down: boolean) => void }) {
+/* THE MATH AS A PAGE, behind the ? in the bar on the M2D tab (owner,
+ * 2026-11-25: "The how it adds up button should be ... up at the top where
+ * we have the bell ... a little question mark thing"). */
+export function M2dFaqPage({ onScrollDir }: { onScrollDir?: (down: boolean) => void }) {
+  const { data: v, error, reload } = useM2d();
+  if (!v) return <Waiting error={error} onRetry={reload} />;
+  return <M2dFaq v={v} focus="all" onScrollDir={onScrollDir} />;
+}
+
+export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "concept2" | "rowtember" | "all"; onBack?: () => void; onScrollDir?: (down: boolean) => void }) {
   const dir = useScrollDir(onScrollDir);
   const t = v.totals;
   const by = v.match?.by ?? "ROWTEMBER";
@@ -772,10 +772,12 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
   void y;
   return (
     <ScrollView ref={ref as never} {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132, paddingHorizontal: 20 }}>
-      <Pressable accessibilityRole="button" hitSlop={10} onPress={onBack} style={{ alignSelf: "flex-start" }}>
-        <Text style={mono(11, true, C.ink, 0.12)}>‹ M2D</Text>
-      </Pressable>
-      <Text style={{ fontFamily: F.black, fontSize: 30, lineHeight: 34, color: C.ink, textTransform: "uppercase", marginTop: 14 }}>How it adds up</Text>
+      {onBack ? (
+        <Pressable accessibilityRole="button" hitSlop={10} onPress={onBack} style={{ alignSelf: "flex-start", marginBottom: 14 }}>
+          <Text style={mono(11, true, C.ink, 0.12)}>‹ M2D</Text>
+        </Pressable>
+      ) : null}
+      <Text style={{ fontFamily: F.black, fontSize: 30, lineHeight: 34, color: C.ink, textTransform: "uppercase" }}>How it adds up</Text>
 
       {head("concept2", "Concept2", t.raised)}
       {para("Concept2 gives nothing for a rower until they pass 100,000 meters between Nov 26 and Dec 24. Then 2¢ for each of the first 100 kilometers, which is $2, and 4¢ for every kilometer after: 150K is $4, 200K is $6, 300K is $10. It goes to the charity the rower picks in their Concept2 Logbook.")}
@@ -793,7 +795,6 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
         {(v.charities ?? []).map((c) => row(c.full, usd(t.split?.[c.key] ?? 0)))}
         {(t.unpicked ?? 0) > 0 ? row("No charity picked yet", usd(t.unpicked ?? 0)) : null}
       </View>
-      {para(`${by} pays its part itself. Nobody is asked for money.`)}
 
       <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, textTransform: "uppercase", marginTop: 30 }}>Questions</Text>
       {q("When is it?", "Thursday, Nov 26 to Thursday, Dec 24. Concept2 takes meters into the Logbook until Jan 4.")}
@@ -889,6 +890,8 @@ type Plan = {
   window: { day: number; days: number };
   rate: number;
   givers?: { name: string; rate: number }[];
+  picks?: { key: string; name: string; rowers: number; pct: number }[];
+  unpicked?: number;
   soFar: { meters: number; inMeters: number; rowers: number; registered: number; cost: number };
   history: { high: { label: string; meters: number; rowers: number }; low: { label: string; meters: number; rowers: number } };
   projected: { low: number; likely: number; high: number };
@@ -967,6 +970,13 @@ export function M2dPlanner() {
       {row("Meters in the window", `${fmtInt(plan.soFar.meters)} m`)}
       {row(`By registered rowers (${plan.soFar.registered})`, `${fmtInt(plan.soFar.inMeters)} m`)}
       {row(`ROWTEMBER so far at ${centsWord(plan.rate)}/km`, usd(plan.soFar.cost))}
+      {plan.picks ? (
+        <>
+          {head(`What rowers picked · ${plan.soFar.registered} registered`)}
+          {plan.picks.map((c) => row(`${c.name} · ${c.rowers} ${c.rowers === 1 ? "rower" : "rowers"}`, `${c.pct}%`))}
+          {plan.unpicked ? row("No pick yet", `${plan.unpicked}`) : null}
+        </>
+      ) : null}
       {head(`Projected · ${plan.basis === "pace" ? "from the pace" : "from history"}`)}
       {row(`Low · ${fmtInt(low)} m`, usd(costOf(low, plan.rate)))}
       {row(`Likely · ${fmtInt(likely)} m`, usd(costOf(likely, plan.rate)))}

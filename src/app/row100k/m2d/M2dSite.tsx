@@ -28,7 +28,12 @@ const num = (n: number) => Math.round(n).toLocaleString("en-US");
 /* "$7.02"; whole dollars from $1,000. */
 const usd = (d: number) => (d >= 1000 ? `$${num(d)}` : `$${d.toFixed(2)}`);
 /* "3¢", "2.5¢", "$1". */
-const cents = (c: number) => (c >= 100 ? `$${(c / 100).toFixed(c % 100 ? 2 : 0)}` : `${c}¢`);
+const cents = (c: number) => (c >= 100 ? `$${(c / 100).toFixed(c % 100 ? 2 : 0)}` : `${Math.round(c * 100) / 100}¢`);
+/* Concept2's part for some meters: nothing until 100K, then 2¢ a km for
+ * the first 100 and 4¢ after (m2d.ts locked). */
+const c2Of = (m: number) => (m < 100_000 ? 0 : 2 + 0.04 * (m / 1000 - 100));
+/* Every giver on the site's side (ROWTEMBER and any pledge), a km. */
+const oursOf = (m: number, perKm: number) => ((m / 1000) * perKm) / 100;
 /* "Nov 26" from "2026-11-26". */
 const day = (iso: string) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -44,6 +49,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
   const [changing, setChanging] = useState(false);
   const [joining, setJoining] = useState(false);
   const { window: w, totals: t, goal, charities, rate } = view;
+  const perKm = view.perKm ?? rate;
   const by = view.match.by;
 
   /* A pick made before signing in comes back with the visitor. */
@@ -192,7 +198,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
       <div className="wrap front">
         <h1 className="bd-date">
           <b>M2D · Meters to dollars</b>
-          <span>{!w.started ? `Starts ${day(w.first)}` : w.over ? "Wrapped" : `Day ${w.day} of ${w.days}`}</span>
+          <span>{!w.started ? `${day(w.first)} – ${day(w.last)}` : w.over ? "Wrapped" : `Day ${w.day} of ${w.days}`}</span>
         </h1>
         <div className="bd-days" role="img" aria-label={`Day ${w.day} of ${w.days}`}>
           {Array.from({ length: w.days }, (_, i) => (
@@ -204,10 +210,8 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
         <section className="m2-head" aria-label="Raised so far">
           <p className="m2-big">{usd(t.total)}</p>
           <p className="m2-kick">
-            Raised{" "}
-            <span className="m2-kick-q">
-              · {w.started ? `${num(t.meters)} m rowed since ${day(w.first)}` : `Starts ${day(w.first)}`}
-            </span>
+            Raised
+            {w.started ? <span className="m2-kick-q"> · {num(t.meters)} m rowed since {day(w.first)}</span> : null}
           </p>
           <div className="m2-goal">
             <div className="m2-goal-t">
@@ -221,21 +225,36 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
           {/* THE RECEIPTS: each name opens the math (owner: tapping CONCEPT2
               or ROWTEMBER opens the FAQ that shows it). */}
           <dl className="m2-from">
+            {/* THE METERS on the receipt, and each giver's rate under its
+                name (owner, 2026-11-25: "the only thing that's missing is I
+                want a number of meters ... the cents per meter to be shown
+                somewhere"). */}
+            <div>
+              <dt>
+                Meters rowed<small>By registered rowers</small>
+              </dt>
+              <dd style={{ color: "var(--ink)" }}>{num(t.inMeters)} m</dd>
+            </div>
             <div>
               <dt>
                 <Link href="/m2d/faq#concept2">Concept2 ›</Link>
+                <small>2¢/km once a rower passes 100K, 4¢ after</small>
               </dt>
               <dd>{usd(t.raised)}</dd>
             </div>
             <div>
               <dt>
                 <Link href="/m2d/faq#rowtember">{by} ›</Link>
+                <small>{cents(rate)}/km on every meter</small>
               </dt>
               <dd>{usd(t.matched)}</dd>
             </div>
             {(t.givers ?? []).map((g) => (
               <div key={g.name}>
-                <dt>{g.name}</dt>
+                <dt>
+                  {g.name}
+                  <small>{cents(g.rate)}/km pledged, every meter</small>
+                </dt>
                 <dd>{usd(g.dollars)}</dd>
               </div>
             ))}
@@ -251,7 +270,40 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
                 <dd>{usd(t.unpicked)}</dd>
               </div>
             ) : null}
+            <div className="total">
+              <dt>Total</dt>
+              <dd>{usd(t.total)}</dd>
+            </div>
           </dl>
+          {/* WHAT YOUR METERS ARE WORTH (owner, 2026-11-25: "if you row this
+              much, this is how much gets donated. And you have rowed this
+              much so far, so this is how much is donated ... here's how much
+              your meters are worth"). */}
+          <section className="m2-worth" aria-label="What your meters are worth">
+            <h2>What your meters are worth</h2>
+            <dl>
+            <div className="rate">
+              <dt>A kilometer under 100K</dt>
+              <dd>{cents(perKm)}</dd>
+            </div>
+            <div className="rate">
+              <dt>A kilometer past 100K</dt>
+              <dd>{cents(perKm + 4)}</dd>
+            </div>
+            {[50_000, 100_000, 200_000, 300_000].map((m) => (
+              <div key={m}>
+                <dt>Row {num(m / 1000)}K</dt>
+                <dd>{usd(c2Of(m) + oursOf(m, perKm))}</dd>
+              </div>
+            ))}
+            {view.me && w.started ? (
+              <div className="you">
+                <dt>You, {num(view.me.meters)} m so far</dt>
+                <dd>{usd(view.me.dollars)}</dd>
+              </div>
+            ) : null}
+            </dl>
+          </section>
         </section>
 
         {/* IN: one quiet line, the charity, CHANGE. NOT IN: one small call
@@ -294,7 +346,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               The Concept2 Holiday Challenge, {day(w.first)} to {day(w.last)}. Concept2 gives once you pass 100K: 2 cents a
               kilometer to the charity you pick in your Logbook, then 4 cents for every kilometer past 100K, toward its{" "}
               {usd(view.c2Goal)} goal. {by} gives {cents(rate)} for every kilometer you row, from your first meter, to the charity you
-              pick here. It is free.
+              pick here.
             </p>
             <h3>Join in {steps.length} steps</h3>
             <ol className="m2-steps">

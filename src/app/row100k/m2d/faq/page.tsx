@@ -112,7 +112,6 @@ export default async function M2dFaqPage() {
                   </div>
                 ) : null}
               </dl>
-              <p>{v.match.by} pays its part itself. Nobody is asked for money.</p>
 
               <h2>Questions</h2>
               <h3>When is it?</h3>

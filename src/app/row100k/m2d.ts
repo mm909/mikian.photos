@@ -501,6 +501,12 @@ export type M2dPlan = {
   window: M2dWindow;
   rate: number;
   givers: Giver[];
+  /* WHAT ROWERS PICKED (owner, 2026-11-25: "I personally want to see ...
+   * what charities people chose, what percentage"): each charity's share of
+   * the registered rowers' picks, a split counted by its shares (a rower
+   * at 50/50 is half a rower to each), and how many have no pick yet. */
+  picks: { key: string; name: string; rowers: number; pct: number }[];
+  unpicked: number;
   soFar: { meters: number; inMeters: number; rowers: number; registered: number; cost: number };
   history: { high: PlanSpan; low: PlanSpan };
   projected: { low: number; likely: number; high: number };
@@ -515,7 +521,7 @@ export async function m2dPlan(): Promise<M2dPlan> {
   const window = m2dWindow();
   const monthStart = `${M2D_FIRST.slice(0, 8)}01`;
   const dayBefore = new Date(Date.parse(`${M2D_FIRST}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
-  const [{ totals, rate, givers }, high, low] = await Promise.all([
+  const [{ totals, rate, givers, ins }, high, low] = await Promise.all([
     m2dTotals(),
     span(HIGH_MONTH.label, HIGH_MONTH.first, HIGH_MONTH.last),
     span(`${new Date(`${monthStart}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })} 1 to ${Number(dayBefore.slice(8))}`, monthStart, dayBefore),
@@ -538,6 +544,19 @@ export async function m2dPlan(): Promise<M2dPlan> {
     window,
     rate,
     givers,
+    ...(() => {
+      const w = Object.fromEntries(CHARITIES.map((c) => [c.key, 0])) as Record<string, number>;
+      let unpicked = 0;
+      for (const s of ins.values()) {
+        if (!s) unpicked++;
+        else for (const c of CHARITIES) w[c.key] += (s[c.key] ?? 0) / 100;
+      }
+      const picked = Math.max(1, ins.size - unpicked);
+      return {
+        picks: CHARITIES.map((c) => ({ key: c.key, name: c.name, rowers: Math.round(w[c.key] * 10) / 10, pct: Math.round((w[c.key] / picked) * 100) })),
+        unpicked,
+      };
+    })(),
     soFar: { meters: totals.meters, inMeters: totals.inMeters, rowers: totals.rowers, registered: totals.registered, cost: totals.matched },
     history: { high, low },
     projected: { low: r(projected.low), likely: r(projected.likely), high: r(projected.high) },

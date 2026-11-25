@@ -4,7 +4,7 @@ import { ROWER_URL, shareLink } from "../files";
 import Svg, { Line, Path, Rect } from "react-native-svg";
 import { api, edits, type Best, type Blocked, type Counts, type FiveK, type LogRow, type Profile, type Rel } from "../api";
 import { MonthGrid, PaceLine } from "../charts";
-import { GridIcon, RingIcon, StatsIcon } from "../icons";
+import { GiftIcon, GridIcon, RingIcon, StatsIcon } from "../icons";
 import { arcadeFor } from "../arcade/gate";
 import { M2dPanel } from "./M2D";
 import { useSession } from "../session";
@@ -677,7 +677,7 @@ function Tabs({ value, onPick, pos, width, subs }: { value: Sub; onPick: (t: Sub
         const tone = on ? C.ink : C.gray;
         return (
           <Pressable key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: on }} onPress={() => onPick(t.id)} style={{ flex: 1, alignItems: "center", paddingTop: 10 }}>
-            <View style={{ height: 26, justifyContent: "center" }}>{t.id === "rows" ? <GridIcon color={tone} size={24} /> : t.id === "stats" ? <StatsIcon color={tone} size={24} /> : t.id === "m2d" ? <Text style={{ fontFamily: F.black, fontSize: 19, lineHeight: 24, color: tone }}>$</Text> : <CurveIcon color={tone} size={24} />}</View>
+            <View style={{ height: 26, justifyContent: "center" }}>{t.id === "rows" ? <GridIcon color={tone} size={24} /> : t.id === "stats" ? <StatsIcon color={tone} size={24} /> : t.id === "m2d" ? <GiftIcon color={tone} size={24} /> : <CurveIcon color={tone} size={24} />}</View>
             <View style={{ height: 2, marginTop: 10 }} />
           </Pressable>
         );

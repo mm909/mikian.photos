@@ -5,7 +5,19 @@
  * quotes, no apostrophes, no angle brackets and no ampersands in this
  * string; descendant selectors only. */
 export const m2dCss = `
-.row100k .m2-head{margin-top:26px}
+.row100k .m2-head{margin-top:26px;text-align:center}
+.row100k .m2-head .m2-goal,.row100k .m2-head .m2-from,.row100k .m2-head .m2-worth{margin-left:auto;margin-right:auto;text-align:left}
+.row100k .m2-from dt small{display:block;margin-top:3px;font-family:var(--row-mono),monospace;font-size:10px;font-weight:400;letter-spacing:.08em;text-transform:uppercase;color:var(--gray)}
+.row100k .m2-from div.total{border-top:2px solid var(--ink);border-bottom:0}
+.row100k .m2-from div.total dt{font-family:var(--row-archivo-black),sans-serif;font-weight:400;text-transform:uppercase}
+.row100k .m2-worth{margin-top:34px;max-width:560px}
+.row100k .m2-worth h2{font-family:var(--row-archivo-black),sans-serif;font-size:19px;font-weight:400;text-transform:uppercase;padding-bottom:8px;border-bottom:2px solid var(--ink)}
+.row100k .m2-worth div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:9px 0;border-bottom:1px solid var(--line)}
+.row100k .m2-worth dt{font-size:15px;font-weight:700;color:var(--ink)}
+.row100k .m2-worth dd{font-family:var(--row-mono),monospace;font-size:15px;font-weight:700;color:var(--water);font-variant-numeric:tabular-nums}
+.row100k .m2-worth div.rate dd{color:var(--ink)}
+.row100k .m2-worth div.you{border-top:2px solid var(--ink);border-bottom:0}
+.row100k .m2-worth div.you dt{font-family:var(--row-archivo-black),sans-serif;font-weight:400;text-transform:uppercase}
 .row100k .m2-kick{font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;line-height:1.5;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
 .row100k .m2-big{margin-top:6px;font-family:var(--row-archivo-black),sans-serif;font-size:clamp(64px,17vw,168px);font-weight:400;line-height:.95;letter-spacing:-.02em;color:var(--water);font-variant-numeric:tabular-nums}
 .row100k .m2-sub{margin-top:10px;font-family:var(--row-mono),monospace;font-size:11px;line-height:1.6;letter-spacing:.12em;text-transform:uppercase;color:var(--gray)}

@@ -12,7 +12,7 @@ import { BackIcon, BellIcon, DotsIcon, FeedIcon, GiftIcon, MenuIcon, PlusIcon, P
 import { BadgeSlot, Mark, type MarkKind } from "./src/mark";
 import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen, MonthSheet, loadBoardMonths, monthMark, useBoardMonth } from "./src/screens/Board";
-import { M2D_PATH, M2dScreen, totalOf, usd, type M2dView } from "./src/screens/M2D";
+import { M2D_PATH, M2dFaqPage, M2dScreen, totalOf, usd, type M2dView } from "./src/screens/M2D";
 import { FeedScreen } from "./src/screens/Feed";
 import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
 import { DemoPage, ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
@@ -105,6 +105,7 @@ type Over = { k: number } & (
   | { kind: "demo"; doc: TelemetryDoc; meters: number }
   | { kind: "wiki"; id?: string }
   | { kind: "locker" }
+  | { kind: "m2dfaq" }
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
   | { kind: "erg"; id: string }
@@ -535,7 +536,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page ?? "Settings") : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -557,6 +558,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       <SettingsScreen page={o.page} onPage={(page) => push({ kind: "settings", page })} onPeople={openPeople} onSignedOut={() => setStack([])} onWiki={() => push({ kind: "wiki" })} onLocker={() => push({ kind: "locker" })} />
     ) : o.kind === "locker" ? (
       <LockerScreen />
+    ) : o.kind === "m2dfaq" ? (
+      <M2dFaqPage onScrollDir={setAway} />
     ) : o.kind === "wiki" ? (
       <WikiScreen id={o.id} onPage={(id) => push({ kind: "wiki", id })} />
     ) : o.kind === "stories" ? (
@@ -678,6 +681,12 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                    2026-11-21: "the notification button on the stats page
                    gets replaced with like little FAQ button"). */
                 <Pressable accessibilityRole="button" accessibilityLabel="FAQs about the stats" onPress={() => push({ kind: "stories" })} hitSlop={8} style={press}>
+                  <QuestionIcon />
+                </Pressable>
+              ) : tab === "board" && m2dOn ? (
+                /* On M2D, how it adds up (owner, 2026-11-25: "it should be a
+                   little question mark thing"). */
+                <Pressable accessibilityRole="button" accessibilityLabel="How M2D adds up" onPress={() => push({ kind: "m2dfaq" })} hitSlop={8} style={press}>
                   <QuestionIcon />
                 </Pressable>
               ) : me.me ? (
