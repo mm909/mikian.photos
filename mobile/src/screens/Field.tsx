@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import Svg, { Circle, Line, Path } from "react-native-svg";
 import { ticks } from "../erg/reviewGeom";
@@ -6,7 +6,7 @@ import { api } from "../api";
 import { medianOf, meanOf, placeOf, quantile, SHAPE_STEPS, type FieldStats, type RowMeasure } from "../pm5/craft";
 import { Dash, Eye, mono } from "../site";
 import { C, F, fmtInt, fmtPace } from "../theme";
-import { Dots, Skel, useLoad, useTap } from "../ui";
+import { Dots, Skel, tapSide, useLoad, useTap } from "../ui";
 import { Axes, Box, FieldDensity, Key, Lab, PAD } from "./reviewBits";
 import { Pages } from "./Pages";
 
@@ -115,11 +115,13 @@ export function Flip({ w, name, own, other, labels }: { w: number; name: string;
    * pager, 2026-11-23, so a scrubbing finger did not move the card); now a
    * tap anywhere on the card is the other face, round and round, and a
    * finger held or dragged on a chart only reads it (ui.tsx useTap). */
-  const tap = useTap(() => go(at.current + 1));
+  /* The left half turns it back, the right half on (ui.tsx tapSide). */
+  const card = useRef<ComponentRef<typeof View> | null>(null);
+  const tap = useTap((px) => tapSide(card, px, (d) => go(at.current + d)));
   if (!other) return <>{own(false)}</>;
   return (
     <>
-      <View {...tap} accessibilityHint="Tap for the other side" style={{ width: slot, marginHorizontal: -GUTTER, overflow: "hidden" }}>
+      <View ref={card} {...tap} accessibilityHint="Tap for the other side" style={{ width: slot, marginHorizontal: -GUTTER, overflow: "hidden" }}>
         <Animated.View style={{ width: slot * 4, flexDirection: "row", transform: [{ translateX: x }] }}>
           <View style={{ width: slot, paddingHorizontal: GUTTER }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
             {other}

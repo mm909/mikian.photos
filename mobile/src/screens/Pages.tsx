@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { Animated, Platform, View } from "react-native";
-import { Dots, useTap } from "../ui";
+import { Dots, tapSide, useTap } from "../ui";
 
 /* A CARD WITH AS MANY FACES AS IT HAS FIGURES (owner, 2026-11-23, of the
  * analytics' comparisons: "if we can't show it in one chart or one page,
@@ -10,8 +10,9 @@ import { Dots, useTap } from "../ui";
  *
  * A TAP TURNS IT, NOT A SWIPE (owner, 2026-11-24: "there's 5 charts. The
  * swiping, it doesn't feel very good. So instead, can we just tap on those
- * and have them go through?"). A tap anywhere on the card is the next face,
- * and after the last, the first again (ui.tsx useTap: a finger that is held
+ * and have them go through?"). A tap on the right half is the next face,
+ * on the left half the one before (owner, the same day: "if I tap to the
+ * left, it should scroll to the left"), round and round (ui.tsx useTap: a finger that is held
  * or drags is reading a chart, not turning the card). The dots are the
  * app's own (ui.tsx Dots): a tap goes to that face, and a finger held on
  * them and slid goes face to face. The faces slide in as before. With one
@@ -42,8 +43,9 @@ export function Pages({ w, pages, labels }: { w: number; pages: ReactNode[]; lab
       if (finished && real !== i) x.setValue(-real * width.current);
     });
   };
-  const tap = useTap(() => {
-    if (count.current > 1) go(at.current + 1);
+  const card = useRef<ComponentRef<typeof View> | null>(null);
+  const tap = useTap((px) => {
+    if (count.current > 1) tapSide(card, px, (d) => go(at.current + d));
   });
   if (n <= 1) return <>{pages[0] ?? null}</>;
   /* A copy of the last face before the first and of the first after the
@@ -51,7 +53,7 @@ export function Pages({ w, pages, labels }: { w: number; pages: ReactNode[]; lab
   const strip = [pages[n - 1], ...pages, pages[0]];
   return (
     <>
-      <View {...tap} accessibilityHint="Tap for the next chart" style={{ width: w, overflow: "hidden" }}>
+      <View ref={card} {...tap} accessibilityHint="Tap the right for the next chart, the left for the one before" style={{ width: w, overflow: "hidden" }}>
         <Animated.View style={{ width: w * (n + 2), flexDirection: "row", transform: [{ translateX: x }] }}>
           {strip.map((p, i) => {
             const copy = i === 0 || i === n + 1;

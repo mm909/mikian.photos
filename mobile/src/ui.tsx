@@ -530,7 +530,9 @@ export function Dots({ n, at, onGo, labels, style }: { n: number; at: number; on
  * one that is held or drags is reading the chart, or scrolling the page. */
 const TAP_MS = 300;
 const TAP_PX = 8;
-export function useTap(onTap: () => void): object {
+/* `onTap` is told where the finger was, across the page (pageX), so a card
+ * can turn back on its left half and on on its right (tapSide). */
+export function useTap(onTap: (pageX: number) => void): object {
   const s = useRef({ x: 0, y: 0, t: 0, on: false });
   const fire = useRef(onTap);
   fire.current = onTap;
@@ -540,7 +542,7 @@ export function useTap(onTap: () => void): object {
       if (Math.abs(x - s.current.x) > TAP_PX || Math.abs(y - s.current.y) > TAP_PX) s.current.on = false;
     };
     const up = () => {
-      if (s.current.on && Date.now() - s.current.t < TAP_MS) fire.current();
+      if (s.current.on && Date.now() - s.current.t < TAP_MS) fire.current(s.current.x);
       s.current.on = false;
     };
     /* A browser's mouse sends no touches: there the pointer says the same. */
@@ -557,6 +559,16 @@ export function useTap(onTap: () => void): object {
           onTouchCancel: () => (s.current.on = false),
         };
   }, []);
+}
+
+/* WHICH HALF OF A CARD A TAP WAS ON (owner, 2026-11-24: "if I tap to the
+ * left, it should scroll to the left. If I tap on the right, it should
+ * scroll to the right"): -1 for the left half, 1 for the right, measured
+ * off the card's own place on the screen. Unmeasured, it goes on. */
+export function tapSide(ref: { current: { measure?: (cb: (x: number, y: number, w: number, h: number, px: number, py: number) => void) => void } | null }, pageX: number, then: (dir: -1 | 1) => void): void {
+  const v = ref.current;
+  if (!v?.measure) return then(1);
+  v.measure((_x, _y, w, _h, px) => then(Number.isFinite(px) && w > 0 && pageX < px + w / 2 ? -1 : 1));
 }
 
 /* `chart` is the narrower of the two: set by a chart's own surface alone,
