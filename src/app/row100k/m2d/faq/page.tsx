@@ -5,7 +5,7 @@ import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
 import { board100kCss } from "../../board/board100kCss";
-import { m2dView } from "../../m2d";
+import { M2D_CAP, m2dView } from "../../m2d";
 import { m2dCss } from "../m2dCss";
 
 export const dynamic = "force-dynamic";
@@ -145,6 +145,12 @@ export default async function M2dFaqPage() {
               <p>
                 For {v.match.by}: rows logged on ROW from Nov 26 to Dec 24 by registered rowers. For Concept2: the meters in your Concept2
                 Logbook.
+              </p>
+              <h3>Is there a limit?</h3>
+              <p>{v.match.by} matches up to ${M2D_CAP.toLocaleString("en-US")}.</p>
+              <h3>Can I add to it?</h3>
+              <p>
+                Yes: <Link href="/m2d/give">add cents to every kilometer</Link>.
               </p>
               <h3>Does it cost me anything?</h3>
               <p>No. It is free.</p>

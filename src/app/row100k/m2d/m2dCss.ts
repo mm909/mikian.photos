@@ -147,4 +147,31 @@ export const m2dCss = `
   .row100k .m2-picks{grid-template-columns:repeat(3,minmax(0,1fr))}
   .row100k .m2 .bd-cols,.row100k .m2 .bd-in{grid-template-columns:48px minmax(0,1fr) 140px 140px}
 }
+
+/* THE GIVING PAGE (give/page.tsx). */
+.row100k .m2-give .m2-head{max-width:640px;margin-left:auto;margin-right:auto}
+.row100k .m2-give-lede{margin-top:16px;font-size:16px;line-height:1.55;color:var(--ink);text-align:left}
+.row100k .m2-give .m2-from,.row100k .m2-give .m2-worth,.row100k .m2-calc,.row100k .m2-give-fine{max-width:560px;margin-left:auto;margin-right:auto}
+.row100k .m2-give-now{margin-top:30px}
+.row100k .m2-give-big{margin-top:14px;font-family:var(--row-archivo-black),sans-serif;font-size:24px;line-height:1.2;text-transform:uppercase}
+.row100k .m2-give-big b{color:var(--water);font-weight:400}
+.row100k .m2-give-small{margin-top:8px;font-size:14px;line-height:1.5;color:var(--gray)}
+.row100k .m2-calc{margin-top:26px;border:2px solid var(--ink);padding:18px}
+.row100k .m2-calc-by{display:flex;gap:8px}
+.row100k .m2-calc-by button{flex:1;background:none;border:1px solid var(--ink);border-radius:0;padding:10px 8px;font-family:var(--row-mono),monospace;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);cursor:pointer}
+.row100k .m2-calc-by button.on{background:var(--ink);color:#fff}
+.row100k .m2-calc-in{display:flex;align-items:baseline;gap:8px;margin-top:16px;border-bottom:2px solid var(--ink);padding-bottom:6px}
+.row100k .m2-calc-in span{font-family:var(--row-archivo-black),sans-serif;font-size:30px;color:var(--gray)}
+.row100k .m2-calc-in input{flex:1;min-width:0;border:0;outline:0;background:none;font-family:var(--row-archivo-black),sans-serif;font-size:44px;color:var(--water);font-variant-numeric:tabular-nums}
+.row100k .m2-calc-out div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row100k .m2-calc-out dt{font-size:15px;font-weight:700}
+.row100k .m2-calc-out dd{font-family:var(--row-mono),monospace;font-size:16px;font-weight:700;color:var(--ink)}
+.row100k .m2-calc-out dd b{color:var(--water)}
+.row100k .m2-give .m2-worth dl div{display:block}
+.row100k .m2-give .m2-worth dt small{display:block;margin-top:3px;font-weight:400;font-size:13px;color:var(--gray)}
+.row100k .m2-give .m2-worth dt a{color:var(--ink)}
+.row100k .m2-give .m2-steps{margin-top:12px}
+.row100k .m2-give .m2-steps a{color:var(--water);text-decoration:underline}
+.row100k .m2-give-fine{margin-top:26px;font-family:var(--row-mono),monospace;font-size:10.5px;line-height:1.7;letter-spacing:.06em;color:var(--gray)}
+.row100k .m2-give-fine a{color:var(--ink);text-decoration:underline}
 `;

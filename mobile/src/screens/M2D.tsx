@@ -803,6 +803,7 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
       {q("How do I register?", `Make a free Concept2 Logbook, pick a charity there, and get your meters into it (ErgData does that). Then press Opt in to M2D on the M2D tab, pick where ${by}'s part goes, and press I'm registered.`)}
       {q("How do I change my charity?", "On your profile, under M2D, until Dec 24. You can split it across the three there too.")}
       {q("What counts?", `For ${by}: rows logged on ROW from Nov 26 to Dec 24 by registered rowers. For Concept2: the meters in your Concept2 Logbook.`)}
+      {q("Is there a limit?", `${by} matches up to $5,000.`)}
       {q("Does it cost me anything?", "No. It is free.")}
       <View style={{ marginTop: 18 }}>
         <Ctl label="The challenge at Concept2 ↗" onPress={() => open(v.link)} />
@@ -996,6 +997,11 @@ export function M2dPlanner() {
         High is {plan.history.high.label}: {fmtInt(plan.history.high.meters)} m by {plan.history.high.rowers}. Low is {plan.history.low.label}: {fmtInt(plan.history.low.meters)} m by {plan.history.low.rowers}. Everyone&apos;s meters: ROWTEMBER pays registered rowers&apos; only, so these are ceilings.
       </Text>
       {head("Each 1¢ a kilometer")}
+      {/* THE PRICE TO SELL A CENT AT (owner, 2026-11-25: "give me a best
+          guess somewhere here that says sell 1 cent at this amount"): the
+          likely case rounded up to $5, the same as /m2d/give (m2d.ts
+          m2dPrice). */}
+      {row("Sell 1¢ at", usd(Math.max(5, Math.ceil(costOf(likely, 1) / 5) * 5)))}
       {row("Low · likely · high", `${usd(costOf(low, 1))} · ${usd(costOf(likely, 1))} · ${usd(costOf(high, 1))}`)}
       <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 8 }]}>1¢/km is $1 for every 100K meters.</Text>
       {/* A DONATION, IN CENTS A KILOMETER (owner, 2026-11-25: "I just got a

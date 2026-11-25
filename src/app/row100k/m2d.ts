@@ -56,6 +56,13 @@ export const M2D_BY = "ROWTEMBER";
  * don't like saying it is a match". It is also the floor: a stored rate
  * below it is read as 4, so the figure never goes down. */
 export const M2D_RATE_DEFAULT = 4;
+/* THE MOST ROWTEMBER MATCHES (owner, 2026-11-25: "let's make sure that my
+ * liability is no greater than like $5,000 ... we'll say we match up to
+ * $5,000"). Said once, in the FAQ's questions and the giving page's fine
+ * print, never as a bar or a countdown. Should registered meters ever be
+ * worth more than this at the rate, ROWTEMBER's part is scaled to it: every
+ * rower's share shrinks by the same fraction. At 4¢ that is 125,000 km. */
+export const M2D_CAP = 5000;
 export const M2D_RATE_KEY = "m2d.rate";
 /* Cents a kilometer, to a hundredth of a cent, from 0.5 to 500 ($5/km)
  * (owner, 2026-11-25: "it doesn't have to be whole number. It can be 4
@@ -71,21 +78,24 @@ export const rateOk = (c: unknown): c is number => typeof c === "number" && Numb
  * receipts. The owner keeps the list from his planner (a stored setting,
  * no deploy). A pledge is never shown going down: the owner sets it. */
 export const M2D_GIVERS_KEY = "m2d.givers";
-export type Giver = { name: string; rate: number };
+/* `cap`, dollars: a gift of a fixed amount bought as cents a kilometer
+ * (the giving page, /m2d/give). Its line never passes the gift; should
+ * more meters be rowed than the price assumed, its rate is scaled to fit. */
+export type Giver = { name: string; rate: number; cap?: number };
 const giverOk = (g: unknown): g is Giver =>
-  !!g && typeof (g as Giver).name === "string" && (g as Giver).name.trim().length > 0 && (g as Giver).name.length <= 40 && typeof (g as Giver).rate === "number" && Number.isFinite((g as Giver).rate) && (g as Giver).rate > 0 && (g as Giver).rate <= 500 && hundredths((g as Giver).rate);
+  !!g && typeof (g as Giver).name === "string" && (g as Giver).name.trim().length > 0 && (g as Giver).name.length <= 40 && typeof (g as Giver).rate === "number" && Number.isFinite((g as Giver).rate) && (g as Giver).rate > 0 && (g as Giver).rate <= 500 && hundredths((g as Giver).rate) && ((g as Giver).cap === undefined || (typeof (g as Giver).cap === "number" && (g as Giver).cap! > 0 && (g as Giver).cap! <= 1_000_000));
 export const giversOk = (l: unknown): l is Giver[] => Array.isArray(l) && l.length <= 20 && l.every(giverOk);
 export async function m2dGivers(): Promise<Giver[]> {
   try {
     const row = await db.rowSetting.findUnique({ where: { challenge_key: { challenge: CHALLENGE, key: M2D_GIVERS_KEY } }, select: { value: true } });
     const l = row?.value ? (JSON.parse(row.value) as unknown) : [];
-    return giversOk(l) ? l.map((g) => ({ name: g.name.trim(), rate: g.rate })) : [];
+    return giversOk(l) ? l.map((g) => ({ name: g.name.trim(), rate: g.rate, ...(g.cap ? { cap: g.cap } : {}) })) : [];
   } catch {
     return [];
   }
 }
 export async function setM2dGivers(list: Giver[], by: string): Promise<void> {
-  const value = JSON.stringify(list.map((g) => ({ name: g.name.trim(), rate: g.rate })));
+  const value = JSON.stringify(list.map((g) => ({ name: g.name.trim(), rate: g.rate, ...(g.cap ? { cap: g.cap } : {}) })));
   await db.rowSetting.upsert({
     where: { challenge_key: { challenge: CHALLENGE, key: M2D_GIVERS_KEY } },
     create: { challenge: CHALLENGE, key: M2D_GIVERS_KEY, value, updatedBy: by },
@@ -283,10 +293,21 @@ export type M2dTotals = {
 /* `perKm`: ROWTEMBER's rate and every giver's together, what one kilometer
  * of a registered rower's is worth past Concept2's part. */
 export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, number>; ins: Map<string, Shares | null>; rate: number; perKm: number; givers: Giver[] }> {
-  const [by, ins, rate, givers] = await Promise.all([windowMeters(), m2dOptIns(), m2dRate(), m2dGivers()]);
-  const perKm = Math.round((rate + givers.reduce((a, g) => a + g.rate, 0)) * 100) / 100;
+  const [by, ins, nominal, offered] = await Promise.all([windowMeters(), m2dOptIns(), m2dRate(), m2dGivers()]);
+  /* UNDER THE CAPS: what the registered meters would cost at each rate; a
+   * part that would pass its cap is paid at the rate that meets it. The
+   * receipts still print the rate offered; the dollars are the paid ones. */
+  let regMeters = 0;
+  for (const [id, m] of by) if (m > 0 && ins.has(id)) regMeters += m;
+  const fit = (r: number, cap: number | undefined) => {
+    const cost = ((regMeters / 1000) * r) / 100;
+    return cap && cost > cap ? (r * cap) / cost : r;
+  };
+  const rate = fit(nominal, M2D_CAP);
+  const givers = offered.map((g) => ({ ...g, rate: fit(g.rate, g.cap) }));
+  const perKm = Math.round((rate + givers.reduce((a, g) => a + g.rate, 0)) * 10000) / 10000;
   const split = Object.fromEntries(CHARITIES.map((c) => [c.key, 0])) as Record<CharityKey, number>;
-  const gave = givers.map((g) => ({ ...g, dollars: 0 }));
+  const gave = givers.map((g, i) => ({ ...g, rate: offered[i].rate, dollars: 0, paid: g.rate }));
   const t: M2dTotals = { meters: 0, raised: 0, matched: 0, total: 0, split, unpicked: 0, locked: 0, unclaimed: 0, rowers: 0, registered: ins.size, past100k: 0, inMeters: 0, givers: gave };
   for (const [id, m] of by) {
     if (m <= 0) continue;
@@ -294,7 +315,7 @@ export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, 
     t.rowers++;
     if (ins.has(id)) {
       t.matched += ours(m, rate);
-      for (const g of gave) g.dollars += ours(m, g.rate);
+      for (const g of gave) g.dollars += ours(m, g.paid);
       /* What goes where the rower picked: ROWTEMBER's part and the givers'. */
       const mine = ours(m, rate) + givers.reduce((a, g) => a + ours(m, g.rate), 0);
       t.inMeters += m;
@@ -308,7 +329,10 @@ export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, 
   t.raised = cents(t.raised);
   t.matched = cents(t.matched);
   t.locked = t.raised;
-  for (const g of gave) g.dollars = cents(g.dollars);
+  for (const g of gave) {
+    g.dollars = cents(g.dollars);
+    delete (g as { paid?: number }).paid;
+  }
   const pool = cents(t.matched + gave.reduce((a, g) => a + g.dollars, 0));
   t.total = cents(t.raised + pool);
   for (const c of CHARITIES) split[c.key] = cents(split[c.key]);
@@ -321,7 +345,8 @@ export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, 
     split[big.key] = cents(split[big.key] + gap);
   }
   t.unclaimed = cents(t.unclaimed);
-  return { totals: t, by, ins, rate, perKm, givers };
+  /* `rate` out is the one offered (4¢ on the receipts); perKm is paid. */
+  return { totals: t, by, ins, rate: nominal, perKm, givers: offered };
 }
 
 /* `dollars`: Concept2's and ROWTEMBER's together for the rower's meters. */
@@ -567,5 +592,44 @@ export async function m2dPlan(): Promise<M2dPlan> {
     history: { high, low },
     projected: { low: r(projected.low), likely: r(projected.likely), high: r(projected.high) },
     basis,
+  };
+}
+
+/* THE PRICE OF A CENT (owner, 2026-11-25: "give me a best guess ... sell 1
+ * cent at this amount"), for the giving page (/m2d/give) and the planner.
+ * One cent a kilometer on every registered meter costs meters / 100,000
+ * dollars. The projection is everyone's meters (m2dPlan), so it is a
+ * ceiling on what registered rowers will row. The ask is the likely case
+ * rounded UP to the next $5: a giver who pays it is unlikely to be short,
+ * and a pledge is capped at what was given (Giver.cap), so a big month
+ * scales the rate, never the bill. */
+export type M2dPrice = {
+  window: M2dWindow;
+  meters: number;
+  inMeters: number;
+  registered: number;
+  /* Cents a kilometer offered now: ROWTEMBER and every pledge. */
+  perKm: number;
+  rate: number;
+  givers: Giver[];
+  projected: { low: number; likely: number; high: number };
+  cent: { low: number; likely: number; high: number; ask: number };
+  cap: number;
+};
+export async function m2dPrice(): Promise<M2dPrice> {
+  const p = await m2dPlan();
+  const one = (m: number) => Math.round((m / 100_000) * 100) / 100;
+  const likely = one(p.projected.likely);
+  return {
+    window: p.window,
+    meters: p.soFar.meters,
+    inMeters: p.soFar.inMeters,
+    registered: p.soFar.registered,
+    perKm: Math.round((p.rate + p.givers.reduce((a, g) => a + g.rate, 0)) * 100) / 100,
+    rate: p.rate,
+    givers: p.givers,
+    projected: p.projected,
+    cent: { low: one(p.projected.low), likely, high: one(p.projected.high), ask: Math.max(5, Math.ceil(likely / 5) * 5) },
+    cap: M2D_CAP,
   };
 }
