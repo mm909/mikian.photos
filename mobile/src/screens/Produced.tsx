@@ -242,9 +242,9 @@ export function Produced({ erg, race, directed, width, height, active, arcade = 
   const strip = (
     <View style={{ height: STRIP, flexDirection: "row", alignItems: "flex-end", paddingHorizontal: PAD, columnGap: 8 }}>
       {cell("Meters left", left, C.ink, "flex-start")}
-      {cell("Average /500", avg, C.accent, wide ? "flex-start" : "center")}
+      {cell("Average pace", avg, C.accent, wide ? "flex-start" : "center")}
       {cell("Finish", finish, C.ink, wide ? "flex-start" : "flex-end")}
-      {wide ? cell("Now /500", nowPace, C.ink, "flex-start") : null}
+      {wide ? cell("Current pace", nowPace, C.ink, "flex-start") : null}
       {wide ? cell("Time", time, C.ink, "flex-end") : null}
     </View>
   );

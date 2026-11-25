@@ -84,7 +84,8 @@ import { Eyebrow, Num, styles } from "../ui";
  * distance is a red boat in the middle lane for as long as it is on the
  * water, with the seconds between the two at the lane's end, and nothing
  * of it shows when it is not. It is never one of the four. The red line
- * across the water and the strip that named it are gone. The lane ropes
+ * across the water and the strip that named it are gone. (Since 2026-11-24
+ * the best is a red line across that lane, not a boat; see `pb`.) The lane ropes
  * still go red as the finish this row is headed for nears that best (his
  * fifth read: "I want the track to light up red as your PB gets closer"):
  * none at 2.5% behind it, all of it on pace to beat it. It is the ropes
@@ -674,14 +675,21 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
    * Once it has finished it is waiting on the line, which comes onto the
    * water however far behind it the rower is: it is shown there only when
    * the two finishes are within eight seconds, which is a race. */
-  let pb: { x: number; lead: number; rise: number; shape: ReturnType<typeof boat> } | null = null;
+  /* A RED LINE ACROSS THE LANE, NOT A BOAT (owner, 2026-11-24: "instead of
+   * being a boat being my personal pace, have it just be a line that's in my
+   * lane, a red line that I'm chasing after ... it's too hard to see with
+   * the other stuff"). Where the best's bow would be, across the middle
+   * lane from rope to rope; the seconds at the lane's end as before. */
+  let pb: { x: number; lead: number; rise: number; line: string } | null = null;
   if (best && t > 0) {
     const d = gapOf(best);
     const lead = leadSeconds(best, target, t, myM);
     if (inView(d) && (!ghostDone(best, tb) || Math.abs(lead) <= 8)) {
       if (drive && !bestBorn.current) bestBorn.current = t > 3 ? now : 1;
-      const s = pull(best.id, ghostDone(best, tb) ? 0 : best.spm > 0 ? best.spm : 24, MID, myM + d);
-      pb = { x: xOf(myM + d), lead, rise: Math.min(1, (now - (bestBorn.current || 1)) / RISE_MS), shape: boat(xOf(myM + d), yOf(MID), u, pitch, s.phase, pt) };
+      const x = xOf(myM + d) + (BOAT_M * u) / 2;
+      const [x1, y1] = pt(x, yOf(MID) - pitch / 2 + 3);
+      const [x2, y2] = pt(x, yOf(MID) + pitch / 2 - 3);
+      pb = { x, lead, rise: Math.min(1, (now - (bestBorn.current || 1)) / RISE_MS), line: `M${n1(x1)} ${n1(y1)} L${n1(x2)} ${n1(y2)}` };
     } else if (drive) bestBorn.current = 0;
   }
   /* THE WATER BEHIND EACH BOAT: its lane from the edge behind the rower to
@@ -781,8 +789,7 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
       ))}
       {pb ? (
         <>
-          <Path d={pb.shape.lines} stroke={BEST} strokeWidth={1.5} strokeOpacity={pb.rise} fill="none" strokeLinejoin="round" strokeLinecap="round" />
-          <Path d={pb.shape.blades} stroke={BEST} strokeWidth={pb.shape.wet ? 2.8 : 1.5} strokeOpacity={pb.rise} fill="none" strokeLinecap="round" />
+          <Path d={pb.line} stroke={BEST} strokeWidth={3} strokeOpacity={pb.rise} fill="none" strokeLinecap="round" />
         </>
       ) : null}
       <Path d={myBoat.lines} stroke={C.accent} strokeWidth={1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" />

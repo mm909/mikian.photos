@@ -79,9 +79,27 @@ export type Faked = { title: string; caption: string; seconds: number; photos: {
 const DEMO_METERS = 5000;
 const DEMO_SPEED = 10;
 
-export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; onLogged: (r: Logged) => void; onLeave: () => void; /* A demo row, finished or left: its analytics open, and nothing is logged. */ onDemoRead: (doc: TelemetryDoc, meters: number) => void }) {
+export function RowScreen({ erg, opened, onLogged, onLeave, onDemoRead }: { erg: Erg; /* Counts each time the plus opens this screen (App.tsx). */ opened: number; onLogged: (r: Logged) => void; onLeave: () => void; /* A demo row, finished or left: its analytics open, and nothing is logged. */ onDemoRead: (doc: TelemetryDoc, meters: number) => void }) {
   const { ready, me } = useSession();
   const [form, setForm] = useState<"none" | "manual" | "erg" | "old">("none");
+  /* THE PLUS OPENS ON CONNECT YOUR ERG (owner, 2026-11-24: "if I click log
+   * by hand and then I go back and then I click the plus again, then I'm
+   * still on the manual log ... it should come back to the connect your erg
+   * screen"). A row typed in by hand and left is let go of; a form about a
+   * row that is on the board already (`erg`, `old`) is kept, as that row is
+   * waiting on its photos. */
+  useEffect(() => {
+    setForm((f) => (f === "manual" ? "none" : f));
+  }, [opened]);
+  /* FREE ROW OR THE ARCADE, asked once the rowing machine is connected
+   * (owner, 2026-11-24: "After the rowing machine connects, ask what to do:
+   * free row, or play the arcade"). Only where there is an arcade, which is
+   * the owner's for now (Monitor, showOn); anybody else goes straight to the
+   * monitor as before. Asked again for the next connection. */
+  const [mode, setMode] = useState<null | "free" | "arcade">(null);
+  useEffect(() => {
+    if (erg.phase === "idle") setMode(null);
+  }, [erg.phase]);
   /* The piece as it stood when LOG was pressed: the monitor may still be
    * talking, and the row being logged must not move under the form. */
   const [snap, setSnap] = useState<{ meters: number; seconds: number; strokes: number; avgWatts: number; doc?: TelemetryDoc; /* The row is on the site already (autolog.ts). */ logged?: Saved } | null>(null);
@@ -208,6 +226,21 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
       />
     );
   }
+  if (erg.phase === "live" && me.isAdmin && mode === null) {
+    return (
+      <View style={{ flex: 1, padding: 20, justifyContent: "center" }}>
+        <Eyebrow>{erg.demo ? "Demo" : `Connected · ${erg.name || "PM5"}`}</Eyebrow>
+        <Text style={{ fontFamily: F.black, fontSize: 34, lineHeight: 38, color: C.ink, marginTop: 6, marginBottom: 24 }}>
+          What are you <Text style={{ color: C.accent }}>rowing</Text>?
+        </Text>
+        <Btn label="Free row" quiet onPress={() => setMode("free")} />
+        <Btn label="Play the arcade" onPress={() => setMode("arcade")} style={{ marginTop: 12 }} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to the app. The row keeps recording." onPress={onLeave} hitSlop={10} style={{ marginTop: 24, alignSelf: "center", paddingVertical: 8 }}>
+          <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2.2, color: C.ink }}>← APP</Text>
+        </Pressable>
+      </View>
+    );
+  }
   if (erg.phase === "live") {
     const l = erg.live;
     /* The monitor went back to its menu, or a new piece has not started:
@@ -233,6 +266,7 @@ export function RowScreen({ erg, onLogged, onLeave, onDemoRead }: { erg: Erg; on
       <Monitor
         key={erg.demoCtl?.run ?? 0}
         erg={erg}
+        arcade={mode !== "free"}
         startPage={erg.demoCtl?.run ? lastPage.current : undefined}
         onPage={(n) => (lastPage.current = n)}
         onLog={async () => {
@@ -403,7 +437,7 @@ const END_HOLD_MS = 1200;
  * upright the race up the page, the four figures, the split, the splits,
  * and the way out, which is the last. TITLE names each. */
 
-function Monitor({ erg, startPage, onPage, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* The page to open on, when the monitor is drawn again mid-row (a demo scrubbed). */ startPage?: number; onPage: (n: number) => void; /* LOG, on a piece that has not logged itself. */ onLog: () => void | Promise<void>; /* The row is logged: on to the form for its photos, or straight to its page. */ onAdd: () => void; onDone: () => void; onRead: () => void; onLeave: () => void }) {
+function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead, onLeave }: { erg: Erg; /* The arcade was picked over a free row (RowScreen, `mode`); the owner's alone for now. */ arcade: boolean; /* The page to open on, when the monitor is drawn again mid-row (a demo scrubbed). */ startPage?: number; onPage: (n: number) => void; /* LOG, on a piece that has not logged itself. */ onLog: () => void | Promise<void>; /* The row is logged: on to the form for its photos, or straight to its page. */ onAdd: () => void; onDone: () => void; onRead: () => void; onLeave: () => void }) {
   const { live, name, error, demo, auto } = erg;
   /* The row's game (arcade/games.ts) is told the row's id once it has one. */
   const boundRow = useRef<string | null>(null);
@@ -583,7 +617,7 @@ function Monitor({ erg, startPage, onPage, onLog, onAdd, onDone, onRead, onLeave
    * was. (The single-player 159 against rocks, arcade/useArcade.ts, is kept
    * in the code and no longer dropped into the row.) */
   const { me } = useSession();
-  const showOn = !!me.isAdmin;
+  const showOn = !!me.isAdmin && arcade;
   const directed = useDirector(erg, shared);
   const showed = useShow(erg, showOn);
   /* THE PAGES IN THEIR ORDER, each with the name the top bar gives it
@@ -623,6 +657,16 @@ function Monitor({ erg, startPage, onPage, onLog, onAdd, onDone, onRead, onLeave
     pages.current?.scrollTo({ x: n * w, animated: n !== 0 });
     setPage(n);
   };
+  /* THE ARCADE PICKED, THE ARCADE IN VIEW: before the first stroke the
+   * pages sit on it, again as the monitor names its distance and the pages
+   * are laid out anew (the effect above sends them to the first). */
+  useEffect(() => {
+    if (!showOn || startPage !== undefined || !w || prodPage < 0 || live.meters >= 1) return;
+    pages.current?.scrollTo({ x: prodPage * w, animated: false });
+    setPage(prodPage);
+    // Only as the pages are laid out; a swipe after that is the rower's own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [w, prodPage, raceFirst, showOn]);
   /* SINGLE PLAYER DROPS STRAIGHT IN (owner, 2026-11-24: "keep the same
    * intro/show screens, then drop straight into single player"): as the
    * island starts, the pages go to the show, once a row; a swipe away from
@@ -723,7 +767,7 @@ function Monitor({ erg, startPage, onPage, onLog, onAdd, onDone, onRead, onLeave
           </Pressable>
         </View>
         <Text accessibilityRole="header" numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 13, letterSpacing: 2.4, color: C.ink }}>
-          {TITLE[order[Math.min(page, last)]].toUpperCase()}
+          {(order[Math.min(page, last)] === "show" && !showOn ? "Show" : TITLE[order[Math.min(page, last)]]).toUpperCase()}
         </Text>
         <View style={{ flex: 1, alignItems: "flex-end" }}>
           <Eyebrow style={{ color: error ? C.accent : undefined }}>{who}</Eyebrow>
@@ -763,6 +807,7 @@ function Monitor({ erg, startPage, onPage, onLog, onAdd, onDone, onRead, onLeave
 type PageKey = "race" | "show" | "up" | "pace" | "figures" | "chart" | "splits" | "end";
 const TITLE: Record<PageKey, string> = {
   race: "Race",
+  /* The owner's arcade; for a free row, or anybody else, the produced row (Produced.tsx), called SHOW in the bar. */
   show: "Arcade",
   up: "Race, upright",
   pace: "Pace",
@@ -781,6 +826,8 @@ const TITLE: Record<PageKey, string> = {
  * forward or back. MINE, the three speeds and the scrub landing on the
  * lift rather than as it moves (each landing rows the piece again from its
  * start, which is too much to do under a moving finger). */
+/* How long the strip stays after the last touch. */
+const HIDE_MS = 3000;
 const SPEEDS: { n: number; label: string; say: string }[] = [
   { n: 0, label: "II", say: "Hold the demo still" },
   { n: 1, label: "1×", say: "Real time" },
@@ -798,22 +845,68 @@ function DemoBar({ ctl, meters, wide, padX, lead }: { ctl: DemoCtl; meters: numb
   /* Where the finger is along the line: from where it went down and how
    * far it has moved, which holds when it wanders off the line. */
   const x0 = useRef(0);
+  /* OUT OF THE WAY WHILE THE ROW PLAYS (owner, 2026-11-24: "I also maybe
+   * need that just to disappear, like while it's running, unless I start
+   * moving the thing back and forth and maybe it pops back up again"). A
+   * few seconds after the last touch the speeds and the line fade to
+   * nothing, where they still take a finger: one put down on the line
+   * brings them back and scrubs from there; a tap on a hidden speed only
+   * brings them back. Held still (II) or under a finger, they stay. */
+  const fade = useRef(new Animated.Value(1)).current;
+  const hidden = useRef(false);
+  const holding = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const native = Platform.OS !== "web";
+  const sleep = () => {
+    timer.current = null;
+    if (holding.current || at.current.ctl.speed === 0) {
+      timer.current = setTimeout(sleep, HIDE_MS);
+      return;
+    }
+    hidden.current = true;
+    Animated.timing(fade, { toValue: 0, duration: 700, useNativeDriver: native }).start();
+  };
+  const wake = () => {
+    if (timer.current) clearTimeout(timer.current);
+    hidden.current = false;
+    Animated.timing(fade, { toValue: 1, duration: 150, useNativeDriver: native }).start();
+    timer.current = setTimeout(sleep, HIDE_MS);
+  };
+  const woke = useRef(false);
+  useEffect(() => {
+    wake();
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+    // As it is drawn, and as the speed changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctl.speed]);
   const pan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (e) => {
+        woke.current = hidden.current;
+        holding.current = true;
+        wake();
         x0.current = e.nativeEvent.locationX;
         setHeld(toM(x0.current));
       },
       onPanResponderMove: (_e, g) => setHeld(toM(x0.current + g.dx)),
       onPanResponderRelease: (_e, g) => {
         const m = toM(x0.current + g.dx);
+        holding.current = false;
         setHeld(null);
+        wake();
+        /* A tap on the hidden line only brings it back. */
+        if (woke.current && Math.abs(g.dx) < 4) return;
         at.current.ctl.seek(m);
       },
-      onPanResponderTerminate: () => setHeld(null),
+      onPanResponderTerminate: () => {
+        holding.current = false;
+        setHeld(null);
+      },
     }),
   ).current;
   const shown = held ?? meters;
@@ -821,11 +914,16 @@ function DemoBar({ ctl, meters, wide, padX, lead }: { ctl: DemoCtl; meters: numb
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: padX, paddingTop: lead ? 4 : 0, paddingBottom: wide ? 4 : 8 }}>
       {lead}
+      <Animated.View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, opacity: fade }}>
       <View style={{ flexDirection: "row", borderWidth: 1, borderColor: C.line }}>
         {SPEEDS.map((s, i) => {
           const on = ctl.speed === s.n;
           return (
-            <Pressable key={s.n} accessibilityRole="button" accessibilityLabel={s.say} accessibilityState={{ selected: on }} onPress={() => ctl.setSpeed(s.n)} hitSlop={4} style={({ pressed }) => ({ minWidth: 42, height: 30, alignItems: "center", justifyContent: "center", borderLeftWidth: i ? 1 : 0, borderColor: C.line, backgroundColor: on ? C.ink : "transparent", opacity: pressed ? 0.6 : 1 })}>
+            <Pressable key={s.n} accessibilityRole="button" accessibilityLabel={s.say} accessibilityState={{ selected: on }} onPress={() => {
+                const was = hidden.current;
+                wake();
+                if (!was) ctl.setSpeed(s.n);
+              }} hitSlop={4} style={({ pressed }) => ({ minWidth: 42, height: 30, alignItems: "center", justifyContent: "center", borderLeftWidth: i ? 1 : 0, borderColor: C.line, backgroundColor: on ? C.ink : "transparent", opacity: pressed ? 0.6 : 1 })}>
               <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1, color: on ? C.paper : C.ink }}>{s.label}</Text>
             </Pressable>
           );
@@ -838,6 +936,7 @@ function DemoBar({ ctl, meters, wide, padX, lead }: { ctl: DemoCtl; meters: numb
         <View pointerEvents="none" style={{ position: "absolute", left: Math.max(0, frac * bw - 7), top: 8, width: 14, height: 14, borderRadius: 7, backgroundColor: held !== null ? C.accent : C.ink }} />
       </View>
       <Text style={{ fontFamily: F.mono, fontSize: 11, color: held !== null ? C.accent : C.soft, fontVariant: ["tabular-nums"], minWidth: 60, textAlign: "right" }}>{fmtInt(Math.floor(shown))} m</Text>
+      </Animated.View>
     </View>
   );
 }
@@ -860,7 +959,7 @@ function Main({ erg, wide, width }: { erg: Erg; wide: boolean; width: number }) 
   const avgSize = Math.min(wide ? 150 : 132, Math.floor(avgBox / 4.05));
   const avg = (
     <View style={{ flex: wide ? 1.35 : undefined, justifyContent: "center" }}>
-      <Eyebrow style={{ color: C.ink }}>Average /500 m</Eyebrow>
+      <Eyebrow style={{ color: C.ink }}>Average pace</Eyebrow>
       <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ fontFamily: F.black, fontSize: avgSize, lineHeight: Math.round(avgSize * 1.08), color: C.accent, fontVariant: ["tabular-nums"], letterSpacing: -2 }}>
         {fmtPace(live.avgPace)}
       </Text>
@@ -893,7 +992,7 @@ function Main({ erg, wide, width }: { erg: Erg; wide: boolean; width: number }) 
     <View style={wide ? { flex: 1, justifyContent: "center", paddingLeft: 28 } : { marginTop: 26 }}>
       {finish ? cell("On pace for", finish, true) : null}
       {/* The split right now, to the second: its tenths only flicker. */}
-      {cell("Now /500 m", live.pace > 0 && live.pace < 600 ? fmtClock(live.pace, false) : "-:--")}
+      {cell("Current pace", live.pace > 0 && live.pace < 600 ? fmtClock(live.pace, false) : "-:--")}
       {cell("Meters", fmtInt(Math.floor(live.meters)))}
       {cell("Time", fmtClock(live.elapsedS, false))}
     </View>

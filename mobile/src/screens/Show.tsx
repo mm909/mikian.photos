@@ -108,9 +108,9 @@ function figures(erg: Erg): [string, string, string][] {
   const meters = target > 0 ? fmtInt(Math.max(0, Math.ceil(target - live.meters))) : fmtInt(Math.floor(live.meters));
   return [
     [target > 0 ? "Meters to go" : "Meters", meters, C.ink],
-    ["This stroke /500", live.pace > 0 && live.pace < 600 ? fmtClock(live.pace) : "-:--.-", C.ink],
+    ["Current pace", live.pace > 0 && live.pace < 600 ? fmtClock(live.pace) : "-:--.-", C.ink],
     ["Finish", live.ended ? clockS(live.elapsedS) : ms ? clockS(ms.projected) : target > 0 ? "--:--" : clockS(live.elapsedS), C.ink],
-    ["Average /500", fmtPace(live.avgPace), C.accent],
+    ["Average pace", fmtPace(live.avgPace), C.accent],
   ];
 }
 

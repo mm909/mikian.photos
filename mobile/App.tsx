@@ -257,7 +257,13 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   useEffect(() => {
     monitorShown(monitor);
   }, [monitor]);
-  const openLog = () => setLog("shown");
+  /* Each open of the log from the plus, so a form left there goes
+   * (RowScreen, `opened`). */
+  const [logOpened, setLogOpened] = useState(0);
+  const openLog = () => {
+    setLog("shown");
+    setLogOpened((n) => n + 1);
+  };
   const openRower = (num: number) => push({ kind: "rower", num });
   const openRow = (id: string, talk?: boolean) => push({ kind: "row", id, talk });
   const openPeople = (list: PeopleList, num?: number) => push({ kind: "people", list, num });
@@ -669,6 +675,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
             <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: C.paper, display: logOn ? "flex" : "none" }}>
               <RowScreen
                 erg={erg}
+                opened={logOpened}
                 onLogged={logged}
                 onLeave={back}
                 onDemoRead={(doc, meters) => {
