@@ -51,8 +51,41 @@ export const M2D_GOAL = 1000;
 export const M2D_BY = "ROWTEMBER";
 export const M2D_RATE_DEFAULT = 3;
 export const M2D_RATE_KEY = "m2d.rate";
-/* Cents a kilometer, a whole or a half cent from 0.5 to 500 ($5/km). */
-export const rateOk = (c: unknown): c is number => typeof c === "number" && Number.isFinite(c) && c >= 0.5 && c <= 500 && Math.round(c * 2) === c * 2;
+/* Cents a kilometer, to a hundredth of a cent, from 0.5 to 500 ($5/km)
+ * (owner, 2026-11-25: "it doesn't have to be whole number. It can be 4
+ * point whatever cents"). */
+const hundredths = (c: number) => Math.abs(Math.round(c * 100) - c * 100) < 1e-6;
+export const rateOk = (c: unknown): c is number => typeof c === "number" && Number.isFinite(c) && c >= 0.5 && c <= 500 && hundredths(c);
+
+/* THE OTHER GIVERS (owner, 2026-11-25: "there will be other people that
+ * donate that will have their own line item ... What if the right way is
+ * going to donors and asking how many cents per kilometer? And then
+ * showing them as a line item"). Each pledges cents a kilometer on every
+ * meter a registered rower logs, as ROWTEMBER does; each is a line on the
+ * receipts. The owner keeps the list from his planner (a stored setting,
+ * no deploy). A pledge is never shown going down: the owner sets it. */
+export const M2D_GIVERS_KEY = "m2d.givers";
+export type Giver = { name: string; rate: number };
+const giverOk = (g: unknown): g is Giver =>
+  !!g && typeof (g as Giver).name === "string" && (g as Giver).name.trim().length > 0 && (g as Giver).name.length <= 40 && typeof (g as Giver).rate === "number" && Number.isFinite((g as Giver).rate) && (g as Giver).rate > 0 && (g as Giver).rate <= 500 && hundredths((g as Giver).rate);
+export const giversOk = (l: unknown): l is Giver[] => Array.isArray(l) && l.length <= 20 && l.every(giverOk);
+export async function m2dGivers(): Promise<Giver[]> {
+  try {
+    const row = await db.rowSetting.findUnique({ where: { challenge_key: { challenge: CHALLENGE, key: M2D_GIVERS_KEY } }, select: { value: true } });
+    const l = row?.value ? (JSON.parse(row.value) as unknown) : [];
+    return giversOk(l) ? l.map((g) => ({ name: g.name.trim(), rate: g.rate })) : [];
+  } catch {
+    return [];
+  }
+}
+export async function setM2dGivers(list: Giver[], by: string): Promise<void> {
+  const value = JSON.stringify(list.map((g) => ({ name: g.name.trim(), rate: g.rate })));
+  await db.rowSetting.upsert({
+    where: { challenge_key: { challenge: CHALLENGE, key: M2D_GIVERS_KEY } },
+    create: { challenge: CHALLENGE, key: M2D_GIVERS_KEY, value, updatedBy: by },
+    update: { value, updatedBy: by },
+  });
+}
 export async function m2dRate(): Promise<number> {
   try {
     const row = await db.rowSetting.findUnique({ where: { challenge_key: { challenge: CHALLENGE, key: M2D_RATE_KEY } }, select: { value: true } });
@@ -237,41 +270,52 @@ export type M2dTotals = {
   past100k: number;
   /* Meters by registered rowers: what ROWTEMBER's part is paid on. */
   inMeters: number;
+  /* The other givers, each at its pledge on the same meters; in `total`
+   * and in `split` (it goes where each rower picked, as ROWTEMBER's). */
+  givers: (Giver & { dollars: number })[];
 };
-export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, number>; ins: Map<string, Shares | null>; rate: number }> {
-  const [by, ins, rate] = await Promise.all([windowMeters(), m2dOptIns(), m2dRate()]);
+/* `perKm`: ROWTEMBER's rate and every giver's together, what one kilometer
+ * of a registered rower's is worth past Concept2's part. */
+export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, number>; ins: Map<string, Shares | null>; rate: number; perKm: number; givers: Giver[] }> {
+  const [by, ins, rate, givers] = await Promise.all([windowMeters(), m2dOptIns(), m2dRate(), m2dGivers()]);
+  const perKm = Math.round((rate + givers.reduce((a, g) => a + g.rate, 0)) * 100) / 100;
   const split = Object.fromEntries(CHARITIES.map((c) => [c.key, 0])) as Record<CharityKey, number>;
-  const t: M2dTotals = { meters: 0, raised: 0, matched: 0, total: 0, split, unpicked: 0, locked: 0, unclaimed: 0, rowers: 0, registered: ins.size, past100k: 0, inMeters: 0 };
+  const gave = givers.map((g) => ({ ...g, dollars: 0 }));
+  const t: M2dTotals = { meters: 0, raised: 0, matched: 0, total: 0, split, unpicked: 0, locked: 0, unclaimed: 0, rowers: 0, registered: ins.size, past100k: 0, inMeters: 0, givers: gave };
   for (const [id, m] of by) {
     if (m <= 0) continue;
     t.meters += m;
     t.rowers++;
     if (ins.has(id)) {
-      const mine = ours(m, rate);
+      t.matched += ours(m, rate);
+      for (const g of gave) g.dollars += ours(m, g.rate);
+      /* What goes where the rower picked: ROWTEMBER's part and the givers'. */
+      const mine = ours(m, rate) + givers.reduce((a, g) => a + ours(m, g.rate), 0);
       t.inMeters += m;
       t.raised += locked(m);
-      t.matched += mine;
       if (m >= 100_000) t.past100k++;
       const shares = ins.get(id);
       if (shares) for (const c of CHARITIES) split[c.key] += (mine * (shares[c.key] ?? 0)) / 100;
       else t.unpicked += mine;
-    } else t.unclaimed += both(m, rate);
+    } else t.unclaimed += both(m, perKm);
   }
   t.raised = cents(t.raised);
   t.matched = cents(t.matched);
   t.locked = t.raised;
-  t.total = cents(t.raised + t.matched);
+  for (const g of gave) g.dollars = cents(g.dollars);
+  const pool = cents(t.matched + gave.reduce((a, g) => a + g.dollars, 0));
+  t.total = cents(t.raised + pool);
   for (const c of CHARITIES) split[c.key] = cents(split[c.key]);
   t.unpicked = cents(t.unpicked);
   /* A split (thirds) rounds each line to the cent; the lines must still
    * add up to ROWTEMBER's part, so the cent left over goes to the biggest. */
-  const gap = cents(t.matched - t.unpicked - CHARITIES.reduce((a, c) => a + split[c.key], 0));
+  const gap = cents(pool - t.unpicked - CHARITIES.reduce((a, c) => a + split[c.key], 0));
   if (gap !== 0) {
     const big = CHARITIES.reduce((a, c) => (split[c.key] > split[a.key] ? c : a), CHARITIES[0]);
     split[big.key] = cents(split[big.key] + gap);
   }
   t.unclaimed = cents(t.unclaimed);
-  return { totals: t, by, ins, rate };
+  return { totals: t, by, ins, rate, perKm, givers };
 }
 
 /* `dollars`: Concept2's and ROWTEMBER's together for the rower's meters. */
@@ -283,8 +327,10 @@ export type M2dView = {
   goal: number;
   /* Concept2's goal for the whole challenge, everyone's. */
   c2Goal: number;
-  /* ROWTEMBER's rate, cents a kilometer on every meter. */
+  /* ROWTEMBER's rate, cents a kilometer on every meter; perKm, its and
+   * every other giver's together (totals.givers lists them). */
   rate: number;
+  perKm: number;
   /* Kept for the app builds that read it: who gives the second part. */
   match: { on: boolean; by: string };
   charities: Charity[];
@@ -311,7 +357,7 @@ export type M2dView = {
  * board masks (boardView): a hidden rower prints blocks and no dollars. */
 export async function m2dView(viewer: Viewer): Promise<M2dView> {
   const window = m2dWindow();
-  const { totals, by, ins, rate } = await m2dTotals();
+  const { totals, by, ins, rate, perKm } = await m2dTotals();
   const meId = viewer.myParticipantId;
   let rows: M2dRow[] = [];
   if (window.started) {
@@ -323,7 +369,7 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
         name: r.name,
         division: r.division,
         meters: r.masked ? 0 : r.meters,
-        dollars: r.masked ? null : both(r.meters, rate),
+        dollars: r.masked ? null : both(r.meters, perKm),
         in: ins.has(r.participantId),
         me: r.participantId === meId,
         ...(r.masked ? { blocks: r.digits ?? String(r.meters).length } : {}),
@@ -337,6 +383,7 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
     goal: M2D_GOAL,
     c2Goal: C2_GROUP_GOAL,
     rate,
+    perKm,
     match: { on: true, by: M2D_BY },
     charities: CHARITIES.map((c) => ({ ...c })),
     totals,
@@ -352,7 +399,7 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
           })(),
           shares: meId ? (ins.get(meId) ?? null) : null,
           meters: mine,
-          dollars: both(mine, rate),
+          dollars: both(mine, perKm),
           concept2: locked(mine),
           rowtember: ours(mine, rate),
           locked: locked(mine),
@@ -368,7 +415,7 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
 export type M2dShare = { meters: number; dollars: number; in: boolean; allMeters: number; allRaised: number; row: { meters: number; dollars: number } | null };
 export async function m2dShare(participantId: string | null, row: { day: string; meters: number } | null): Promise<M2dShare | null> {
   if (!m2dWindow().started) return null;
-  const { totals, by, ins, rate } = await m2dTotals();
+  const { totals, by, ins, perKm: rate } = await m2dTotals();
   const m = participantId ? (by.get(participantId) ?? 0) : 0;
   /* A row's own dollars are what it added to the rower's: ROWTEMBER's on
    * every meter, and Concept2's once the rower is past 100K. */
@@ -453,6 +500,7 @@ export type PlanSpan = { label: string; meters: number; rowers: number; days: nu
 export type M2dPlan = {
   window: M2dWindow;
   rate: number;
+  givers: Giver[];
   soFar: { meters: number; inMeters: number; rowers: number; registered: number; cost: number };
   history: { high: PlanSpan; low: PlanSpan };
   projected: { low: number; likely: number; high: number };
@@ -467,7 +515,7 @@ export async function m2dPlan(): Promise<M2dPlan> {
   const window = m2dWindow();
   const monthStart = `${M2D_FIRST.slice(0, 8)}01`;
   const dayBefore = new Date(Date.parse(`${M2D_FIRST}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
-  const [{ totals, rate }, high, low] = await Promise.all([
+  const [{ totals, rate, givers }, high, low] = await Promise.all([
     m2dTotals(),
     span(HIGH_MONTH.label, HIGH_MONTH.first, HIGH_MONTH.last),
     span(`${new Date(`${monthStart}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })} 1 to ${Number(dayBefore.slice(8))}`, monthStart, dayBefore),
@@ -489,6 +537,7 @@ export async function m2dPlan(): Promise<M2dPlan> {
   return {
     window,
     rate,
+    givers,
     soFar: { meters: totals.meters, inMeters: totals.inMeters, rowers: totals.rowers, registered: totals.registered, cost: totals.matched },
     history: { high, low },
     projected: { low: r(projected.low), likely: r(projected.likely), high: r(projected.high) },

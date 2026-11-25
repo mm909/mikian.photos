@@ -275,3 +275,18 @@ export function ExpandIcon({ color = C.ink, size = 24 }: P) {
     </Svg>
   );
 }
+
+/* M2D: a gift, wrapped, a bow on top (owner, 2026-11-25: "I don't like it
+ * having the dollar sign ... something that represents Christmas or
+ * giving"). */
+export function GiftIcon({ color = C.ink, size = 24 }: P) {
+  return (
+    <Svg {...box(size)}>
+      <Rect x={4.5} y={11} width={15} height={9.5} rx={1} {...line(color)} />
+      <Rect x={3.5} y={7.5} width={17} height={3.5} rx={1} {...line(color)} />
+      <Line x1={12} y1={7.5} x2={12} y2={20.5} {...line(color)} />
+      <Path d="M12 7.5 C10.5 4 7 3.5 7 5.5 C7 7 9.5 7.5 12 7.5 Z" {...line(color)} />
+      <Path d="M12 7.5 C13.5 4 17 3.5 17 5.5 C17 7 14.5 7.5 12 7.5 Z" {...line(color)} />
+    </Svg>
+  );
+}

@@ -135,7 +135,7 @@ export function LockerScreen({ start }: { start?: Layer } = {}) {
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: 10, paddingBottom: 120, width: W, alignSelf: "center" }}>
         <LayerRow layer={layer} equipped={l.equipped[layer]} owned={l.owned} fresh={fresh} cardW={cardW} />
         <Btn label={`Buy a chest · ${fmtInt(CHEST_COST)} coins`} onPress={buyOne} disabled={buying || boat.coins < CHEST_COST} style={{ marginTop: 24 }} />
-        <Text style={{ fontFamily: F.monoBold, fontSize: 10, letterSpacing: 1, color: C.gray, textAlign: "center", marginTop: 6 }}>{`YOU HAVE ${fmtInt(boat.coins)} COINS · A COIN A METER OF THE GAME`}</Text>
+        <Text style={{ fontFamily: F.monoBold, fontSize: 10, letterSpacing: 1, color: C.gray, textAlign: "center", marginTop: 6 }}>{`YOU HAVE ${fmtInt(boat.coins)} COINS`}</Text>
         {me.isAdmin ? <Btn label="Try a chest" quiet onPress={tryChest} style={{ marginTop: 12 }} /> : null}
       </ScrollView>
       {chest ? <ChestSheet chest={chest} onClose={() => setChest(null)} /> : null}

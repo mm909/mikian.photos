@@ -783,7 +783,7 @@ function Upgrades() {
   const canChest = !buying && b.coins >= CHEST_COST;
   return (
     <>
-      <Eye style={{ marginTop: 14 }} left="The boat" right={`${fmtInt(b.coins)} coins · a coin a meter of the game`} />
+      <Eye style={{ marginTop: 14 }} left="The boat" right={`${fmtInt(b.coins)} coins`} />
       {UPGRADES.map((u) => {
         const lv = b[u.id];
         const cost = costOf(u.id, lv);

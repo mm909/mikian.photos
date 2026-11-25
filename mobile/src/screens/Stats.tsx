@@ -99,7 +99,14 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
   /* ALL TIME first (owner, 2026-11-22: "on the stats, let's default it to
    * all time"). */
   const [period, setPeriod] = useState("all");
-  const [m2d, setM2d] = useState(false);
+  /* M2D FIRST WHILE IT RUNS (owner, 2026-11-25: "that all time should go
+   * to M2D whenever it goes and showing dollars"): from Nov 26 to Dec 24
+   * the page opens on M2D, in dollars; all time is one pick away. */
+  const [m2d, setM2d] = useState(() => {
+    const d = new Date();
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return day >= "2026-11-26" && day <= "2026-12-24";
+  });
   /* THE STAT LEFT ON IS THE STAT COME BACK TO (owner, 2026-11-23: "make
    * the stat page remember the category that I left off at. Right now it
    * resets to total meters"): kept for the app's life and on the phone. */

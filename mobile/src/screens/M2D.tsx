@@ -5,6 +5,7 @@ import { useSession } from "../session";
 import { Ctl, Dateline, Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import { Bar, Blocks, Waiting, useLoad, useScrollDir } from "../ui";
+import { StickerViewer } from "./RowPage";
 
 /* M2D, METERS TO DOLLARS: the Concept2 Holiday Challenge, Nov 26 - Dec 24
  * (owner, 2026-11-25, with Concept2's post open: "Let's take over that
@@ -47,6 +48,8 @@ export type M2dView = {
    * for. Absent on an older site. */
   match?: { on: boolean; by: string };
   rate?: number;
+  /* ROWTEMBER's rate and every other giver's together (totals.givers). */
+  perKm?: number;
   charities?: Charity[];
   c2Goal?: number;
   /* raised: CONCEPT2 (past 100K only); matched: ROWTEMBER (every meter);
@@ -60,6 +63,7 @@ export type M2dView = {
     split?: Record<string, number>;
     unpicked?: number;
     inMeters?: number;
+    givers?: { name: string; rate: number; dollars: number }[];
     locked: number;
     unclaimed: number;
     rowers: number;
@@ -89,9 +93,102 @@ export function concept2Of(meters: number): number {
 }
 /* ROWTEMBER's: every meter at the rate (cents a kilometer). */
 export const rowtemberOf = (meters: number, rate: number): number => Math.round(((Math.max(0, meters) / 1000) * rate) / 100 * 100) / 100;
-/* "3¢", "2.5¢", "$1". */
-export const centsWord = (c: number): string => (c >= 100 ? `$${(c / 100).toFixed(c % 100 ? 2 : 0)}` : `${c}¢`);
+/* "3¢", "2.5¢", "4.25¢", "$1". */
+export const centsWord = (c: number): string => (c >= 100 ? `$${(c / 100).toFixed(c % 100 ? 2 : 0)}` : `${Math.round(c * 100) / 100}¢`);
 const rateOf = (v: M2dView): number => v.rate ?? 3;
+const giversOf = (v: M2dView) => v.totals.givers ?? [];
+const perKmOf = (v: M2dView): number => v.perKm ?? rateOf(v) + giversOf(v).reduce((a, g) => a + g.rate, 0);
+const windowWord = (v: M2dView): string => (!v.window.started ? "Nov 26 – Dec 24" : v.window.over ? "Final" : `Day ${v.window.day} of ${v.window.days}`);
+
+/* ONE LINE OF A RECEIPT (owner, 2026-11-25: "a really good like itemized
+ * receipt type look"): who gives on the left with their rate under it in
+ * grey, the dollars on the right. A press opens the math where there is
+ * one. */
+function Item({ who, rate, d, onPress, strong }: { who: string; rate?: string; d: string; onPress?: () => void; strong?: boolean }) {
+  const body = (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", columnGap: 12, paddingVertical: 10, borderBottomWidth: strong ? 0 : 1, borderColor: C.line }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontFamily: strong ? F.black : F.bold, fontSize: strong ? 16 : 14, color: C.ink, textTransform: "uppercase" }}>
+          {who}
+          {onPress ? <Text style={{ color: C.gray }}> ›</Text> : null}
+        </Text>
+        {rate ? <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 3, lineHeight: 14 }]}>{rate}</Text> : null}
+      </View>
+      <Text style={{ fontFamily: strong ? F.black : F.monoBold, fontSize: strong ? 18 : 14, color: C.accent, fontVariant: ["tabular-nums"] }}>{d}</Text>
+    </View>
+  );
+  if (!onPress) return body;
+  return (
+    <Pressable accessibilityRole="link" accessibilityLabel={`${who}, ${d}. How it adds up`} onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+      {body}
+    </Pressable>
+  );
+}
+
+/* THE TOTAL LINE of a receipt: a rule of ink above it. */
+function TotalItem({ d, label = "Total" }: { d: string; label?: string }) {
+  return (
+    <View style={{ borderTopWidth: 2, borderColor: C.ink, marginTop: 4 }}>
+      <Item who={label} d={d} strong />
+    </View>
+  );
+}
+
+/* WHAT A KILOMETER IS WORTH (owner, 2026-11-25: "a section for how much
+ * money each meter is worth for the different people that have donated
+ * ... I am giving 3 cents per 1K. Concept2 is giving 2 cents per 1K and
+ * then 4 cents"). Each giver a line in cents a kilometer, and the sum,
+ * under and past 100K. */
+function PerKm({ v }: { v: M2dView }) {
+  const by = v.match?.by ?? "ROWTEMBER";
+  const all = perKmOf(v);
+  const line = (who: string, c: string, note: string) => (
+    <View key={who} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", columnGap: 12, paddingVertical: 8, borderBottomWidth: 1, borderColor: C.line }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontFamily: F.bold, fontSize: 14, color: C.ink, textTransform: "uppercase" }}>{who}</Text>
+        <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 2, lineHeight: 14 }]}>{note}</Text>
+      </View>
+      <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.ink, fontVariant: ["tabular-nums"] }}>{c}</Text>
+    </View>
+  );
+  const sum = (k: string, c: number) => (
+    <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingTop: 8 }}>
+      <Text style={{ fontFamily: F.black, fontSize: 15, color: C.ink, textTransform: "uppercase" }}>{k}</Text>
+      <Text style={{ fontFamily: F.black, fontSize: 15, color: C.accent, fontVariant: ["tabular-nums"] }}>{centsWord(c)} / km</Text>
+    </View>
+  );
+  return (
+    <View style={{ marginTop: 34 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>
+        <Text style={{ fontFamily: F.black, fontSize: 17, color: C.ink, textTransform: "uppercase" }}>What a kilometer is worth</Text>
+      </View>
+      {line("Concept2", "2¢ → 4¢", "Once you pass 100K: 2¢ for each of the first 100 km, 4¢ for every one after")}
+      {line(by, centsWord(rateOf(v)), "Every meter logged on ROW, from the first")}
+      {giversOf(v).map((g) => line(g.name, centsWord(g.rate), "Pledged on every meter logged on ROW"))}
+      {sum("Under 100K", all)}
+      {sum("Past 100K", all + 4)}
+    </View>
+  );
+}
+
+/* A SHARE BUTTON: the dollar stickers (share/cards.ts m2d-*), on the dark
+ * ground the stickers are made for (owner, 2026-11-25: "this is where a
+ * share button should be"). */
+function ShareBtn({ label, only }: { label: string; only: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => ({ alignSelf: "stretch", marginTop: 18, backgroundColor: C.ink, paddingVertical: 13, alignItems: "center", opacity: pressed ? 0.7 : 1 })}
+      >
+        <Text style={{ fontFamily: F.black, fontSize: 14, color: C.paper, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</Text>
+      </Pressable>
+      {open ? <StickerViewer only={only} empty="The M2D stickers open Nov 26, with the first meters." onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
 
 function useM2d() {
   const { me } = useSession();
@@ -422,20 +519,7 @@ function Split({ v, busy, onSave }: { v: M2dView; busy: boolean; onSave: (s: Rec
 function Raised({ v, onFaq }: { v: M2dView; onFaq: (k: "concept2" | "rowtember") => void }) {
   const t = v.totals;
   const total = totalOf(v);
-  const line = (label: string, d: number, k: "concept2" | "rowtember") => (
-    <Pressable
-      key={label}
-      accessibilityRole="link"
-      accessibilityLabel={`${label}, ${usd(d)}. How it adds up`}
-      onPress={() => onFaq(k)}
-      style={({ pressed }) => ({ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingVertical: 9, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.5 : 1 })}
-    >
-      <Text style={{ fontFamily: F.bold, fontSize: 14, color: C.ink, textTransform: "uppercase" }}>
-        {label} <Text style={{ color: C.gray }}>›</Text>
-      </Text>
-      <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.accent, fontVariant: ["tabular-nums"] }}>{usd(d)}</Text>
-    </Pressable>
-  );
+  const by = v.match?.by ?? "ROWTEMBER";
   const sub = (k: string, d: number) => (
     <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingVertical: 5, paddingLeft: 14 }}>
       <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.gray }}>{k}</Text>
@@ -448,14 +532,19 @@ function Raised({ v, onFaq }: { v: M2dView; onFaq: (k: "concept2" | "rowtember")
         {usd(total)}
       </Text>
       <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 4 }]}>
-        Raised <Text style={mono(11, false, C.gray, 0.12)}>· {v.window.started ? `${fmtInt(t.meters)} m rowed` : "Starts Nov 26"}</Text>
+        Raised{v.window.started ? <Text style={mono(11, false, C.gray, 0.12)}> · {fmtInt(t.meters)} m rowed</Text> : null}
       </Text>
       <M2dGoal v={v} />
-      <View style={{ marginTop: 18, borderTopWidth: 2, borderColor: C.ink }}>
-        {line("Concept2", t.raised, "concept2")}
-        {line(v.match?.by ?? "ROWTEMBER", t.matched ?? 0, "rowtember")}
+      {/* More room between the bar and the receipts (owner, 2026-11-25). */}
+      <View style={{ marginTop: 34, borderTopWidth: 2, borderColor: C.ink }}>
+        <Item who="Concept2" rate="2¢/km once a rower passes 100K, 4¢ after" d={usd(t.raised)} onPress={() => onFaq("concept2")} />
+        <Item who={by} rate={`${centsWord(rateOf(v))}/km on every meter`} d={usd(t.matched ?? 0)} onPress={() => onFaq("rowtember")} />
+        {giversOf(v).map((g) => (
+          <Item key={g.name} who={g.name} rate={`${centsWord(g.rate)}/km pledged, every meter`} d={usd(g.dollars)} />
+        ))}
         {(v.charities ?? []).map((c) => sub(c.name, t.split?.[c.key] ?? 0))}
         {(t.unpicked ?? 0) > 0 ? sub("No charity picked yet", t.unpicked ?? 0) : null}
+        <TotalItem d={usd(total)} />
       </View>
     </View>
   );
@@ -492,8 +581,30 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
   return (
     <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
       <View style={{ paddingHorizontal: 20 }}>
-        <Dateline left="Concept2 Holiday Challenge" right={!w.started ? "Starts Nov 26" : w.over ? "Final" : `Day ${w.day} of ${w.days}`} days={w.days} day={w.day} />
+        <Dateline left="Concept2 Holiday Challenge" right={windowWord(v)} days={w.days} day={w.day} />
         <Raised v={v} onFaq={setFaq} />
+        {v.me ? <ShareBtn label="Share the total" only="m2d-all" /> : null}
+        <PerKm v={v} />
+      </View>
+
+      <View style={{ marginHorizontal: 20, marginTop: 36, paddingBottom: 9, borderBottomWidth: 1, borderColor: C.ink, flexDirection: "row", alignItems: "baseline" }}>
+        <Text style={{ flex: 1, fontFamily: F.black, fontSize: 17, lineHeight: 18, color: C.ink, textTransform: "uppercase" }}>The board</Text>
+        <Text style={mono(10, false, C.gray, 0.1)}>Meters · $</Text>
+      </View>
+      {!w.started ? (
+        <Text style={[mono(11, false, C.gray), { paddingHorizontal: 20, paddingVertical: 14, lineHeight: 18 }]}>The board opens Nov 26. Every meter from then counts.</Text>
+      ) : v.rows.length === 0 ? (
+        <Text style={[mono(11, false, C.gray), { paddingHorizontal: 20, paddingVertical: 14 }]}>Nobody has rowed yet.</Text>
+      ) : (
+        v.rows.map((r) => <Line key={r.rowerNumber} r={r} place={r.blocks === undefined ? ++place : null} onPress={() => onRower(r.rowerNumber)} />)
+      )}
+      {v.rows.some((r) => !r.in) ? (
+        <Text style={[mono(9.5, false, C.gray, 0.1), { paddingHorizontal: 20, paddingTop: 14, lineHeight: 15 }]}>Grey dollars: not registered yet. Register and they count.</Text>
+      ) : null}
+
+      {/* JOINING, BELOW THE BOARD (owner, 2026-11-25: "they just need to be
+          at the bottom, I think, below the board"). */}
+      <View style={{ paddingHorizontal: 20 }}>
         {v.me && !v.me.in && !w.over ? (
           joining ? (
             <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick ?? undefined)} />
@@ -508,22 +619,8 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
           )
         ) : null}
         {inOut.note ? <Text style={[mono(11, true, C.ink, 0.14), { marginTop: 10, lineHeight: 18 }]}>{inOut.note}</Text> : null}
+        {v.me?.in ? <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 18, lineHeight: 16 }]}>You are registered. Your charity and your dollars are on your profile, under M2D.</Text> : null}
       </View>
-
-      <View style={{ marginHorizontal: 20, marginTop: 28, paddingBottom: 9, borderBottomWidth: 1, borderColor: C.ink, flexDirection: "row", alignItems: "baseline" }}>
-        <Text style={{ flex: 1, fontFamily: F.black, fontSize: 17, lineHeight: 18, color: C.ink, textTransform: "uppercase" }}>The board</Text>
-        <Text style={mono(10, false, C.gray, 0.1)}>Meters · $</Text>
-      </View>
-      {!w.started ? (
-        <Text style={[mono(11, false, C.gray), { paddingHorizontal: 20, paddingVertical: 14, lineHeight: 18 }]}>The board opens Nov 26. Every meter from then counts.</Text>
-      ) : v.rows.length === 0 ? (
-        <Text style={[mono(11, false, C.gray), { paddingHorizontal: 20, paddingVertical: 14 }]}>Nobody has rowed yet.</Text>
-      ) : (
-        v.rows.map((r) => <Line key={r.rowerNumber} r={r} place={r.blocks === undefined ? ++place : null} onPress={() => onRower(r.rowerNumber)} />)
-      )}
-      {v.rows.some((r) => !r.in) ? (
-        <Text style={[mono(9.5, false, C.gray, 0.1), { paddingHorizontal: 20, paddingTop: 14, lineHeight: 15 }]}>Grey dollars: not registered yet. Register and they count.</Text>
-      ) : null}
       <Pressable accessibilityRole="link" hitSlop={8} onPress={() => setFaq("all")} style={{ alignSelf: "flex-start", marginHorizontal: 20, marginTop: 14 }}>
         <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>How it adds up</Text>
       </Pressable>
@@ -568,14 +665,18 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
   const inOut = useIn(v ?? null, reload);
   if (!v) return <Waiting error={error} onRetry={reload} />;
   const matchOn = !!v.match?.on && !!v.charities?.length;
+  const by = v.match?.by ?? "ROWTEMBER";
   const row = v.rows.find((r) => r.rowerNumber === num);
   const meters = own ? (v.me?.meters ?? 0) : (row?.meters ?? 0);
   const isIn = own ? !!v.me?.in : !!row?.in;
   const hidden = !own && row?.blocks !== undefined;
+  const c2 = own && v.me?.concept2 !== undefined ? v.me.concept2 : concept2Of(meters);
+  const ours = own && v.me?.rowtember !== undefined ? v.me.rowtember : rowtemberOf(meters, rateOf(v));
+  const theirs = giversOf(v).map((g) => ({ ...g, d: rowtemberOf(meters, g.rate) }));
   const d = own ? (v.me?.dollars ?? 0) : (row?.dollars ?? 0);
   return (
     <View style={{ paddingTop: 18, paddingBottom: 40 }}>
-      <Eye left="M2D for charity" right={!v.window.started ? "Starts Nov 26" : v.window.over ? "Final" : `Day ${v.window.day} of ${v.window.days}`} />
+      <Eye left="M2D" right={windowWord(v)} />
       {hidden ? (
         <View style={{ marginTop: 18 }}>
           <Blocks n={row?.blocks ?? 5} size={20} />
@@ -583,26 +684,40 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
       ) : (
         <>
           <Text style={{ fontFamily: F.black, fontSize: 56, lineHeight: 62, color: isIn ? C.accent : C.gray, marginTop: 16, fontVariant: ["tabular-nums"] }}>{usd(d)}</Text>
-          <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 2 }]}>
-            {fmtInt(meters)} m since Nov 26{isIn ? "" : " · not registered"}
-          </Text>
-          {own && v.me ? (
-            <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 8, lineHeight: 16 }]}>
-              Concept2 {usd(v.me.concept2 ?? concept2Of(meters))} · {v.match?.by ?? "ROWTEMBER"} {usd(v.me.rowtember ?? rowtemberOf(meters, rateOf(v)))}
-              {meters < 100_000 ? ` · Concept2 starts at 100K, ${fmtInt(100_000 - meters)} m to go` : ""}
-            </Text>
+          <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 2 }]}>{isIn ? (own ? "Your meters raised" : "Raised") : "Not registered yet"}</Text>
+          {/* THE RECEIPT (owner, 2026-11-25: "It needs to be you rowed this
+              many meters, Concept2 is giving you this much money for your
+              meters, we are giving you this much money for your meters").
+              No graph. */}
+          <View style={{ marginTop: 22, borderTopWidth: 2, borderColor: C.ink }}>
+            <Item who={own ? "You rowed" : "Rowed"} rate="Nov 26 to Dec 24" d={`${fmtInt(meters)} m`} />
+            <Item who="Concept2" rate={meters < 100_000 ? `Starts at 100K · ${fmtInt(100_000 - meters)} m to go` : "2¢/km for the first 100 km, 4¢ after"} d={usd(c2)} />
+            <Item who={by} rate={`${centsWord(rateOf(v))}/km on every meter`} d={usd(ours)} />
+            {theirs.map((g) => (
+              <Item key={g.name} who={g.name} rate={`${centsWord(g.rate)}/km pledged`} d={usd(g.d)} />
+            ))}
+            <TotalItem d={usd(c2 + ours + theirs.reduce((a, g) => a + g.d, 0))} />
+          </View>
+          {own && isIn ? (
+            <View style={{ marginTop: 22 }}>
+              <Text style={mono(10, true, C.ink, 0.12)}>Where it goes</Text>
+              <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.ink, marginTop: 6 }}>
+                <Text style={{ fontFamily: F.bold }}>Concept2&apos;s</Text> goes to the charity you picked in your Concept2 Logbook.
+              </Text>
+              <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.ink, marginTop: 4 }}>
+                <Text style={{ fontFamily: F.bold }}>{by}&apos;s{theirs.length ? " and the pledges" : ""}</Text> go to the charity you pick here.
+              </Text>
+            </View>
           ) : null}
         </>
       )}
+      {own && v.me?.in && matchOn ? <Split v={v} busy={inOut.busy} onSave={(s) => inOut.say(true, undefined, s)} /> : null}
+      {own && v.me ? <ShareBtn label="Share my dollars" only="m2d-me" /> : null}
+      {/* Registering and Concept2 at the foot (owner, 2026-11-25). */}
       {own && v.me && !v.me.in && !v.window.over ? (
         <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick ?? undefined)} />
       ) : null}
-      {own && v.me?.in ? (
-        <>
-          <Status v={v} busy={inOut.busy} onUndo={() => inOut.say(false)} />
-          {matchOn ? <Split v={v} busy={inOut.busy} onSave={(s) => inOut.say(true, undefined, s)} /> : null}
-        </>
-      ) : null}
+      {own && v.me?.in ? <Status v={v} busy={inOut.busy} onUndo={() => inOut.say(false)} /> : null}
       {!own ? (
         <View style={{ marginTop: 22 }}>
           <Ctl label="The challenge at Concept2 ↗" onPress={() => open(v.link)} />
@@ -773,6 +888,7 @@ export function M2dStatsView({ onRower }: { onRower: (n: number) => void }) {
 type Plan = {
   window: { day: number; days: number };
   rate: number;
+  givers?: { name: string; rate: number }[];
   soFar: { meters: number; inMeters: number; rowers: number; registered: number; cost: number };
   history: { high: { label: string; meters: number; rowers: number }; low: { label: string; meters: number; rowers: number } };
   projected: { low: number; likely: number; high: number };
@@ -780,7 +896,8 @@ type Plan = {
 };
 const PLAN_PATH = "/api/row100k/app/m2d/plan";
 const costOf = (meters: number, c: number) => (meters / 1000) * (c / 100);
-const rateFor = (budget: number, meters: number) => (meters > 0 ? Math.floor(((budget * 100) / (meters / 1000)) * 2) / 2 : 0);
+/* The rate a budget covers, down to a hundredth of a cent. */
+const rateFor = (budget: number, meters: number) => (meters > 0 ? Math.floor(((budget * 100) / (meters / 1000)) * 100) / 100 : 0);
 export function M2dPlanner() {
   const { data, error, reload } = useLoad(() => api<Plan>(PLAN_PATH), [], PLAN_PATH);
   const [p, setP] = useState<Plan | null>(null);
@@ -789,6 +906,9 @@ export function M2dPlanner() {
   const [tryRate, setTryRate] = useState("10");
   const [say, setSay] = useState("");
   const [busy, setBusy] = useState(false);
+  const [gift, setGift] = useState("50");
+  const [gName, setGName] = useState("");
+  const [gRate, setGRate] = useState("");
   const plan = p ?? data;
   if (!plan) return <Waiting error={error} onRetry={reload} />;
   const { low, likely, high } = plan.projected;
@@ -802,6 +922,22 @@ export function M2dPlanner() {
       setP(next);
       setRateIn("");
       setSay(`Saved. ROWTEMBER gives ${centsWord(next.rate)} a kilometer, on every meter in the window.`);
+    } catch (err) {
+      setSay(err instanceof Error ? err.message : "That did not save.");
+    }
+    setBusy(false);
+  };
+  const givers = plan.givers ?? [];
+  const g = Number(gift) || 0;
+  const saveGivers = async (next: { name: string; rate: number }[]) => {
+    setBusy(true);
+    setSay("");
+    try {
+      const res = await api<Plan>(PLAN_PATH, { body: { givers: next } });
+      setP(res);
+      setGName("");
+      setGRate("");
+      setSay("Saved. The receipts show it now.");
     } catch (err) {
       setSay(err instanceof Error ? err.message : "That did not save.");
     }
@@ -841,6 +977,13 @@ export function M2dPlanner() {
       {head("Each 1¢ a kilometer")}
       {row("Low · likely · high", `${usd(costOf(low, 1))} · ${usd(costOf(likely, 1))} · ${usd(costOf(high, 1))}`)}
       <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 8 }]}>1¢/km is $1 for every 100K meters.</Text>
+      {/* A DONATION, IN CENTS A KILOMETER (owner, 2026-11-25: "I just got a
+          donation of $50. How much does that raise our cents per whatever?"). */}
+      {head("A donation → ¢/km")}
+      {input(gift, setGift, "Donation, $")}
+      {row("Adds, if the high case is rowed", `${centsWord(rateFor(g, high))}/km`)}
+      {row("Adds, if the likely case is rowed", `${centsWord(rateFor(g, likely))}/km`)}
+      {row("Adds, on the meters so far", `${centsWord(rateFor(g, plan.soFar.inMeters))}/km`)}
       {head("Budget → rate")}
       {input(budget, setBudget, "Budget, $")}
       {row("Covers, high case", `${centsWord(rateFor(b, high))}/km`)}
@@ -848,6 +991,31 @@ export function M2dPlanner() {
       {head("Rate → cost")}
       {input(tryRate, setTryRate, "Cents a km")}
       {row("Low · likely · high", `${usd(costOf(low, r))} · ${usd(costOf(likely, r))} · ${usd(costOf(high, r))}`)}
+      {/* THE OTHER GIVERS: a line each on the receipts, a pledge in cents a
+          kilometer. Live at once. */}
+      {head(`Other givers · ${givers.length}`)}
+      {givers.map((x, i) => (
+        <View key={x.name} style={{ flexDirection: "row", alignItems: "center", columnGap: 10, paddingVertical: 8, borderBottomWidth: 1, borderColor: C.line }}>
+          <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: C.ink }}>{x.name}</Text>
+          <Text style={{ fontFamily: F.monoBold, fontSize: 14, color: C.accent }}>{centsWord(x.rate)}/km</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Take ${x.name} off`} hitSlop={8} disabled={busy} onPress={() => void saveGivers(givers.filter((_, j) => j !== i))}>
+            <Text style={[mono(10, true, C.gray, 0.1), { textDecorationLine: "underline" }]}>Remove</Text>
+          </Pressable>
+        </View>
+      ))}
+      <TextInput
+        accessibilityLabel="Giver's name"
+        value={gName}
+        onChangeText={setGName}
+        placeholder="Name on the receipt"
+        placeholderTextColor={C.gray}
+        maxLength={40}
+        style={{ marginTop: 10, borderWidth: 1, borderColor: C.ink, paddingHorizontal: 10, paddingVertical: 8, fontFamily: F.sans, fontSize: 16, color: C.ink }}
+      />
+      {input(gRate, setGRate, "Pledge, cents a km")}
+      <View style={{ marginTop: 12 }}>
+        <Go label={busy ? "Saving" : "Add the giver"} disabled={busy || !gName.trim() || !(Number(gRate) > 0)} onPress={() => void saveGivers([...givers, { name: gName.trim(), rate: Math.round(Number(gRate) * 100) / 100 }])} />
+      </View>
       {head(`ROWTEMBER's rate · ${centsWord(plan.rate)}/km`)}
       <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.gray, marginTop: 8 }}>Live at once, no update. It applies to every meter in the window, the ones already rowed included.</Text>
       {input(rateIn, setRateIn, `Cents a km (now ${plan.rate})`)}

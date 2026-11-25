@@ -46,7 +46,7 @@ import { Act, Sheet, Small, Toggle, type PeopleList } from "./Social";
 /* DEVELOPER is one page (owner, 2026-11-24: every developer option "into
  * one submenu", like the others): the arcade's resets, the Developer
  * account's reset, and the way to PASSWORD. */
-export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer" | "password" | "planner";
+export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer" | "password" | "planner" | "about";
 
 const KIND: Record<string, [string, string]> = {
   passed: ["A rower I follow passes me", "At most one a day, however many passed."],
@@ -117,7 +117,8 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
             onSignedOut();
           }}
         />
-        <About />
+        <View style={{ height: 26 }} />
+        <Go label="About" sub={`Version ${nativeVersion() || "—"} · ${STAMP}`} onPress={() => onPage("about")} />
         {/* THE FOOT OF SETTINGS (owner, 2026-11-24: "we just put it just not
             a link to my Instagram. We just put for yourself and others as a
             footer there in the settings tab"): the splash's line, plain. */}
@@ -130,6 +131,9 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
   /* What M2D costs, and ROWTEMBER's rate (owner, 2026-11-25): an admin
    * only, in the developer settings (screens/M2D.tsx M2dPlanner). */
   if (page === "planner") return wrap(me.isAdmin ? <M2dPlanner /> : null);
+  /* ABOUT, A PAGE OF ITS OWN (owner, 2026-11-25: "the about should
+   * definitely just be in its own little settings folder"). */
+  if (page === "about") return wrap(<About />);
   if (page === "developer") {
     return wrap(
       <>
@@ -602,6 +606,13 @@ function About() {
       <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.gray, fontVariant: ["tabular-nums"], flexShrink: 1, textAlign: "right" }}>{v}</Text>
     </View>
   );
+  /* CHECK FOR UPDATES, A LINE OF THE TABLE (owner, 2026-11-25: "the up to
+   * date and check it again buttons are a little weird ... there could be a
+   * check version ... not in a table, not in a button"): its name on the
+   * left, what the check found on the right; a press checks again, or,
+   * with one waiting, gets it. */
+  const right =
+    state === "checking" ? "Checking…" : state === "current" ? "Up to date ✓" : state === "newer" ? "Get the update" : state === "fetching" ? "Getting it…" : state === "failed" ? "Try again" : "—";
   const say =
     state === "off"
       ? Platform.OS === "web"
@@ -622,20 +633,24 @@ function About() {
       {line("Version", nativeVersion() || "—")}
       {line("Update", published ? `${STAMP} · ${published}` : `${STAMP} · in the build`)}
       {!off && Updates.channel ? line("Channel", Updates.channel) : null}
-      <View accessibilityLiveRegion="polite" style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 14 }}>
-        {state === "checking" || state === "fetching" ? <ActivityIndicator color={C.gray} /> : null}
-        <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, lineHeight: 19, color: state === "newer" ? C.accent : C.gray }}>{say}</Text>
-      </View>
-      {state === "newer" ? (
-        <View style={{ alignSelf: "flex-start", marginTop: 10 }}>
-          <Small label="Get the update" fill onPress={take} />
-        </View>
-      ) : null}
-      {state === "failed" || state === "current" ? (
-        <Text accessibilityRole="button" suppressHighlighting onPress={check} style={{ fontFamily: F.sans, fontSize: 13, color: C.gray, textDecorationLine: "underline", marginTop: 8 }}>
-          Check again
-        </Text>
-      ) : null}
+      {off ? (
+        <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 12 }}>{say}</Text>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Check for updates. ${say}`}
+          accessibilityLiveRegion="polite"
+          disabled={state === "checking" || state === "fetching"}
+          onPress={state === "newer" ? take : check}
+          style={({ pressed }) => ({ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16, minHeight: 48, borderBottomWidth: 1, borderColor: C.line, opacity: pressed ? 0.6 : 1 })}
+        >
+          <Text style={{ fontFamily: F.sans, fontSize: 15, color: C.ink }}>Check for updates</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {state === "checking" || state === "fetching" ? <ActivityIndicator color={C.gray} /> : null}
+            <Text style={{ fontFamily: state === "newer" ? F.bold : F.sans, fontSize: 15, color: state === "newer" ? C.accent : C.gray }}>{right}</Text>
+          </View>
+        </Pressable>
+      )}
     </View>
   );
 }

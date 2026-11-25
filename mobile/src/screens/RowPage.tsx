@@ -885,7 +885,7 @@ const GROUND = "#1f2226";
  * ... and then I can close it"). One screen on the dark ground the stickers
  * are made for, one sticker to a page, a swipe to the next; SHARE hands the
  * one showing to the phone's share sheet, COPY puts it on the clipboard. */
-export function StickerViewer({ rowId, onClose }: { rowId?: string; onClose: () => void }) {
+export function StickerViewer({ rowId, onClose, only, empty }: { rowId?: string; onClose: () => void; only?: string; empty?: string }) {
   useModalHold();
   const win = useWindowDimensions();
   const w = Math.min(win.width, 560);
@@ -893,7 +893,9 @@ export function StickerViewer({ rowId, onClose }: { rowId?: string; onClose: () 
   const [at, setAt] = useState(0);
   const [busy, setBusy] = useState<"" | "share" | "copy">("");
   const [note, setNote] = useState("");
-  const cards = data?.cards ?? [];
+  /* `only`: the stickers whose id starts with it (the M2D share buttons
+   * open the deck at its dollar stickers alone). */
+  const cards = (data?.cards ?? []).filter((c) => !only || c.id.startsWith(only));
   const card = cards[Math.min(at, cards.length - 1)];
   /* ROUND AND ROUND (owner, 2026-11-21: "if I try to swipe left and I
    * can't go left, just go to the last one ... when I'm at the end ... show
@@ -955,7 +957,11 @@ export function StickerViewer({ rowId, onClose }: { rowId?: string; onClose: () 
             </Text>
             <View style={{ width: 44 }} />
           </View>
-          {!data ? (
+          {data && cards.length === 0 ? (
+            <View style={{ flex: 1, justifyContent: "center" }}>
+              <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", paddingHorizontal: 20, lineHeight: 18 }]}>{empty ?? "Nothing to share yet."}</Text>
+            </View>
+          ) : !data ? (
             <View style={{ flex: 1, justifyContent: "center" }}>{error ? <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", paddingHorizontal: 20 }]}>{error}</Text> : <ActivityIndicator color="#fff" />}</View>
           ) : (
             <ScrollView ref={strip as never} horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentOffset={loop ? { x: w, y: 0 } : undefined} onContentSizeChange={place} onScroll={(e) => onStrip(e.nativeEvent.contentOffset.x)} scrollEventThrottle={32} style={{ flex: 1 }}>

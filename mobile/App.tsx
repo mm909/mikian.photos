@@ -8,7 +8,7 @@ import { Animated, Easing, PanResponder, Platform, Pressable, SafeAreaView, Text
 import { api, warm } from "./src/api";
 import { useLiveRaceFeed } from "./src/erg/liveRace";
 import { useErg } from "./src/erg/useErg";
-import { BackIcon, BellIcon, DotsIcon, FeedIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon, VerifiedIcon } from "./src/icons";
+import { BackIcon, BellIcon, DotsIcon, FeedIcon, GiftIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon, VerifiedIcon } from "./src/icons";
 import { BadgeSlot, Mark, type MarkKind } from "./src/mark";
 import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen, MonthSheet, loadBoardMonths, monthMark, useBoardMonth } from "./src/screens/Board";
@@ -85,15 +85,11 @@ const TABS: { id: Tab; label: string; Icon: ComponentType<{ color?: string; size
    * that middle tab that's usually the 100K ... M2D is what we'll call
    * it"): the Concept2 Holiday Challenge in dollars (screens/M2D.tsx). The
    * monthly boards are still the title's menu on this tab. */
-  { id: "board", label: "M2D", Icon: DollarIcon },
+  { id: "board", label: "M2D", Icon: GiftIcon },
   { id: "stats", label: "Stats", Icon: StatsIcon },
   { id: "profile", label: "Profile", Icon: ProfileIcon },
 ];
 
-/* The M2D tab's glyph: a dollar sign in the house's black face. */
-function DollarIcon({ color = "#fff", size = 26 }: { color?: string; size?: number }) {
-  return <Text style={{ fontFamily: F.black, fontSize: size * 0.86, lineHeight: size, color, includeFontPadding: false }}>$</Text>;
-}
 
 type Over = { k: number } & (
   | { kind: "rower"; num: number }

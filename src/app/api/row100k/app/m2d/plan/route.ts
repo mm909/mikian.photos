@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveViewer } from "@/lib/row100kViewer";
-import { m2dPlan, rateOk, setM2dRate } from "@/app/row100k/m2d";
+import { giversOk, m2dPlan, rateOk, setM2dGivers, setM2dRate } from "@/app/row100k/m2d";
 
 /* THE OWNER'S M2D PLANNER (row100k/m2d.ts m2dPlan), for the app's
  * developer settings and the site's admin page. An admin only: a stranger
@@ -9,7 +9,10 @@ import { m2dPlan, rateOk, setM2dRate } from "@/app/row100k/m2d";
  *   GET                 the plan: meters so far, the projection, the rate.
  *   POST { rate }       ROWTEMBER's rate, cents a kilometer, stored with no
  *                       deploy (M2D_RATE_KEY). It applies to every meter in
- *                       the window, the ones already rowed included. */
+ *                       the window, the ones already rowed included.
+ *   POST { givers }     the other givers, [{ name, rate }], each a pledge in
+ *                       cents a kilometer on the same meters (M2D_GIVERS_KEY);
+ *                       the whole list, replacing the one stored. */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -30,8 +33,18 @@ export async function GET() {
 export async function POST(req: Request) {
   const v = await resolveViewer();
   if (!v.actor || !v.isAdmin) return no("Not here.", 404);
-  const body = (await req.json().catch(() => null)) as { rate?: unknown } | null;
-  if (!rateOk(body?.rate)) return no("A rate from 0.5 to 500 cents a kilometer, in half cents.", 400);
+  const body = (await req.json().catch(() => null)) as { rate?: unknown; givers?: unknown } | null;
+  if (body && "givers" in body) {
+    if (!giversOk(body.givers)) return no("Each giver needs a name (40 letters at most) and cents a kilometer above 0, to a hundredth.", 400);
+    try {
+      await setM2dGivers(body.givers, v.actor.email ?? "admin");
+      return NextResponse.json({ ok: true, ...(await m2dPlan()) }, { headers: NO_STORE });
+    } catch (err) {
+      console.error("M2D givers: not saved", err);
+      return no("The givers did not save.", 500);
+    }
+  }
+  if (!rateOk(body?.rate)) return no("A rate from 0.5 to 500 cents a kilometer, to a hundredth of a cent.", 400);
   try {
     await setM2dRate(body.rate, v.actor.email ?? "admin");
     return NextResponse.json({ ok: true, ...(await m2dPlan()) }, { headers: NO_STORE });

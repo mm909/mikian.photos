@@ -233,6 +233,12 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               </dt>
               <dd>{usd(t.matched)}</dd>
             </div>
+            {(t.givers ?? []).map((g) => (
+              <div key={g.name}>
+                <dt>{g.name}</dt>
+                <dd>{usd(g.dollars)}</dd>
+              </div>
+            ))}
             {charities.map((c) => (
               <div key={c.key} className="sub">
                 <dt>{c.name}</dt>
