@@ -22,6 +22,20 @@ if (Platform.OS !== "web") {
   });
 }
 
+/* A TAP ON A NOTIFICATION: `cb` gets its data, for a tap while the app
+ * runs and for the one that opened it. The owner's M2D line carries
+ * { kind: "m2d" } and opens the M2D tab (App.tsx). */
+export function onPushTap(cb: (data: Record<string, unknown>) => void): () => void {
+  if (Platform.OS === "web") return () => undefined;
+  const sub = Notifications.addNotificationResponseReceivedListener((r) => cb((r.notification.request.content.data ?? {}) as Record<string, unknown>));
+  Notifications.getLastNotificationResponseAsync()
+    .then((r) => {
+      if (r) cb((r.notification.request.content.data ?? {}) as Record<string, unknown>);
+    })
+    .catch(() => null);
+  return () => sub.remove();
+}
+
 export async function registerPush(): Promise<void> {
   if (Platform.OS === "web" || asked) return;
   asked = true;

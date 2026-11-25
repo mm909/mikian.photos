@@ -4,6 +4,7 @@ import { activeBlackout } from "@/lib/blackout";
 import { CHALLENGE, MONTH, fmtMeters, nowMs, pacificDay, splitSeconds } from "@/lib/row100k";
 import { monthOptIns } from "@/app/row100k/monthOptIn";
 import { blockedIds, notifyOff } from "@/lib/rowSocial";
+import { OWNER_ALWAYS_EMAILS, isOwnerEmail, ownerEmail } from "@/lib/permissions";
 
 /* NOTIFICATIONS (2026-11-21). The owner's rules, 2026-11-20:
  *
@@ -62,6 +63,38 @@ async function push(notes: Push[]): Promise<void> {
     }
   } catch (err) {
     console.error("row notify: push failed", err);
+  }
+}
+
+/* ---- the owner ------------------------------------------------------- */
+
+/* A LINE FOR THE OWNER ALONE (owner, 2026-11-25, of the M2D sign-up email:
+ * "Give me a push notification for this"): to every phone registered by
+ * an account that is his (lib/permissions isOwnerEmail), nobody else's. No
+ * line in the notification centre: it is an alert, the email is the record.
+ * Never throws; a failed send is logged. Production only, like push(). */
+export async function notifyOwner(body: string, data: Record<string, string>): Promise<void> {
+  if (process.env.NODE_ENV !== "production") return;
+  try {
+    const accounts = await db.photographer.findMany({
+      where: { email: { in: [...new Set([ownerEmail(), ...OWNER_ALWAYS_EMAILS])] } },
+      select: { id: true, email: true },
+    });
+    const mine = accounts.filter((a) => a.email && isOwnerEmail(a.email)).map((a) => a.id);
+    if (mine.length === 0) return;
+    const tokens = await db.rowPushToken.findMany({ where: { userId: { in: mine } }, select: { token: true } });
+    if (tokens.length === 0) {
+      console.error("row notify: the owner has no phone registered for push");
+      return;
+    }
+    const res = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify(tokens.map((t) => ({ to: t.token, title: "ROW", body, data, sound: "default" }))),
+    });
+    if (!res.ok) console.error(`row notify: owner push answered ${res.status}`);
+  } catch (err) {
+    console.error("row notify: owner push failed", err);
   }
 }
 

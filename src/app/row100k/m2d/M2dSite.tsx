@@ -34,12 +34,93 @@ const day = (iso: string) =>
 
 const SORRY = "Could not take that. Try again.";
 
+/* Concept2's rule (row100k/m2d.ts worth), here for the graph. */
+const worth = (meters: number) => {
+  const km = Math.max(0, meters) / 1000;
+  return Math.round((km <= 100 ? 0.02 * km : 2 + 0.04 * (km - 100)) * 100) / 100;
+};
+
+/* METERS TO DOLLARS, DRAWN (owner, 2026-11-25: "We need to explain this
+ * section better or with a graph"): nothing until 100K (dashed), $2 at
+ * 100K, then 4 cents a kilometer, $6 at 200K and $10 at 300K; the
+ * certificate and the pin marked; YOU a dot at your meters. The app draws
+ * the same (mobile/src/screens/M2D.tsx M2dGraph). */
+const GW = 340;
+const GH = 196;
+function Graph({ meters }: { meters: number | null }) {
+  const m = Math.max(0, meters ?? 0);
+  const xmax = Math.max(300_000, Math.ceil((m * 1.12) / 100_000) * 100_000);
+  const ymax = worth(xmax);
+  const [L, R, T, B] = [14, 18, 26, 28];
+  const sx = (x: number) => L + (x / xmax) * (GW - L - R);
+  const sy = (d: number) => GH - B - (d / ymax) * (GH - T - B);
+  const youX = sx(Math.min(m, xmax));
+  const youY = sy(m >= 100_000 ? worth(m) : 0);
+  const label = m >= 100_000 ? `YOU · ${usd(worth(m))}` : `YOU · ${Math.round(m / 1000)}K`;
+  return (
+    <svg
+      className="m2-g"
+      viewBox={`0 0 ${GW} ${GH}`}
+      role="img"
+      aria-label={`Meters to dollars: nothing until 100K, $2 at 100K, $6 at 200K, $10 at 300K.${meters == null ? "" : ` ${label}.`}`}
+    >
+      <line x1={L} y1={GH - B} x2={GW - R} y2={GH - B} className="ax" />
+      <line x1={sx(0)} y1={sy(0)} x2={sx(100_000)} y2={sy(0)} className="ln dash" />
+      <text x={sx(0)} y={sy(0) - 8} className="lb sm" textAnchor="start">
+        NOTHING UNTIL 100K
+      </text>
+      <line x1={sx(100_000)} y1={sy(0)} x2={sx(100_000)} y2={sy(2)} className="jump" />
+      <line x1={sx(100_000)} y1={sy(2)} x2={sx(xmax)} y2={sy(worth(xmax))} className="ln" />
+      <circle cx={sx(100_000)} cy={sy(2)} r={5} className="ms" />
+      <text x={sx(100_000) + 10} y={sy(2) + 16} className="mk" textAnchor="start">
+        $2 · CERTIFICATE
+      </text>
+      <circle cx={sx(200_000)} cy={sy(6)} r={5} className="ms" />
+      <text x={sx(200_000) + 10} y={sy(6) + 16} className="mk" textAnchor="start">
+        $6 · PIN
+      </text>
+      {xmax >= 300_000 ? (
+        <text x={sx(300_000) - 2} y={sy(10) - 10} className="mk" textAnchor="end">
+          $10
+        </text>
+      ) : null}
+      {[0, 100_000, 200_000, 300_000]
+        .filter((x) => x <= xmax)
+        .map((x) => (
+          <text key={x} x={sx(x)} y={GH - 9} className="lb" textAnchor={x === 0 ? "start" : "middle"}>
+            {x === 0 ? "0 M" : `${x / 1000}K`}
+          </text>
+        ))}
+      {meters != null ? (
+        <>
+          <circle cx={youX} cy={youY} r={7} className="you" />
+          <text x={m >= 100_000 ? youX - 10 : youX + 10} y={m >= 100_000 ? youY - 12 : youY - 30} className="yl" textAnchor={m >= 100_000 ? "end" : "start"}>
+            {label}
+          </text>
+        </>
+      ) : null}
+    </svg>
+  );
+}
+
+/* The one plain line under it, in real numbers, the match doubling it. */
+function words(meters: number | null, by: string, isIn: boolean): string {
+  if (meters == null) return `At 100K your meters give $2. Every 10K after adds 40¢. ${by} matches every cent.`;
+  if (meters < 100_000) return `You're ${num(100_000 - meters)} m from your first $2. After that, every 10K adds 40¢, and ${by} matches every cent.`;
+  const d = worth(meters);
+  return `${usd(d)} so far, +40¢ every 10K. Concept2 ${usd(d)} + ${by} ${usd(d)} = ${usd(d * 2)} to charity.${isIn ? "" : " Register so it counts."}`;
+}
+
 export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedIn: boolean; signInHref: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [isIn, setIsIn] = useState(view.me?.in ?? false);
   const [pick, setPick] = useState<string | null>(view.me?.choice ?? null);
+  /* Once picked only that charity shows; CHANGE opens the three again until
+   * Dec 24 (owner, 2026-11-25: "Once we select a charity we could prob hide
+   * the others"). */
+  const [changing, setChanging] = useState(false);
   const { window: w, totals: t, goal, match, charities } = view;
   const name = (k: string | null) => charities.find((c) => c.key === k)?.name ?? null;
 
@@ -92,6 +173,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
    * sign-in). */
   const choose = (k: string) => {
     if (w.over || busy) return;
+    setChanging(false);
     if (isIn) void send(true, k);
     else {
       setPick(k);
@@ -132,7 +214,37 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
     ],
   ];
 
-  const picks = match.on ? (
+  const mine = charities.find((c) => c.key === pick);
+  const picks = !match.on ? null : mine && !changing ? (
+    <div className="m2-picks-wrap">
+      <p className="m2-kick">Your match goes to</p>
+      <div className="m2-pickbox on m2-mine">
+        <div className="m2-pick" role="status">
+          <b>
+            <span className="m2-tick" aria-hidden="true">
+              ✓
+            </span>
+            {mine.name}
+          </b>
+          <span>{mine.what}</span>
+        </div>
+      </div>
+      <div className="m2-mine-row">
+        {mine.url ? (
+          <a className="m2-site" href={mine.url} target="_blank" rel="noopener noreferrer">
+            Their site ↗
+          </a>
+        ) : (
+          <span />
+        )}
+        {!w.over ? (
+          <button type="button" className="m2-quiet" onClick={() => setChanging(true)} disabled={busy}>
+            Change
+          </button>
+        ) : null}
+      </div>
+    </div>
+  ) : (
     <div className="m2-picks-wrap">
       <h3>Where {match.by}&apos;s match goes</h3>
       <p className="m2-pick-lede">
@@ -170,7 +282,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
         })}
       </div>
     </div>
-  ) : null;
+  );
 
   return (
     <main className="bd m2">
@@ -238,6 +350,14 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
           </div>
         </section>
 
+        {/* METERS TO DOLLARS: the graph and one plain line, the viewer's
+            own dot when there is a rower to put on it. */}
+        <section className="m2-explain" aria-label="How meters become dollars">
+          <p className="m2-kick">How your meters become dollars</p>
+          <Graph meters={view.me ? view.me.meters : null} />
+          <p className="m2-words">{words(view.me ? view.me.meters : null, match.by, isIn)}</p>
+        </section>
+
         {/* THE CALL: the rule, the five steps, the pick over the one press. */}
         <section className="m2-call" aria-labelledby="m2-ask">
           <h2 id="m2-ask">
@@ -251,16 +371,25 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
           </p>
           {isIn ? (
             <>
-              <div className="m2-yes">
-                <p>
-                  ✓ You are registered{pick ? ` · ${name(pick)}` : ""}. Your rows logged on ROW count here.
-                </p>
-                <button type="button" className="bd-quiet" onClick={() => void send(false)} disabled={busy}>
-                  Undo
-                </button>
+              {/* REGISTERED as a status, Open Concept2 the one link, Undo
+               * small and set apart (owner, 2026-11-25: "We need to explain
+               * this section better"). */}
+              <div className="m2-status">
+                <p role="status">✓ Registered</p>
+                <a className="bd-ctl" href={view.link} target="_blank" rel="noopener noreferrer">
+                  Open Concept2 ↗
+                </a>
               </div>
+              <p className="m2-note">Your rows logged on ROW count toward the match.</p>
               {match.on && !pick && !w.over ? <p className="bd-say">Pick where {match.by}&apos;s match goes.</p> : null}
               {picks}
+              {!w.over ? (
+                <p className="m2-undo">
+                  <button type="button" className="m2-quiet" onClick={() => void send(false)} disabled={busy}>
+                    Not registered? Undo
+                  </button>
+                </p>
+              ) : null}
             </>
           ) : (
             <>

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { sendOwnerNotification } from "@/lib/email";
+import { notifyOwner } from "@/lib/rowNotify";
 import { CHALLENGE, CHALLENGE_LIVE, MONTH, nowMs, pacificDay } from "@/lib/row100k";
 import { previewViewOpts, type Viewer } from "@/lib/row100kViewer";
 import type { Month } from "@/lib/rowPeriod";
@@ -302,8 +303,12 @@ export async function saveM2d(
   if (CHALLENGE !== CHALLENGE_LIVE) return;
   const word = isIn ? "registered for" : "took back their registration for";
   const pick = charityName(saved.choice);
+  const subject = `M2D: #${me.rowerNumber} ${me.displayName} ${isIn ? `is in · ${pick}` : "is out"}`;
+  /* And a push to his phone, the same line (owner, 2026-11-25: "Give me a
+   * push notification for this"); a tap opens the M2D tab. Never throws. */
+  await notifyOwner(subject, { kind: "m2d" });
   const sent = await sendOwnerNotification(
-    `M2D: #${me.rowerNumber} ${me.displayName} ${isIn ? `is in · ${pick}` : "is out"}`,
+    subject,
     `Rower #${me.rowerNumber} ${me.displayName} ${word} the Concept2 Holiday Challenge (M2D) on ${where}.
 ROWTEMBER's match goes to: ${pick}.
 Account: ${email ?? ""}`,

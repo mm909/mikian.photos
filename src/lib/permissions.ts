@@ -29,7 +29,7 @@ const OWNER_DEFAULT = "mikian.photos@gmail.com";
 /* Both are the owner's own Google accounts (main + personal). The personal one
  * is ALWAYS an admin regardless of OWNER_EMAIL (owner call, 2026-08-27), so a
  * misconfigured env var can never lock it out. */
-const OWNER_ALWAYS_EMAILS = ["mikian.photos@gmail.com", "mikianmusser@gmail.com"];
+export const OWNER_ALWAYS_EMAILS = ["mikian.photos@gmail.com", "mikianmusser@gmail.com"];
 
 export function ownerEmail(): string {
   return (process.env.OWNER_EMAIL || OWNER_DEFAULT).toLowerCase().trim();

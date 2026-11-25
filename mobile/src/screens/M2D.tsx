@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import Svg, { Circle, Line as SvgLine, Text as SvgText } from "react-native-svg";
 import { api } from "../api";
 import { useSession } from "../session";
 import { Ctl, Dateline, Eye, mono } from "../site";
@@ -186,11 +187,146 @@ function useIn(v: M2dView | null, reload: () => Promise<void>) {
   return { busy, note, say, pick, onPick };
 }
 
+/* METERS TO DOLLARS, DRAWN (owner, 2026-11-25, circling the TO 100K bar and
+ * its grey sentence: "We need to explain this section better or with a
+ * graph"). Concept2's rule as a line: nothing until 100K (dashed), $2 at
+ * 100K, then 4 cents a kilometer, so $6 at 200K and $10 at 300K. The
+ * certificate and the pin are marked on it, and YOU are a dot at your
+ * meters. A viewBox, so it scales to the column. */
+const GW = 340;
+const GH = 196;
+export function M2dGraph({ meters, you = "You" }: { meters: number | null; you?: string }) {
+  const m = Math.max(0, meters ?? 0);
+  const xmax = Math.max(300_000, Math.ceil((m * 1.12) / 100_000) * 100_000);
+  const ymax = worth(xmax);
+  const L = 14;
+  const R = 18;
+  const T = 26;
+  const B = 28;
+  const sx = (x: number) => L + (x / xmax) * (GW - L - R);
+  const sy = (d: number) => GH - B - (d / ymax) * (GH - T - B);
+  const gain = (x: number) => (x >= 100_000 ? worth(x) : 0);
+  const ticks = [0, 100_000, 200_000, 300_000].filter((x) => x <= xmax);
+  const youX = sx(Math.min(m, xmax));
+  const youY = sy(gain(m));
+  const label = m >= 100_000 ? `${you} · ${usd(worth(m))}` : `${you} · ${Math.round(m / 1000)}K`;
+  return (
+    <View accessible accessibilityLabel={`Meters to dollars: nothing until 100K, $2 at 100K, $6 at 200K, $10 at 300K.${meters == null ? "" : ` ${label}.`}`} style={{ marginTop: 16 }}>
+      <Svg width="100%" style={{ aspectRatio: GW / GH }} viewBox={`0 0 ${GW} ${GH}`}>
+        <SvgLine x1={L} y1={GH - B} x2={GW - R} y2={GH - B} stroke={C.line} strokeWidth={1} />
+        <SvgLine x1={sx(0)} y1={sy(0)} x2={sx(100_000)} y2={sy(0)} stroke={C.ink} strokeWidth={3} strokeDasharray="6 6" />
+        <SvgText x={sx(0)} y={sy(0) - 8} fontSize={10} fontFamily={F.mono} fill={C.gray} textAnchor="start">
+          NOTHING UNTIL 100K
+        </SvgText>
+        <SvgLine x1={sx(100_000)} y1={sy(0)} x2={sx(100_000)} y2={sy(2)} stroke={C.ink} strokeWidth={1.5} strokeDasharray="2 3" />
+        <SvgLine x1={sx(100_000)} y1={sy(2)} x2={sx(xmax)} y2={sy(worth(xmax))} stroke={C.ink} strokeWidth={3} />
+        <Circle cx={sx(100_000)} cy={sy(2)} r={5} fill={C.paper} stroke={C.ink} strokeWidth={2} />
+        <SvgText x={sx(100_000) + 10} y={sy(2) + 16} fontSize={12} fontFamily={F.monoBold} fill={C.ink} textAnchor="start">
+          $2 · CERTIFICATE
+        </SvgText>
+        <Circle cx={sx(200_000)} cy={sy(6)} r={5} fill={C.paper} stroke={C.ink} strokeWidth={2} />
+        <SvgText x={sx(200_000) + 10} y={sy(6) + 16} fontSize={12} fontFamily={F.monoBold} fill={C.ink} textAnchor="start">
+          $6 · PIN
+        </SvgText>
+        {xmax >= 300_000 ? (
+          <SvgText x={sx(300_000) - 2} y={sy(10) - 10} fontSize={12} fontFamily={F.monoBold} fill={C.ink} textAnchor="end">
+            $10
+          </SvgText>
+        ) : null}
+        {ticks.map((x) => (
+          <SvgText key={x} x={sx(x)} y={GH - 9} fontSize={11} fontFamily={F.mono} fill={C.gray} textAnchor={x === 0 ? "start" : "middle"}>
+            {x === 0 ? "0 M" : `${x / 1000}K`}
+          </SvgText>
+        ))}
+        {meters != null ? (
+          <>
+            <Circle cx={youX} cy={youY} r={7} fill={C.accent} />
+            <SvgText x={m >= 100_000 ? youX - 10 : youX + 10} y={m >= 100_000 ? youY - 12 : youY - 30} fontSize={13} fontFamily={F.monoBold} fill={C.accent} textAnchor={m >= 100_000 ? "end" : "start"}>
+              {label.toUpperCase()}
+            </SvgText>
+          </>
+        ) : null}
+      </Svg>
+    </View>
+  );
+}
+
+/* THE ONE PLAIN LINE under the graph, in real numbers, and the match
+ * doubling it. `meters` null: nobody's own. */
+export function m2dWords(meters: number | null, by: string, isIn = true): string {
+  if (meters == null) return `At 100K your meters give $2. Every 10K after adds 40¢. ${by} matches every cent.`;
+  if (meters < 100_000) return `You're ${fmtInt(100_000 - meters)} m from your first $2. After that, every 10K adds 40¢, and ${by} matches every cent.`;
+  const d = worth(meters);
+  return `${usd(d)} so far, +40¢ every 10K. Concept2 ${usd(d)} + ${by} ${usd(d)} = ${usd(d * 2)} to charity.${isIn ? "" : " Register so it counts."}`;
+}
+
+function Explained({ meters, by, isIn, you }: { meters: number | null; by: string; isIn?: boolean; you?: string }) {
+  return (
+    <>
+      <M2dGraph meters={meters} you={you} />
+      <Text style={{ fontFamily: F.bold, fontSize: 15, lineHeight: 21, color: C.ink, marginTop: 10 }}>{m2dWords(meters, by, isIn)}</Text>
+    </>
+  );
+}
+
+/* REGISTERED, said plainly (owner, 2026-11-25: the REGISTERED / CONCEPT2 /
+ * UNDO row needed to be clear): a status, not a link; Open Concept2 is the
+ * one link; Undo small, quiet and set apart, so it is not hit by mistake. */
+function Status({ v, busy, onUndo }: { v: M2dView; busy: boolean; onUndo: () => void }) {
+  return (
+    <View style={{ marginTop: 20 }}>
+      <View style={{ borderWidth: 1, borderColor: C.accent, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={mono(12, true, C.accent, 0.12)}>✓ Registered</Text>
+        <Ctl label="Open Concept2 ↗" onPress={() => open(v.link)} />
+      </View>
+      {!v.window.over ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Undo, I'm not registered" hitSlop={6} disabled={busy} onPress={onUndo} style={{ alignSelf: "flex-end", marginTop: 14 }}>
+          <Text style={mono(9, false, C.gray, 0.1)}>{busy ? "Saving" : "Not registered? Undo"}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 /* WHERE ROWTEMBER'S MATCH GOES (owner, 2026-11-25: "I want users to be
  * able to pick where their donations go to ... Project Inclusion, Shine a
- * Light, and Candlelighters"): the three, one picked. */
+ * Light, and Candlelighters"): the three, one picked. Once picked, only
+ * that one shows, with CHANGE to open the three again until Dec 24 (owner,
+ * the same day: "Once we select a charity we could prob hide the
+ * others"). */
 function Picks({ v, pick, busy, onPick }: { v: M2dView; pick: string | null; busy: boolean; onPick: (k: string) => void }) {
   const by = v.match?.by ?? "ROWTEMBER";
+  const [changing, setChanging] = useState(false);
+  const mine = (v.charities ?? []).find((c) => c.key === pick);
+  if (mine && !changing) {
+    return (
+      <View style={{ marginTop: 20 }}>
+        <Text style={mono(10, true, C.ink, 0.12)}>Your match goes to</Text>
+        <View style={{ marginTop: 8, backgroundColor: C.accent, padding: 12 }}>
+          <Text style={{ fontFamily: F.black, fontSize: 15, color: "#FFFFFF", textTransform: "uppercase" }}>✓ {mine.name}</Text>
+          <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: "#FFFFFF", marginTop: 3 }}>{mine.what}</Text>
+        </View>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+          {mine.url ? (
+            <Pressable accessibilityRole="link" accessibilityLabel={`${mine.name}'s site`} hitSlop={8} onPress={() => open(mine.url as string)}>
+              <Text style={[mono(9.5, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>Their site ↗</Text>
+            </Pressable>
+          ) : (
+            <View />
+          )}
+          {!v.window.over ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Change the charity" hitSlop={8} disabled={busy} onPress={() => setChanging(true)}>
+              <Text style={[mono(9.5, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>Change</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
+  const choose = (k: string) => {
+    setChanging(false);
+    onPick(k);
+  };
   return (
     <View style={{ marginTop: 20 }}>
       <Text style={{ fontFamily: F.black, fontSize: 16, color: C.ink, textTransform: "uppercase" }}>Where {by}'s match goes</Text>
@@ -208,7 +344,7 @@ function Picks({ v, pick, busy, onPick }: { v: M2dView; pick: string | null; bus
               accessibilityState={{ checked: on, disabled: busy || v.window.over || !v.me }}
               accessibilityLabel={`${c.name}. ${c.what}`}
               disabled={busy || v.window.over || !v.me}
-              onPress={() => onPick(c.key)}
+              onPress={() => choose(c.key)}
               style={({ pressed }) => ({ borderWidth: 1, borderColor: on ? C.accent : C.ink, backgroundColor: on ? C.accent : "transparent", padding: 12, opacity: pressed ? 0.6 : 1 })}
             >
               <Text style={{ fontFamily: F.black, fontSize: 15, color: on ? "#FFFFFF" : C.ink, textTransform: "uppercase" }}>
@@ -320,15 +456,13 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
         <Dateline left="Concept2 Holiday Challenge" right={!w.started ? "Starts Nov 26" : w.over ? "Final" : `Day ${w.day} of ${w.days}`} days={w.days} day={w.day} />
         <Raised v={v} />
         <M2dGoal v={v} />
+        <Explained meters={v.me ? v.me.meters : null} by={v.match?.by ?? "ROWTEMBER"} isIn={!!v.me?.in} />
         {v.me && !v.me.in && !w.over ? (
           <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick ?? undefined)} />
         ) : null}
         {v.me?.in ? (
           <>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 18 }}>
-              <Text style={mono(11, true, C.accent, 0.12)}>✓ You're registered</Text>
-              <Ctl label="Concept2 ↗" onPress={() => open(v.link)} />
-            </View>
+            <Status v={v} busy={inOut.busy} onUndo={() => inOut.say(false)} />
             {matchOn && !inOut.pick && !w.over ? <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 12 }]}>Pick where {v.match?.by}'s match goes</Text> : null}
             {matchOn ? <Picks v={v} pick={inOut.pick} busy={inOut.busy} onPick={inOut.onPick} /> : null}
           </>
@@ -401,7 +535,6 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
   const isIn = own ? !!v.me?.in : !!row?.in;
   const hidden = !own && row?.blocks !== undefined;
   const d = worth(meters);
-  const next = meters < 100_000 ? 100_000 : 200_000;
   return (
     <View style={{ paddingTop: 18, paddingBottom: 40 }}>
       <Eye left="M2D for charity" right={!v.window.started ? "Starts Nov 26" : v.window.over ? "Final" : `Day ${v.window.day} of ${v.window.days}`} />
@@ -415,20 +548,14 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
           <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 2 }]}>
             {fmtInt(meters)} m since Nov 26{isIn ? "" : " · not registered"}
           </Text>
-          {meters < 200_000 ? (
-            <View style={{ marginTop: 18 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-                <Text style={mono(10, true)}>{next === 100_000 ? "To 100K" : "To 200K · the pin"}</Text>
-                <Text style={mono(10, false, C.gray)}>{fmtInt(next - meters)} m to go</Text>
-              </View>
-              <Bar value={meters} goal={next} height={10} />
-            </View>
+          {/* The graph and one plain line, where a bar and a grey sentence
+           * were (owner, 2026-11-25: "We need to explain this section
+           * better or with a graph"). */}
+          {own ? (
+            <Explained meters={meters} by={v.match?.by ?? "ROWTEMBER"} isIn={isIn} />
           ) : (
-            <Text style={[mono(11, true, C.accent, 0.12), { marginTop: 14 }]}>200K made · the pin is earned</Text>
+            <Explained meters={meters} by={v.match?.by ?? "ROWTEMBER"} isIn={isIn} you={row ? `#${String(num).padStart(3, "0")}` : "You"} />
           )}
-          <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 12, lineHeight: 16 }]}>
-            {meters >= 100_000 ? `${usd(d)} locked in from Concept2. Every km now adds 4 cents.` : "Concept2 gives it once you pass 100K: 2 cents a km, then 4 cents each km past 100K."}
-          </Text>
         </>
       )}
       {own && v.me && !v.me.in && !v.window.over ? (
@@ -436,11 +563,7 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
       ) : null}
       {own && v.me?.in ? (
         <>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 22, rowGap: 12, alignItems: "center", marginTop: 22 }}>
-            <Text style={mono(11, true, C.accent, 0.12)}>✓ Registered</Text>
-            <Ctl label="Concept2 ↗" onPress={() => open(v.link)} />
-            <Ctl label={inOut.busy ? "Saving" : "Undo"} disabled={inOut.busy} onPress={() => inOut.say(false)} />
-          </View>
+          <Status v={v} busy={inOut.busy} onUndo={() => inOut.say(false)} />
           {matchOn && !inOut.pick && !v.window.over ? <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 12 }]}>Pick where {v.match?.by}'s match goes</Text> : null}
           {matchOn ? <Picks v={v} pick={inOut.pick} busy={inOut.busy} onPick={inOut.onPick} /> : null}
         </>

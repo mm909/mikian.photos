@@ -29,7 +29,7 @@ import { RankingsScreen, StatsScreen } from "./src/screens/Stats";
 import { SessionProvider, useSession } from "./src/session";
 import { loadRows, saveDoc, saveRows, type Row } from "./src/store";
 import { C, F, fmtClock, fmtInt, isDark, setLook } from "./src/theme";
-import { registerPush } from "./src/push";
+import { onPushTap, registerPush } from "./src/push";
 import { forgetStickers } from "./src/stickers";
 import { Avatar, modals, scrub, setSideDrag } from "./src/ui";
 import { buzz } from "./src/buzz";
@@ -398,6 +398,17 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       setTab(t);
     },
     [pos],
+  );
+  /* A tap on the owner's M2D line (lib/rowNotify notifyOwner) opens the
+   * M2D tab (owner, 2026-11-25). */
+  useEffect(
+    () =>
+      onPushTap((d) => {
+        if (d.kind !== "m2d") return;
+        setM2dOn(true);
+        goTab("board");
+      }),
+    [goTab],
   );
   /* THE LITTLE BUZZ as the tab changes, by a press or by a drag (buzz.ts). */
   const buzzed = useRef(tab);

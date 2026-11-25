@@ -50,6 +50,33 @@ export const m2dCss = `
 .row100k .m2-inline{color:var(--water);font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .row100k .m2-steps li.ours .k{color:var(--ink)}
 .row100k .m2-steps li.ours b{color:var(--water)}
+/* METERS TO DOLLARS: the graph, big type, few labels. */
+.row100k .m2-explain{margin-top:34px;max-width:620px}
+.row100k .m2-g{display:block;width:100%;height:auto;margin-top:10px;overflow:visible}
+.row100k .m2-g .ax{stroke:var(--line);stroke-width:1}
+.row100k .m2-g .ln{stroke:var(--ink);stroke-width:3;fill:none}
+.row100k .m2-g .ln.dash{stroke-dasharray:6 6}
+.row100k .m2-g .jump{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:2 3}
+.row100k .m2-g .ms{fill:var(--paper);stroke:var(--ink);stroke-width:2}
+.row100k .m2-g .mk{font-family:var(--row-mono),monospace;font-size:12px;font-weight:700;fill:var(--ink)}
+.row100k .m2-g .lb{font-family:var(--row-mono),monospace;font-size:11px;fill:var(--gray)}
+.row100k .m2-g .lb.sm{font-size:10px}
+.row100k .m2-g .you{fill:var(--water)}
+.row100k .m2-g .yl{font-family:var(--row-mono),monospace;font-size:13px;font-weight:700;fill:var(--water)}
+.row100k .m2-words{margin-top:10px;font-size:17px;font-weight:700;line-height:1.45;color:var(--ink)}
+
+/* REGISTERED: a status in a ruled box, the one link beside it; Undo small,
+ * quiet and set apart below. */
+.row100k .m2-status{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:20px;max-width:560px;padding:12px 14px;border:1px solid var(--water)}
+.row100k .m2-status p{font-family:var(--row-mono),monospace;font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--water)}
+.row100k .m2-quiet{background:none;border:0;border-radius:0;padding:0;font-family:var(--row-mono),monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.row100k .m2-quiet:hover{color:var(--ink)}
+.row100k .m2-undo{margin-top:28px;text-align:right;max-width:560px}
+.row100k .m2-mine .m2-pick{cursor:default}
+.row100k .m2-mine-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;max-width:560px}
+.row100k .m2-mine-row .m2-site{margin-top:0}
+.row100k .m2-picks-wrap .m2-kick + .m2-pickbox{margin-top:8px;max-width:560px}
+
 .row100k .m2-big.m2-soon{font-size:clamp(44px,11vw,112px);text-transform:uppercase}
 
 .row100k .m2-call{margin-top:34px;border:2px solid var(--ink);padding:22px 18px}
