@@ -19,7 +19,7 @@ import { Review } from "./Review";
 import type { MetricId } from "./Field";
 import type { RowMeasure } from "../pm5/craft";
 import { RowMenu, Sheet } from "./Social";
-import { useGame } from "../arcade/games";
+import { useGame, useLastDemoGame, type Game } from "../arcade/games";
 import { equip, useLocker } from "../arcade/locker";
 import { levelOf } from "../arcade/score";
 import { RARITY_COLOR, SKIN_BY_ID, STOCK, LAYER_WORD, wear } from "../arcade/skins";
@@ -404,6 +404,7 @@ export function DemoPage({ doc, meters, rows, onMetric }: { doc: TelemetryDoc; m
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 140 }}>
       <Text style={[mono(10, true, C.ink, 0.12), { lineHeight: 16 }]}>Demo row · simulated · not logged</Text>
+      <DemoGame />
       <Review row={{ id: "demo", day: doc.startedAt.slice(0, 10), meters }} rows={rows} doc={doc} onMetric={onMetric} />
     </ScrollView>
   );
@@ -789,13 +790,19 @@ function Slice({ rows, at, meters, word, onRower }: { rows: BoardRow[]; at: numb
  * the items out of its chest, each with EQUIP. */
 function GameSummary({ rowId }: { rowId: string }) {
   const g = useGame(rowId);
+  return g ? <GameLines g={g} /> : null;
+}
+function DemoGame() {
+  const g = useLastDemoGame();
+  return g ? <GameLines g={g} /> : null;
+}
+function GameLines({ g }: { g: Game }) {
   const l = useLocker();
-  if (!g) return null;
   const was = levelOf(g.xpBefore);
   const now = levelOf(g.xpBefore + g.xp);
-  const how = g.mode === "solo" ? `${g.kills} ${g.kills === 1 ? "monster" : "monsters"} down` : `${g.matches} ${g.matches === 1 ? "match" : "matches"}`;
+  const how = g.mode === "solo" ? `${g.kills} ${g.kills === 1 ? "floor" : "floors"} beaten` : `${g.matches} ${g.matches === 1 ? "match" : "matches"}`;
   /* The course's own lines (games from 2026-11-24 evening on). */
-  const line = g.mode === "solo" && g.coins !== undefined ? [`${fmtInt(g.coins)} coins`, `${g.bosses ?? 0} ${g.bosses === 1 ? "boss" : "bosses"}`, `furthest stage ${g.best ?? 1}`, g.wrecks ? `wrecked ${g.wrecks}×` : "never wrecked"].join(" · ") : "";
+  const line = g.mode === "solo" && g.coins !== undefined ? [`${fmtInt(g.coins)} coins`, `${g.bosses ?? 0} ${g.bosses === 1 ? "boss" : "bosses"}`, `furthest floor ${g.best ?? 1}`, g.fish ? `${g.fish} fish` : "", g.wrecks ? `wrecked ${g.wrecks}×` : "never wrecked"].filter(Boolean).join(" · ") : "";
   return (
     <>
       <Eye left="The arcade" right={how} />

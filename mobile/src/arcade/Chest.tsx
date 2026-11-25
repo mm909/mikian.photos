@@ -2,7 +2,7 @@ import { Text, View } from "react-native";
 import Svg, { Circle, G, Line, Path, Rect } from "react-native-svg";
 import { C, F } from "../theme";
 import { TOKEN_U, TokenArt, star } from "./Token";
-import { LAYER_WORD, RARITIES, RARITY_COLOR, RARITY_WORD, SKIN_BY_ID, STOCK, bestOf, wear, type Chest, type Rarity } from "./skins";
+import { DROPPABLE, LAYER_WORD, RARITIES, RARITY_COLOR, RARITY_WORD, SKIN_BY_ID, STOCK, bestOf, rollRarity, wear, type Chest, type Rarity } from "./skins";
 
 /* THE CHEST (owner, 2026-11-24: at the end of every game "a treasure chest
  * drops and opens ... one item, or sometimes it bursts with rainbow light
@@ -22,7 +22,28 @@ import { LAYER_WORD, RARITIES, RARITY_COLOR, RARITY_WORD, SKIN_BY_ID, STOCK, bes
  * THE CARD NEVER COVERS THE WORDS (seen on a phone, 2026-11-24: the card
  * sat on the line under the title): the cards start under the two lines
  * of the head and are sized to the room left, lying on their side (the
- * piece beside its name) where the stage is short. */
+ * piece beside its name) where the stage is short. And never touch the
+ * sides of the screen (his review that night): a margin of MARGIN.
+ *
+ * THE REEL (his review, the same night: "like a Counter-Strike chest opens
+ * up, like it kind of scrolls past"): as the lid goes, a strip of items
+ * runs across the chest under a marker, fast, then slower and slower, and
+ * stops on the prize (the best of the chest, when there are three); then
+ * the card or cards rise as before. The strip's other items are drawn at
+ * the chest's own odds, so the rare ones flick past now and then.
+ *
+ * Whatever is in it is the rower's the moment the chest is rolled (the
+ * hook banks it then, useShow.ts and Locker.tsx), not when it is seen. */
+
+/* The seconds of the wall from the drop to the cards being up. */
+export const CHEST_S = 7.6;
+const MARGIN = 20;
+const OPEN_AT = 1.4;
+const REEL_AT = 1.55;
+const REEL_S = 3.9;
+const CARDS_AT = REEL_AT + REEL_S + 0.45;
+/* The prize's place on the strip. */
+const PRIZE = 34;
 
 const WOOD = "#A56A35";
 const WOOD_LIGHT = "#BF8145";
@@ -55,7 +76,7 @@ export function ChestOpen({ chest, at, t, width, height, won, note }: { chest: C
   const e = t - at;
   const best = bestOf(chest.items);
   const glow = RARITY_COLOR[best];
-  const open = e >= 1.7;
+  const open = e >= OPEN_AT;
   const big = width >= 520;
   const tight = height < 230;
   /* The head: two lines, and where they end. */
@@ -68,16 +89,16 @@ export function ChestOpen({ chest, at, t, width, height, won, note }: { chest: C
   const ch = cw * 0.78;
   const cx = width / 2;
   const restY = Math.max(headEnd + 4, height * (open ? 0.68 : 0.54) - ch / 2);
-  const shaking = e > 0.7 && e < 1.7;
+  const shaking = e > 0.7 && e < OPEN_AT;
   const jump = shaking ? Math.abs(Math.sin((e - 0.7) * 11)) * 10 * (e - 0.7) : 0;
   const y = -ch + (restY + ch) * bounce(e / 0.7) - jump;
   const shake = shaking ? Math.sin(e * 40) * (3 + 6 * (e - 0.7)) : 0;
   /* Open: the lid is thrown up off the box and tips back. */
-  const lid = open ? pop((e - 1.7) / 0.3) : 0;
+  const lid = open ? pop((e - OPEN_AT) / 0.3) : 0;
   const light = clamp((e - 0.7) / 1);
   const rays = chest.triple ? RAINBOW : [glow, glow, glow, glow, glow, glow];
   const head = chest.triple ? "TRIPLE CHEST" : "CHEST";
-  const oe = e - 1.7;
+  const oe = e - OPEN_AT;
   const mouth = { x: cx, y: restY + ch * 0.36 };
   const flash = open ? clamp(1 - oe / 0.35) : 0;
   return (
@@ -130,7 +151,8 @@ export function ChestOpen({ chest, at, t, width, height, won, note }: { chest: C
           {note ?? (won ? "FIELD CLEAR" : "WIPED OUT · A CHEST ANYWAY")}
         </Text>
       </View>
-      {e >= 2.1 ? <Items ids={chest.items} e={e - 2.1} width={width} top={headEnd + 6} room={height - headEnd - 12} /> : null}
+      {e >= REEL_AT && e < CARDS_AT + 0.3 ? <Reel chest={chest} e={e - REEL_AT} width={width} y={Math.min(height - 70, restY + ch * 0.2)} fade={clamp((CARDS_AT + 0.3 - e) / 0.3)} /> : null}
+      {e >= CARDS_AT ? <Items ids={chest.items} e={e - CARDS_AT} width={width} top={headEnd + 6} room={height - headEnd - 12} /> : null}
     </View>
   );
 }
@@ -143,13 +165,13 @@ function Items({ ids, e, width, top, room }: { ids: string[]; e: number; width: 
   /* One item in a short room lies on its side: the piece, and its name
    * beside it. */
   const flat = n === 1 && room < 200;
-  const cardW = flat ? Math.min(width - 24, 340) : Math.min(n === 1 ? 260 : 180, (width - 24 - gap * (n - 1)) / n);
+  const cardW = flat ? Math.min(width - MARGIN * 2, 340) : Math.min(n === 1 ? 260 : 180, (width - MARGIN * 2 - gap * (n - 1)) / n);
   /* The words under a standing card's piece, and the card's own edges. */
   const snug = n > 1 && room < 170;
   const words = n === 1 ? 82 : snug ? 54 : 76;
   const size = flat ? clamp(((Math.min(room, 132) - 22) * TOKEN_U) / 72, 30, 104) : clamp(Math.min(n === 1 ? 110 : 76, ((cardW - 20) * TOKEN_U) / 102, ((room - words) * TOKEN_U) / 72), 24, 110);
   return (
-    <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top, flexDirection: "row", justifyContent: "center", columnGap: gap }}>
+    <View pointerEvents="none" style={{ position: "absolute", left: MARGIN, right: MARGIN, top, flexDirection: "row", justifyContent: "center", columnGap: gap }}>
       {ids.map((id, i) => {
         const le = e - i * 0.25;
         const k = clamp(le / 0.45);
@@ -210,6 +232,59 @@ function Items({ ids, e, width, top, room }: { ids: string[]; e: number; width: 
           </View>
         );
       })}
+    </View>
+  );
+}
+
+/* THE REEL: tiles running right to left under the marker, slowing to the
+ * prize. `e`: the wall's seconds since it began. */
+function Reel({ chest, e, width, y, fade }: { chest: Chest; e: number; width: number; y: number; fade: number }) {
+  const prize = chest.items.reduce((b, id) => (RARITIES.indexOf((SKIN_BY_ID[id]?.rarity ?? "common") as (typeof RARITIES)[number]) > RARITIES.indexOf((SKIN_BY_ID[b]?.rarity ?? "common") as (typeof RARITIES)[number]) ? id : b), chest.items[0]);
+  let h = 7;
+  for (const c of chest.items.join("|")) h = (h * 31 + c.charCodeAt(0)) % 1e9;
+  const tile = Math.min(92, Math.max(64, width * 0.2));
+  const gap = 8;
+  const pitch = tile + gap;
+  /* Fast, then slower and slower to a stop. */
+  const k = clamp(e / REEL_S);
+  const x0 = PRIZE * pitch * (1 - (1 - k) ** 4);
+  const mid = width / 2;
+  const tiles: { i: number; id: string }[] = [];
+  const first = Math.max(0, Math.floor((x0 - mid) / pitch) - 1);
+  const last = Math.min(PRIZE + 4, Math.ceil((x0 + mid) / pitch) + 1);
+  for (let i = first; i <= last; i++) {
+    let id = prize;
+    if (i !== PRIZE) {
+      const rar = rollRarity(() => rnd(h + i * 13.7));
+      const pool = DROPPABLE.filter((s) => s.rarity === rar);
+      id = pool[Math.floor(rnd(h + i * 7.3) * pool.length) % pool.length].id;
+    }
+    tiles.push({ i, id });
+  }
+  const landed = k >= 1;
+  const flash = landed ? clamp(1 - (e - REEL_S) / 0.4) : 0;
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: y - tile / 2 - 10, height: tile + 20, opacity: fade, backgroundColor: C.paper, borderTopWidth: 2, borderBottomWidth: 2, borderColor: C.ink }}>
+      {tiles.map(({ i, id }) => {
+        const sk = SKIN_BY_ID[id];
+        if (!sk) return null;
+        const c = RARITY_COLOR[sk.rarity];
+        const cx = mid + i * pitch - x0;
+        const on = landed && i === PRIZE;
+        return (
+          <View key={i} style={{ position: "absolute", left: cx - tile / 2, top: 10, width: tile, height: tile, borderRadius: 8, borderWidth: on ? 3 : 2, borderColor: c, backgroundColor: C.paper, alignItems: "center", justifyContent: "center", overflow: "hidden", transform: [{ scale: on ? 1 + 0.1 * flash : 1 }] }}>
+            <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: tile * 0.28, backgroundColor: c, opacity: 0.22 }} />
+            <TokenArt paint={wear({ ...STOCK, [sk.layer]: id })} size={tile * 0.62} t={1.3} trail={sk.layer === "aura"} uid={`reel${i}`} />
+            <View style={{ position: "absolute", left: 0, right: 0, top: 0, height: 5, backgroundColor: c }} />
+          </View>
+        );
+      })}
+      {/* The marker the strip stops under. */}
+      <View style={{ position: "absolute", left: mid - 1.5, top: 0, width: 3, height: tile + 20, backgroundColor: landed ? RARITY_COLOR[SKIN_BY_ID[prize]?.rarity ?? "common"] : BAND }} />
+      <Svg width={width} height={tile + 20} style={{ position: "absolute", left: 0, top: 0 }}>
+        <Path d={`M${mid - 9} 0 L${mid + 9} 0 L${mid} 11 Z`} fill={C.ink} />
+        <Path d={`M${mid - 9} ${tile + 20} L${mid + 9} ${tile + 20} L${mid} ${tile + 9} Z`} fill={C.ink} />
+      </Svg>
     </View>
   );
 }

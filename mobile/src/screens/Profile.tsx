@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert, Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { ROWER_URL, shareLink } from "../files";
-import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
+import Svg, { Line, Path, Rect } from "react-native-svg";
 import { api, edits, type Best, type Blocked, type Counts, type FiveK, type LogRow, type Profile, type Rel } from "../api";
 import { MonthGrid, PaceLine } from "../charts";
 import { GridIcon, RingIcon, StatsIcon } from "../icons";
@@ -14,14 +14,14 @@ import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
 import { FieldCards } from "./Stats";
 import { Lab } from "./reviewBits";
-import { useRating } from "../arcade/rating";
 import { useWallClock } from "../arcade/BoatArt";
-import { useLocker } from "../arcade/locker";
-import { UPGRADES, buy, costOf, useBoat } from "../arcade/boat";
-import { setMode, useMode } from "../arcade/mode";
+import { grant, useLocker } from "../arcade/locker";
+import { CHEST_COST, UPGRADES, buy, buyChest, costOf, useBoat } from "../arcade/boat";
+import { prng } from "../arcade/rng";
+import { ChestSheet } from "./Locker";
 import { useProgress } from "../arcade/progress";
 import { levelOf } from "../arcade/score";
-import { wear, type Equipped } from "../arcade/skins";
+import { rollChest, wear, type Chest, type Equipped } from "../arcade/skins";
 import { TokenArt } from "../arcade/Token";
 import { StoryRing } from "./Recap";
 import type { SettingsPage } from "./Settings";
@@ -750,9 +750,25 @@ function Hundred({ p }: { p: Profile }) {
  * here, between rows, never while rowing (arcade/boat.ts). */
 function Upgrades() {
   const b = useBoat();
+  const [chest, setChest] = useState<{ c: Chest; at: number; note?: string } | null>(null);
+  const [buying, setBuying] = useState(false);
+  /* A chest for coins, the rower's on the press (owner, 2026-11-24). */
+  const buyOne = async () => {
+    if (buying) return;
+    setBuying(true);
+    try {
+      if (!(await buyChest())) return;
+      const c = rollChest(prng(Date.now() % 1e9), false);
+      await grant(c.items, false).catch(() => null);
+      setChest({ c, at: Date.now() / 1000, note: "BOUGHT WITH COINS · IT'S YOURS" });
+    } finally {
+      setBuying(false);
+    }
+  };
+  const canChest = !buying && b.coins >= CHEST_COST;
   return (
     <>
-      <Eye style={{ marginTop: 14 }} left="The boat" right={`${fmtInt(b.coins)} coins`} />
+      <Eye style={{ marginTop: 14 }} left="The boat" right={`${fmtInt(b.coins)} coins · a coin a meter of the game`} />
       {UPGRADES.map((u) => {
         const lv = b[u.id];
         const cost = costOf(u.id, lv);
@@ -770,6 +786,16 @@ function Upgrades() {
           </View>
         );
       })}
+      <View style={{ flexDirection: "row", alignItems: "center", columnGap: 10, paddingVertical: 6 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={mono(11, true)}>A CHEST</Text>
+          <Text style={mono(10, false, C.gray, 0.1)}>One item, sometimes three; yours when you press</Text>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Buy a chest for ${CHEST_COST} coins`} disabled={!canChest} onPress={buyOne} style={({ pressed }) => ({ minWidth: 96, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1.5, borderColor: canChest ? C.ink : C.line, backgroundColor: canChest ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+          <Text style={mono(10, true, canChest ? C.paper : C.gray)}>{`${fmtInt(CHEST_COST)} COINS`}</Text>
+        </Pressable>
+      </View>
+      {chest ? <ChestSheet chest={chest} onClose={() => setChest(null)} /> : null}
     </>
   );
 }
@@ -782,11 +808,9 @@ function Ratings({ p, onLocker }: { p: Profile; onLocker?: () => void }) {
    * on the rower's own page only, and for an admin only while the arcade is
    * the owner's alone. */
   const { me } = useSession();
-  const rating = useRating();
   const showRating = p.isMe && !!me.isAdmin;
   const locker = useLocker();
   const prog = useProgress();
-  const mode = useMode();
   const lv = levelOf(prog.xp);
   return (
     <View onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))}>
@@ -806,24 +830,12 @@ function Ratings({ p, onLocker }: { p: Profile; onLocker?: () => void }) {
               {onLocker ? <Btn label="Change the look" quiet onPress={onLocker} style={{ marginTop: 2 }} /> : null}
             </View>
           </View>
-          {/* Which game a row plays. */}
-          <View style={{ flexDirection: "row", columnGap: 6, marginTop: 14 }}>
-            {(["solo", "match"] as const).map((m) => (
-              <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: mode === m }} onPress={() => setMode(m).catch(() => null)} style={({ pressed }) => ({ flex: 1, paddingVertical: 8, borderRadius: 6, borderWidth: 1.5, borderColor: mode === m ? C.ink : C.line, backgroundColor: mode === m ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
-                <Text style={mono(10, true, mode === m ? C.paper : C.ink)}>{m === "solo" ? "SINGLE PLAYER" : "AGAINST ROWERS"}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {/* PVE FIRST (owner, 2026-11-24: the single player / against
+              rowers buttons "don't make sense yet" and "hide the rating: I
+              really want to focus on PvE first and then do PvP"): every
+              row plays the course; the rating and the switch come back
+              with the matches. */}
           <Upgrades />
-          <Eye style={{ marginTop: 14 }} left="Rating" right="The arcade · only you see this" />
-          <View style={{ flexDirection: "row", alignItems: "baseline", gap: 12 }}>
-            <Text style={{ fontFamily: F.black, fontSize: 44, lineHeight: 50, color: C.ink, fontVariant: ["tabular-nums"] }}>{String(rating.elo)}</Text>
-            <Text style={mono(11, false, C.gray, 0.1)}>
-              {rating.games
-                ? `${rating.games} ${rating.games === 1 ? "game" : "games"} · ${rating.wins} ${rating.wins === 1 ? "win" : "wins"}${rating.draws ? ` · ${rating.draws} ${rating.draws === 1 ? "draw" : "draws"}` : ""}`
-                : "No games yet"}
-            </Text>
-          </View>
         </>
       ) : null}
       <Eye style={showRating ? undefined : { marginTop: 14 }} left="The 5K" right={n ? `${n} ${n === 1 ? "5K" : "5Ks"} · all time` : "All time"} />
@@ -870,13 +882,13 @@ function fiveKFrom(rows: LogRow[]): FiveK {
   return { n, meanPace: mean, sdPace: sd, paces };
 }
 
-/* EVERY 5K AS A DOT on one line of pace, quicker to the left: the average
- * the blue line, one standard deviation either side washed in the blue,
- * and from four 5Ks a faint curve of where they fall. Dots that would sit
- * on each other stack up. */
+/* EVERY 5K AS A HASH MARK under one line of pace, quicker to the left, as
+ * the other 5K charts mark them (owner, 2026-11-24: he likes "the little
+ * hash marks along the bottom" better than the dots): the average the blue
+ * line, one standard deviation either side washed in the blue, and from
+ * four 5Ks a faint curve of where they fall. */
 function FiveKDots({ paces, mean, sd, w }: { paces: number[]; mean: number; sd: number | null; w: number }) {
   if (w < 80 || !paces.length) return null;
-  const R = 5;
   const spread = sd ?? 0;
   const a = Math.min(...paces, mean - spread);
   const b = Math.max(...paces, mean + spread);
@@ -885,19 +897,9 @@ function FiveKDots({ paces, mean, sd, w }: { paces: number[]; mean: number; sd: 
   const hi = b + air;
   const edge = 8;
   const sx = (v: number) => edge + ((v - lo) / (hi - lo)) * (w - 2 * edge);
-  /* Stack: each dot on the lowest level with no dot within a diameter. */
-  const levels: number[][] = [];
-  const placed = paces.map((v) => {
-    const x = sx(v);
-    let lv = 0;
-    while (levels[lv]?.some((o) => Math.abs(o - x) < R * 2 + 1)) lv++;
-    (levels[lv] ??= []).push(x);
-    return { x, lv };
-  });
-  const tall = Math.min(levels.length, 6);
-  const base = 40 + tall * (R * 2 + 1) + 30;
-  const H = base + 26;
-  const dotY = (lv: number) => base - R - 3 - Math.min(lv, 5) * (R * 2 + 1);
+  const RUG = 10;
+  const base = 110;
+  const H = base + RUG + 30;
   /* The faint curve: a Gaussian over the 5Ks, Silverman's width. */
   let curve: string | null = null;
   if (paces.length >= 4 && spread > 0) {
@@ -923,18 +925,18 @@ function FiveKDots({ paces, mean, sd, w }: { paces: number[]; mean: number; sd: 
         <Lab x={xm} y={13} anchor={xm < w * 0.3 ? "start" : xm > w * 0.7 ? "end" : "middle"} color={C.accent} bold>
           {`AVERAGE ${fmtClock(mean)}`}
         </Lab>
-        {placed.map((d, i) => (
-          <Circle key={i} cx={d.x} cy={dotY(d.lv)} r={R} fill={C.soft} opacity={0.75} />
+        {paces.map((v, i) => (
+          <Line key={i} x1={sx(v)} x2={sx(v)} y1={base + 3} y2={base + 3 + RUG} stroke={C.accent} strokeWidth={1.5} opacity={0.7} />
         ))}
         {marks.map((v) => (
-          <Lab key={v} x={sx(v)} y={base + 16} anchor={sx(v) < 16 ? "start" : sx(v) > w - 16 ? "end" : "middle"}>
+          <Lab key={v} x={sx(v)} y={base + RUG + 18} anchor={sx(v) < 16 ? "start" : sx(v) > w - 16 ? "end" : "middle"}>
             {fmtClock(v, false)}
           </Lab>
         ))}
       </Svg>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         <Text style={mono(9, false, C.gray, 0.1)}>← Quicker</Text>
-        <Text style={mono(9, false, C.gray, 0.1)}>A dot a 5K · /500m</Text>
+        <Text style={mono(9, false, C.gray, 0.1)}>A mark a 5K · /500m</Text>
       </View>
     </View>
   );

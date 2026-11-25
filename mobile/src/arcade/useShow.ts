@@ -64,7 +64,7 @@ export function useShow(erg: Erg, on: boolean): Showed {
   const show = useRef<Show | null>(null);
   if (!show.current) show.current = createShow(Date.now() % 1_000_000);
   const view = useRef<ShowView | null>(null);
-  const ctx = useRef<ShowCtx>({ solo: true, boat: { dmg: 0, hull: 0, quick: 0 }, assigned: null, elo: 1200, xp: 0, lifetime: 0, ghosts: null, ghostM: 5000, loaded: false });
+  const ctx = useRef<ShowCtx>({ solo: true, boat: { dmg: 0, hull: 0, quick: 0, ease: 0 }, assigned: null, elo: 1200, xp: 0, lifetime: 0, ghosts: null, ghostM: 5000, loaded: false });
   const [at, setAt] = useState<{ phase: ShowPhase | null; key: string }>({ phase: null, key: "" });
   const now = useRef(erg);
   now.current = erg;
@@ -82,8 +82,12 @@ export function useShow(erg: Erg, on: boolean): Showed {
     const c = ctx.current;
     Promise.all([loadRating(), loadXp(), loadMode(), loadBoat()]).then(([r, xp, mode, boat]) => {
       if (!alive) return;
-      c.boat = { dmg: boat.dmg, hull: boat.hull, quick: boat.quick };
-      c.solo = mode !== "match";
+      c.boat = { dmg: boat.dmg, hull: boat.hull, quick: boat.quick, ease: boat.ease };
+      /* PVE FIRST (owner, 2026-11-24: "I really want to focus on PvE first
+       * and then do PvP"): every row plays the course; the match is kept in
+       * the code, and the switch is off the profile. */
+      void mode;
+      c.solo = true;
       c.elo = r.elo;
       c.xp = xp;
       c.loaded = true;
@@ -132,16 +136,11 @@ export function useShow(erg: Erg, on: boolean): Showed {
       return;
     }
     banked.current = 0;
-    const tick = () => {
-      const l = now.current.live;
-      /* A DEMO ROW NEVER MOVES THE RATING (owner, 2026-11-24): its XP and
-       * its items still count, so the demo shows what a row gives. */
-      const demo = now.current.demo;
-      const s = show.current;
-      if (!s) return;
-      const v = s.step({ wall: Date.now() / 1000, t: l.elapsedS, m: l.meters, pace: l.pace, target: l.targetM, ended: l.ended }, ctx.current);
-      view.current = v;
-      /* What a match left, once. */
+    let lastTick: { wall: number; t: number; m: number; pace: number; target: number } | null = null;
+    /* What a view leaves the rower, once each: a match's XP and rating as
+     * its celebration starts; the last chest, the XP, the coins and the
+     * game's record the moment the chest is rolled. */
+    const bank = (v: ShowView, demo: boolean) => {
       const r = v.result;
       if (v.phase === "celebrate" && r && !done.current.has(r.id)) {
         done.current.add(r.id);
@@ -159,19 +158,38 @@ export function useShow(erg: Erg, on: boolean): Showed {
         if (rest) addXp(rest).catch(() => null);
         grant(v.final.chest.items, true).catch(() => null);
         /* ONE SCREEN PAYS (owner, 2026-11-24: "you only get rewards for the
-         * stuff that's on your screen"): the island's coins, or a match's
-         * rating, never both; the island never touches the rating. */
+         * stuff that's on your screen"): the course's coins (the game's
+         * meters), or a match's rating, never both. */
         const b = v.battle;
         const sw = v.swarmTot;
-        if (b) addCoins(b.coins + sw.coins).catch(() => null);
-        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: v.final.chest.items, coins: Math.round((b?.coins ?? 0) + sw.coins), fish: sw.kills, bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m) }).catch(() => null);
+        if (b) addCoins(v.coins).catch(() => null);
+        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: v.final.chest.items, coins: b ? v.coins : 0, fish: sw.kills, bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m) }).catch(() => null);
       }
+    };
+    const tick = () => {
+      const l = now.current.live;
+      /* A DEMO ROW NEVER MOVES THE RATING (owner, 2026-11-24): its XP and
+       * its items still count, so the demo shows what a row gives. */
+      const demo = now.current.demo;
+      const s = show.current;
+      if (!s) return;
+      lastTick = { wall: Date.now() / 1000, t: l.elapsedS, m: l.meters, pace: l.pace, target: l.targetM };
+      const v = s.step({ ...lastTick, ended: l.ended }, ctx.current);
+      view.current = v;
+      bank(v, demo);
       const key = `${v.phase}/${v.search}/${v.matches}/${v.ready ? "ready" : ""}`;
       setAt((was) => (was.key === key ? was : { phase: v.phase, key }));
     };
     tick();
     const id = setInterval(tick, 100);
-    return () => clearInterval(id);
+    const demoNow = now.current.demo;
+    return () => {
+      clearInterval(id);
+      /* Left before the chest (DONE, or a demo's analytics): the row is
+       * over where it stood, and what it gave is banked all the same. */
+      const s = show.current;
+      if (s && lastTick && view.current && !["intro", "done"].includes(view.current.phase)) bank(s.step({ ...lastTick, wall: Date.now() / 1000, ended: true }, ctx.current), demoNow);
+    };
   }, [live]);
   return { view, show, ctx, phase: at.phase, key: at.key };
 }

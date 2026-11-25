@@ -3,13 +3,13 @@ import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from "r
 import Svg, { Ellipse, Path, Rect } from "react-native-svg";
 import { useWallClock } from "../arcade/BoatArt";
 import { TOKEN_U, TokenArt } from "../arcade/Token";
-import { ChestOpen } from "../arcade/Chest";
-import { REWARD_S } from "../arcade/game159";
+import { CHEST_S, ChestOpen } from "../arcade/Chest";
+import { CHEST_COST, buyChest, useBoat } from "../arcade/boat";
 import { equip, grant, seen, useLocker } from "../arcade/locker";
 import { prng } from "../arcade/rng";
 import { LAYERS, LAYER_WORD, RARITIES, RARITY_COLOR, RARITY_WORD, SKINS, SKIN_BY_ID, STOCK, rollChest, wear, type Chest, type Layer } from "../arcade/skins";
 import { useSession } from "../session";
-import { C, F } from "../theme";
+import { C, F, fmtInt } from "../theme";
 import { Btn } from "../ui";
 
 /* THE LOCKER (owner, 2026-11-24: "a locker screen to see what you own and
@@ -71,7 +71,7 @@ export function LockerScreen({ start }: { start?: Layer } = {}) {
   const { me } = useSession();
   const l = useLocker();
   const [layer, setLayer] = useState<Layer>(start ?? "rower");
-  const [chest, setChest] = useState<{ c: Chest; at: number } | null>(null);
+  const [chest, setChest] = useState<{ c: Chest; at: number; note?: string } | null>(null);
   /* Whatever was new is seen now: it is marked NEW this once. */
   const [fresh] = useState(() => new Set(l.fresh));
   useEffect(() => {
@@ -85,10 +85,26 @@ export function LockerScreen({ start }: { start?: Layer } = {}) {
   const cols = W >= 560 ? 5 : 4;
   const cardW = Math.floor((W - PAD * 2 - (cols - 1) * 8) / cols);
 
+  const boat = useBoat();
   const tryChest = () => {
     const c = rollChest(prng(Date.now() % 1e9), Math.random() < 0.5);
     setChest({ c, at: Date.now() / 1000 });
     grant(c.items, false).catch(() => null);
+  };
+  /* A CHEST FOR COINS (owner, 2026-11-24: "We definitely want to be able to
+   * buy a chest with coins"), granted on the press, before it opens. */
+  const [buying, setBuying] = useState(false);
+  const buyOne = async () => {
+    if (buying) return;
+    setBuying(true);
+    try {
+      if (!(await buyChest())) return;
+      const c = rollChest(prng(Date.now() % 1e9), false);
+      await grant(c.items, false).catch(() => null);
+      setChest({ c, at: Date.now() / 1000, note: "BOUGHT WITH COINS · IT'S YOURS" });
+    } finally {
+      setBuying(false);
+    }
   };
 
   /* THE FIGURE STAYS UP (owner, 2026-11-24: "While he picks items (hats,
@@ -118,7 +134,9 @@ export function LockerScreen({ start }: { start?: Layer } = {}) {
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: PAD, paddingTop: 10, paddingBottom: 120, width: W, alignSelf: "center" }}>
         <LayerRow layer={layer} equipped={l.equipped[layer]} owned={l.owned} fresh={fresh} cardW={cardW} />
-        {me.isAdmin ? <Btn label="Try a chest" quiet onPress={tryChest} style={{ marginTop: 24 }} /> : null}
+        <Btn label={`Buy a chest · ${fmtInt(CHEST_COST)} coins`} onPress={buyOne} disabled={buying || boat.coins < CHEST_COST} style={{ marginTop: 24 }} />
+        <Text style={{ fontFamily: F.monoBold, fontSize: 10, letterSpacing: 1, color: C.gray, textAlign: "center", marginTop: 6 }}>{`YOU HAVE ${fmtInt(boat.coins)} COINS · A COIN A METER OF THE GAME`}</Text>
+        {me.isAdmin ? <Btn label="Try a chest" quiet onPress={tryChest} style={{ marginTop: 12 }} /> : null}
       </ScrollView>
       {chest ? <ChestSheet chest={chest} onClose={() => setChest(null)} /> : null}
     </View>
@@ -171,17 +189,17 @@ function LayerRow({ layer, equipped, owned, fresh, cardW }: { layer: Layer; equi
 }
 
 /* The owner's chest with no row: the same chest a game ends on. */
-function ChestSheet({ chest, onClose }: { chest: { c: Chest; at: number }; onClose: () => void }) {
+export function ChestSheet({ chest, onClose }: { chest: { c: Chest; at: number; note?: string }; onClose: () => void }) {
   const win = useWindowDimensions();
   const t = useWallClock(true);
   const w = Math.min(win.width, 560);
   const h = Math.min(win.height * 0.7, 520);
-  const done = t - chest.at > REWARD_S;
+  const done = t - chest.at > CHEST_S;
   return (
     <Modal transparent animationType="fade" onRequestClose={onClose}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close the chest" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}>
         <View style={{ width: w, height: h + 70, backgroundColor: C.paper, borderRadius: 12, overflow: "hidden" }}>
-          <ChestOpen chest={chest.c} at={chest.at} t={t} width={w} height={h} won={false} note="A TRY, WITH NO ROW" />
+          <ChestOpen chest={chest.c} at={chest.at} t={t} width={w} height={h} won={false} note={chest.note ?? "A TRY, WITH NO ROW"} />
           <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2, color: done ? C.ink : C.line, textAlign: "center", paddingVertical: 24 }}>TAP TO CLOSE</Text>
         </View>
       </Pressable>

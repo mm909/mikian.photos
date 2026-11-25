@@ -44,6 +44,22 @@ export function addXp(xp: number): Promise<number> {
   return p;
 }
 
+/* THE OWNER'S DEVELOPER RESET (Settings, DEVELOPER): the XP set outright,
+ * 0 for level 1. Never touches a row. */
+export function setXp(xp: number): Promise<number> {
+  const job = async () => {
+    await loadXp();
+    const next = Math.max(0, Math.round(xp));
+    cache = next;
+    subs.forEach((f) => f(next));
+    await AsyncStorage.setItem(KEY, JSON.stringify({ xp: next })).catch(() => null);
+    return next;
+  };
+  const p = chain.then(job, job);
+  chain = p.catch(() => null);
+  return p;
+}
+
 export function useProgress(): Progress {
   const [xp, setXp] = useState<number>(cache ?? 0);
   useEffect(() => {

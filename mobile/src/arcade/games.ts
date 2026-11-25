@@ -90,3 +90,22 @@ export function useGame(rowId: string | null | undefined): Game | null {
   }, [rowId]);
   return g;
 }
+
+/* THE GAME OF A DEMO ROW READ ON ITS OWN (owner, 2026-11-24: "When I click
+ * to see its analytics, I don't get a summary"): a demo's analytics have no
+ * row, so they show the newest demo game of the last half hour. */
+export function useLastDemoGame(): Game | null {
+  const pick = (l: Game[] | null) => (l ? (l.find((g) => g.demo && Date.now() - g.at < 30 * 60_000) ?? null) : null);
+  const [g, setG] = useState<Game | null>(pick(cache));
+  useEffect(() => {
+    let on = true;
+    load().then((l) => on && setG(pick(l)));
+    const f = (l: Game[]) => on && setG(pick(l));
+    subs.add(f);
+    return () => {
+      on = false;
+      subs.delete(f);
+    };
+  }, []);
+  return g;
+}

@@ -119,7 +119,11 @@ export type ShowView = {
    * course again where it was left. The swarm round on now, and what the
    * rounds done gave. */
   swarm: SwarmView | null;
-  swarmTot: { rounds: number; kills: number; coins: number; xp: number; wrecked: number };
+  swarmTot: { rounds: number; kills: number; xp: number; wrecked: number };
+  /* THE COINS: the meters rowed in the game, from the end of the intro on
+   * (owner, 2026-11-24: "Coins are just meters rowed during the game for
+   * now"). */
+  coins: number;
   /* The row's XP from its matches, and the XP the row started at. */
   xpRow: number;
   xpStart: number;
@@ -144,8 +148,11 @@ export const CELEBRATE_WALL_S = 6;
 export const LEVELUP_WALL_S = 6;
 /* THE SUMMARY after the chest (owner, 2026-11-24: "XP gained, item gained,
  * number of people killed, things like that"): the chest is held this many
- * seconds of the wall, then the summary stays. */
-export const CHEST_WALL_S = 7;
+ * seconds of the wall (its reel, Chest.tsx), then the summary stays. */
+export const CHEST_WALL_S = 10;
+/* THE DIRECTOR: a swarm round after this many floors of the course, and
+ * after a boss or a wreck. */
+const FLOORS_A_ROUND = 2;
 /* A swarm round: ROUND_S of a 5K's seconds, cut to the piece (never under
  * SWARM_LEAST); the course's card is held SWAP_WALL_S of the wall before it,
  * and the round's end SWARM_END_WALL_S. */
@@ -185,6 +192,8 @@ export function createShow(seed = 1): Show {
   let seenEvent = -1;
   let swapAt = -1;
   let swarmOverWall = -1;
+  /* The meters the game began at (the intro's end). */
+  let gameM0 = -1;
   let bot: Bot | null = null;
   let played = new Set<string>();
   let waitFrom = -1;
@@ -192,7 +201,7 @@ export function createShow(seed = 1): Show {
   let finaleDue = false;
   const log: Show["log"] = { phases: [], matches: [] };
 
-  const blank = (tg: number, tick: STick): ShowView => ({ phase: "intro", since: 0, sinceWall: tick.wall, t: tick.t, wall: tick.wall, m: tick.m, target: tg, rate: 1, scale: scaleOf(tg), search: "looking", lobbyAt: 0, gunAt: 0, assigned: 0, opp: null, ready: null, match: null, result: null, battle: null, swarm: null, swarmTot: { rounds: 0, kills: 0, coins: 0, xp: 0, wrecked: 0 }, xpRow: 0, xpStart: -1, final: null, matches: 0 });
+  const blank = (tg: number, tick: STick): ShowView => ({ phase: "intro", since: 0, sinceWall: tick.wall, t: tick.t, wall: tick.wall, m: tick.m, target: tg, rate: 1, scale: scaleOf(tg), search: "looking", lobbyAt: 0, gunAt: 0, assigned: 0, opp: null, ready: null, match: null, result: null, battle: null, swarm: null, swarmTot: { rounds: 0, kills: 0, xp: 0, wrecked: 0 }, coins: 0, xpRow: 0, xpStart: -1, final: null, matches: 0 });
 
   const reset = (tick: STick) => {
     target = tick.target;
@@ -203,6 +212,7 @@ export function createShow(seed = 1): Show {
     seenEvent = -1;
     swapAt = -1;
     swarmOverWall = -1;
+    gameM0 = -1;
     bot = null;
     played = new Set();
     waitFrom = -1;
@@ -248,7 +258,7 @@ export function createShow(seed = 1): Show {
   const settleSwarm = () => {
     const s = v.swarm;
     if (!s || !swarm) return;
-    v.swarmTot = { rounds: v.swarmTot.rounds + 1, kills: v.swarmTot.kills + s.kills, coins: v.swarmTot.coins + s.coins, xp: v.swarmTot.xp + s.xp, wrecked: v.swarmTot.wrecked + (s.wrecked ? 1 : 0) };
+    v.swarmTot = { rounds: v.swarmTot.rounds + 1, kills: v.swarmTot.kills + s.kills, xp: v.swarmTot.xp + s.xp, wrecked: v.swarmTot.wrecked + (s.wrecked ? 1 : 0) };
     swarm = null;
     v.xpRow = soloXp();
   };
@@ -347,7 +357,8 @@ export function createShow(seed = 1): Show {
           if (tick.ended) go("done", tick);
           else if (t >= scaled(INTRO_S) && ctx.solo) {
             /* The skills fill at the rower's own pace: their median 5K. */
-            pve = createPve({ t0: t, seed: seedOf(`${seed}/${T}/island`), own: ctx.assigned ?? TARGET, sigma: ctx.sigma ?? undefined, boat: ctx.boat ?? NO_UPGRADES });
+            pve = createPve({ t0: t, seed: seedOf(`${seed}/${T}/island`), own: ctx.assigned ?? TARGET, boat: ctx.boat ?? NO_UPGRADES, scale: v.scale });
+            gameM0 = tick.m;
             v.search = "closed";
             v.battle = pve.step(t, tick.pace);
             go("battle", tick);
@@ -365,15 +376,15 @@ export function createShow(seed = 1): Show {
             const p4 = t > 4 ? paceOf(tick.m - mine(t - 4), 4) : tick.pace;
             v.battle = pve.step(t, p4);
             v.xpRow = soloXp();
-            /* A stage beaten or a wreck: its card, then the swarm. */
+            /* Two floors, a boss or a wreck: its card, then the swarm. */
             const ev = v.battle.event;
             if (ev && ev.at > seenEvent) {
               seenEvent = ev.at;
-              swapAt = tick.wall + SWAP_WALL_S;
+              if (ev.kind !== "floor" || v.battle.events >= FLOORS_A_ROUND) swapAt = tick.wall + SWAP_WALL_S;
             }
             if (swapAt > 0 && tick.wall >= swapAt) {
               swapAt = -1;
-              swarm = createSwarm({ t0: t, seed: seedOf(`${seed}/${T}/swarm${v.swarmTot.rounds}`), own: ctx.assigned ?? TARGET, sigma: ctx.sigma ?? undefined, boat: ctx.boat ?? NO_UPGRADES, skills: v.battle.skills.map((s) => s.def), roundS: Math.max(SWARM_LEAST, scaled(ROUND_S)) });
+              swarm = createSwarm({ t0: t, seed: seedOf(`${seed}/${T}/swarm${v.swarmTot.rounds}`), own: ctx.assigned ?? TARGET, base: v.battle.floorPace, boat: ctx.boat ?? NO_UPGRADES, skills: v.battle.skills.map((s) => s.def), roundS: Math.max(SWARM_LEAST, scaled(ROUND_S)) });
               v.swarm = swarm.step(t, p4);
               swarmOverWall = -1;
               go("swarm", tick);
@@ -509,7 +520,14 @@ export function createShow(seed = 1): Show {
         default:
           break;
       }
-      if (v.phase === "chest" && !v.final) v.final = { id: `final@${T}`, chest: rollChest(prng(seedOf(`${seed}/${T}/final`)), true) };
+      /* The game's meters, until the row is done. */
+      if (gameM0 >= 0 && !["chest", "summary", "done"].includes(v.phase)) v.coins = Math.max(0, Math.round(tick.m - gameM0));
+      /* THE REWARD THE MOMENT THE ROW IS OVER (owner, 2026-11-24: "If I close
+       * out the chest screen before it opens, then I don't get the reward.
+       * We should just get the reward as soon as we hit open"): the chest is
+       * rolled, and the hook banks it, as soon as the piece is complete or
+       * the row stops, whatever card is up. */
+      if (!v.final && (v.phase === "chest" || v.phase === "summary" || ((complete || tick.ended) && v.phase !== "intro" && v.phase !== "done"))) v.final = { id: `final@${T}`, chest: rollChest(prng(seedOf(`${seed}/${T}/final`)), true) };
       return v;
     },
   };

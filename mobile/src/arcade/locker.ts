@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
-import { LAYERS, SKIN_BY_ID, STOCK, type Equipped, type Layer } from "./skins";
+import { DROPPABLE, LAYERS, SKIN_BY_ID, STOCK, type Equipped, type Layer } from "./skins";
 
 /* THE LOCKER: the skins this phone has won and the ones on the boat. Kept on
  * the phone for now, as the unlogged rows are (store.ts); a table on the
@@ -93,6 +93,17 @@ export function equip(layer: Layer, id: string): Promise<Locker> {
 export function seen(): Promise<Locker> {
   return change((l) => (l.fresh.length ? { ...l, fresh: [] } : l));
 }
+
+/* THE OWNER'S DEVELOPER BUTTONS (Settings, DEVELOPER): the piece back to
+ * stock; every item gone (and the piece back to stock); every item owned. */
+export const resetLook = () => change((l) => ({ ...l, equipped: { ...STOCK } }));
+export const resetUnlocks = () => change((l) => ({ ...l, owned: {}, fresh: [], equipped: { ...STOCK } }));
+export const unlockAll = () =>
+  change((l) => {
+    const owned = { ...l.owned };
+    for (const s of DROPPABLE) owned[s.id] = Math.max(1, owned[s.id] ?? 0);
+    return { ...l, owned, fresh: [] };
+  });
 
 /* The locker as it is, and again whenever it changes. */
 export function useLocker(): Locker {

@@ -1,4 +1,4 @@
-import { NO_UPGRADES, SIGMA, TARGET, dmgMul, hullOf, nearOf, quickMul, rollSkills, type BoatLv, type SkillDef, type SkillView } from "./pve";
+import { NO_UPGRADES, TARGET, dmgMul, fillOf, hullOf, quickMul, rollSkills, skillAt, type BoatLv, type SkillDef, type SkillView } from "./pve";
 import { prng } from "./rng";
 
 /* THE SWARM (owner, 2026-11-24: "maybe our director can do a round or two
@@ -7,8 +7,12 @@ import { prng } from "./rng";
  * moving around, more things exploding").
  *
  * The rower's boat is out on open water, seen from above, and it STEERS
- * ITSELF: away from the school of fish closing in on it, toward the coins
- * and XP the dead ones leave. How fast it goes is how fast they row (the
+ * ITSELF, LIKE A BOXER IN HIS JAB'S REACH (owner, the same night: "move in
+ * and out so fish sit inside the jab circle, and hold an area while killing
+ * what's in it ... path towards coins too"): it closes on the school as the
+ * quick skill is about to go, backs off from anything about to bite, holds
+ * a ring round itself while fish are in it, and goes for the XP the dead
+ * ones leave when the water near it is clear. How fast it goes is how fast they row (the
  * last four seconds of their meters), one meter of the water for every
  * meter rowed; the fish swim at FISH_V of the rower's own pace, so a rower
  * at their pace stays a little ahead and one well under it is caught.
@@ -18,9 +22,9 @@ import { prng } from "./rng";
  * ring. A fish that touches the boat bites the hull. A round is ROUND_S
  * seconds of the row, or until the hull is gone.
  *
- * Coins are picked up, not given: a fish leaves its health in coins (the
- * damage done to it, as on the course) and a little XP, and the boat goes
- * over them; the ones left behind sink after DROP_S.
+ * A dead fish leaves XP, picked up as the boat goes over it; what is left
+ * behind sinks after DROP_S. (No coins: since the owner's review the coins
+ * are the meters of the game, counted by the show.)
  *
  * No hands, as everywhere in the arcade: the pace is the only input.
  *
@@ -59,7 +63,7 @@ const STEP = 0.1;
 const V_REF = 500 / 119;
 
 export type SFish = { id: number; x: number; y: number; vx: number; vy: number; hp: number; max: number; kind: number; hitAt: number };
-export type SDrop = { id: number; x: number; y: number; kind: "coin" | "xp"; value: number; born: number };
+export type SDrop = { id: number; x: number; y: number; kind: "xp"; value: number; born: number };
 export type SBlast = { id: number; at: number; x: number; y: number; r: number; slot: number };
 export type SDeath = { id: number; at: number; x: number; y: number; kind: number };
 
@@ -85,7 +89,6 @@ export type SwarmView = {
   blasts: SBlast[];
   deaths: SDeath[];
   kills: number;
-  coins: number;
   xp: number;
   over: boolean;
   wrecked: boolean;
@@ -93,7 +96,8 @@ export type SwarmView = {
 
 export type Swarm = { step(t: number, pace: number): SwarmView; view(): SwarmView };
 
-export function createSwarm({ t0, seed, own = TARGET, sigma = SIGMA, boat = NO_UPGRADES, skills, roundS = ROUND_S }: { t0: number; seed: number; own?: number; sigma?: number; boat?: BoatLv; skills?: SkillDef[]; roundS?: number }): Swarm {
+/* `base`: the pace the skills key off (the course's floor's, show.ts). */
+export function createSwarm({ t0, seed, own = TARGET, base, boat = NO_UPGRADES, skills, roundS = ROUND_S }: { t0: number; seed: number; own?: number; base?: number; boat?: BoatLv; skills?: SkillDef[]; roundS?: number }): Swarm {
   const rnd = prng(seed);
   const kit = skills ?? rollSkills(rnd);
   const vOwn = 500 / own;
@@ -101,8 +105,7 @@ export function createSwarm({ t0, seed, own = TARGET, sigma = SIGMA, boat = NO_U
   const fillMul = quickMul(boat.quick);
   const hullMax = hullOf(boat.hull);
   const bite = BITE * (vOwn / V_REF);
-  const SHARE = [0.25, 0.35, 0.4];
-  const hitOf = (d: SkillDef) => SHARE[d.slot] * d.fill * vOwn * (1 + 0.5 * d.z);
+  const fp = base ?? own + 2;
   let ids = 0;
   let last = t0;
   let spawnAt = t0 + 0.5;
@@ -121,14 +124,13 @@ export function createSwarm({ t0, seed, own = TARGET, sigma = SIGMA, boat = NO_U
     hull: hullMax,
     hullMax,
     bitAt: -99,
-    skills: kit.map((def) => ({ def, charge: 0, q: 0, target: own - def.z * sigma, hit: hitOf(def) })),
+    skills: kit.map((def) => skillAt(def, fp)),
     near: 0,
     fish: [],
     drops: [],
     blasts: [],
     deaths: [],
     kills: 0,
-    coins: 0,
     xp: 0,
     over: false,
     wrecked: false,
@@ -145,8 +147,7 @@ export function createSwarm({ t0, seed, own = TARGET, sigma = SIGMA, boat = NO_U
   const kill = (f: SFish, now: number) => {
     v.kills++;
     v.deaths.push({ id: f.id, at: now, x: f.x, y: f.y, kind: f.kind });
-    v.drops.push({ id: ++ids, x: f.x, y: f.y, kind: "coin", value: f.max, born: now });
-    v.drops.push({ id: ++ids, x: f.x + 0.8, y: f.y - 0.6, kind: "xp", value: XP_GEM, born: now });
+    v.drops.push({ id: ++ids, x: f.x, y: f.y, kind: "xp", value: f.kind === 3 ? XP_GEM * 3 : XP_GEM, born: now });
   };
 
   const area = (now: number, s: SkillView) => {
@@ -186,17 +187,56 @@ export function createSwarm({ t0, seed, own = TARGET, sigma = SIGMA, boat = NO_U
   };
 
   const tick = (now: number, dt: number, speed: number) => {
-    /* Where the boat wants to go: away from the fish, the nearer the more;
-     * toward the nearest pickup; and on the way it was going. */
-    let ax = Math.cos(v.heading) * 0.6;
-    let ay = Math.sin(v.heading) * 0.6;
+    /* Where the boat wants to go, a boxer's footwork round its jab's
+     * reach (AREA[0]): in toward the school as the quick skill is about to
+     * go, out from anything about to bite, and round in a ring while fish
+     * sit in the reach; the XP when the water near it is clear. */
+    const jab = v.skills.find((s) => s.def.slot === 0);
+    const ready = !!jab && jab.q > 0 && jab.charge > 0.6;
+    const reach = AREA[0];
+    let ax = Math.cos(v.heading) * 0.5;
+    let ay = Math.sin(v.heading) * 0.5;
+    let inReach = 0;
+    let nearD = 99;
+    let cx = 0;
+    let cy = 0;
+    let cn = 0;
     for (const f of v.fish) {
-      const dx = v.x - f.x;
-      const dy = v.y - f.y;
-      const d2 = Math.max(1, dx * dx + dy * dy);
-      if (d2 > 30 * 30) continue;
-      ax += (dx / d2) * 28;
-      ay += (dy / d2) * 28;
+      const dx = f.x - v.x;
+      const dy = f.y - v.y;
+      const d = Math.max(0.3, Math.hypot(dx, dy));
+      nearD = Math.min(nearD, d);
+      if (d > 30) continue;
+      if (d < reach) inReach++;
+      if (d < 16) {
+        cx += f.x;
+        cy += f.y;
+        cn++;
+      }
+      /* Too close: out, hard. */
+      if (d < TOUCH + 2.2) {
+        const k = ((TOUCH + 2.2 - d) / d) * 3.2;
+        ax -= dx * k;
+        ay -= dy * k;
+      } else if (d < 12) {
+        /* In reach and beyond it: in when the jab is ready, else a little
+         * out, so they sit on the edge of the ring. */
+        const k = ready ? 0.3 / d : d < reach * 0.8 ? -0.35 / d : 0.05 / d;
+        ax += dx * k;
+        ay += dy * k;
+      } else {
+        ax -= (dx / (d * d)) * 6;
+        ay -= (dy / (d * d)) * 6;
+      }
+    }
+    /* Holding: fish in the reach and none on top of it, the boat circles
+     * (turns across the school instead of from it). */
+    if (inReach >= 2 && nearD > TOUCH + 1.5 && cn) {
+      const tx = cx / cn - v.x;
+      const ty = cy / cn - v.y;
+      const d = Math.hypot(tx, ty) || 1;
+      ax += (-ty / d) * 0.9;
+      ay += (tx / d) * 0.9;
     }
     let pick: SDrop | null = null;
     let pd = 40 * 40;
@@ -209,8 +249,9 @@ export function createSwarm({ t0, seed, own = TARGET, sigma = SIGMA, boat = NO_U
     }
     if (pick) {
       const d = Math.sqrt(pd) || 1;
-      ax += ((pick.x - v.x) / d) * 0.9;
-      ay += ((pick.y - v.y) / d) * 0.9;
+      const w = nearD > reach ? 1.1 : 0.35;
+      ax += ((pick.x - v.x) / d) * w;
+      ay += ((pick.y - v.y) / d) * w;
     }
     wander += (rnd() - 0.5) * 0.6 * dt;
     ax += Math.cos(wander) * 0.25;
@@ -271,8 +312,7 @@ export function createSwarm({ t0, seed, own = TARGET, sigma = SIGMA, boat = NO_U
       const dy = v.y - p.y;
       const d = Math.hypot(dx, dy);
       if (d < GRAB) {
-        if (p.kind === "coin") v.coins += p.value;
-        else v.xp += p.value;
+        v.xp += p.value;
         return false;
       }
       if (d < MAGNET) {
@@ -304,7 +344,7 @@ export function createSwarm({ t0, seed, own = TARGET, sigma = SIGMA, boat = NO_U
       last = Math.max(last, t);
       v.pace = pace;
       v.t = t;
-      for (const s of v.skills) s.q = nearOf(pace, s.target);
+      for (const s of v.skills) s.q = fillOf(pace, s.target);
       v.near = Math.max(...v.skills.map((s) => Math.min(1, s.q)));
       if (v.over) return v;
       const speed = Number.isFinite(pace) && pace > 40 && pace < 600 ? 500 / pace : 0;

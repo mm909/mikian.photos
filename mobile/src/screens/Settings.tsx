@@ -3,6 +3,9 @@ import * as Updates from "expo-updates";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SITE, api, edits, type SocialSettings } from "../api";
+import { resetBoat, resetSkills } from "../arcade/boat";
+import { resetLook, resetUnlocks, unlockAll } from "../arcade/locker";
+import { setXp } from "../arcade/progress";
 import { useLookSwitch } from "../look";
 import { useSession } from "../session";
 import { STAMP } from "../splash";
@@ -100,6 +103,7 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
         <Go label="Privacy policy" onPress={() => Linking.openURL(SITE + "/row100k/app-privacy").catch(() => null)} />
         <Go label="Terms of use" onPress={() => Linking.openURL(SITE + "/row100k/app-terms").catch(() => null)} />
         {me.isDev || me.isAdmin ? <DeveloperRows isDev={!!me.isDev} onPassword={() => onPage("developer")} onReset={() => refresh()} /> : null}
+        {me.isAdmin ? <ArcadeDev /> : null}
         <View style={{ height: 26 }} />
         <Act
           label="Sign out"
@@ -399,6 +403,48 @@ function DeveloperRows({ isDev, onPassword, onReset }: { isDev: boolean; onPassw
       {isDev && !note ? <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 8 }}>A copy of rower 001 that only this account sees. What you change stays until tomorrow, then rower 001 is copied again.</Text> : null}
       {note ? <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 8 }}>{note}</Text> : null}
       {!isDev ? <Go label="Developer password" sub="Opens the Developer account, rower 000" onPress={onPassword} /> : null}
+    </>
+  );
+}
+
+/* THE ARCADE'S DEVELOPER BUTTONS (owner, 2026-11-24: "Maybe there's a
+ * section for developer in the settings and put that as one of them"), for
+ * an admin: each pressed twice, once to ask and once to do it. They touch
+ * only the arcade kept on this phone (the XP, the boat, the locker); never
+ * a row, the meters or anything on the site. */
+const ARCADE_DEV: { id: string; label: string; ask: string; done: string; run: () => Promise<unknown> }[] = [
+  { id: "level", label: "Reset my character to level 1", ask: "Your XP goes to 0. Press again.", done: "Level 1, no XP.", run: () => setXp(0) },
+  { id: "boat", label: "Reset my boat", ask: "Your coins and every upgrade go to 0. Press again.", done: "The boat is new: no coins, no upgrades.", run: () => resetBoat() },
+  { id: "skills", label: "Reset my skills", ask: "DAMAGE, QUICK and EASE go to level 0. Press again.", done: "The skills' upgrades are at 0.", run: () => resetSkills() },
+  { id: "look", label: "Reset my appearance", ask: "Your piece goes back to the plain box. Press again.", done: "The plain box, nothing on.", run: () => resetLook() },
+  { id: "unlocks", label: "Reset all unlocks", ask: "Every item you have won goes. Press again.", done: "No items: the locker is empty.", run: () => resetUnlocks() },
+  { id: "all", label: "Unlock everything", ask: "Every item in the locker becomes yours. Press again.", done: "Every item is yours.", run: () => unlockAll() },
+];
+function ArcadeDev() {
+  const [ask, setAsk] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const press = async (d: (typeof ARCADE_DEV)[number]) => {
+    if (ask !== d.id) {
+      setAsk(d.id);
+      setNote(d.ask);
+      return;
+    }
+    setAsk(null);
+    try {
+      await d.run();
+      setNote(d.done);
+    } catch {
+      setNote("That did not work.");
+    }
+  };
+  return (
+    <>
+      <View style={{ height: 18 }} />
+      <Eye style={{ marginTop: 0, marginBottom: 0 }} left="Developer · the arcade" right="Only you" />
+      {ARCADE_DEV.map((d) => (
+        <Act key={d.id} label={ask === d.id ? `Press again: ${d.label.toLowerCase()}` : d.label} danger={ask === d.id} onPress={() => press(d)} />
+      ))}
+      <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 8 }}>{note || "The arcade on this phone only: your rows and meters are never touched."}</Text>
     </>
   );
 }
