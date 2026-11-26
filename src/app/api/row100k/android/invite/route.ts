@@ -25,7 +25,10 @@ export async function POST(req: Request) {
 
   const sent: string[] = [];
   const failed: string[] = [];
-  for (const t of picked) {
+  /* One at a time with a breath between (owner, 2026-11-26: the eleventh of
+   * a send-to-all failed; the mail service takes about two a second). */
+  for (const [i, t] of picked.entries()) {
+    if (i) await new Promise((r) => setTimeout(r, 700));
     const res = await sendPlainEmail(t.email, INVITE_SUBJECT, inviteText(t.name, t.email), inviteHtml(t.name, t.email));
     if (res.ok) sent.push(t.email);
     else {
