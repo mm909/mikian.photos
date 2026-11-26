@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { M2D_PLEDGE_LIVE } from "../../m2dPledges";
 import { barProps, resolveViewer } from "@/lib/row100kViewer";
 import { archivo, archivoBlack, spaceMono, css } from "../../theme";
 import { RowBar } from "../../RowBar";
@@ -32,6 +34,10 @@ const cent = (c: number) => `${Math.round(c * 100) / 100}¢`;
 const MAIL = "row@rowtember.com";
 
 export default async function GivePage() {
+  /* RETIRED ONCE THE PLEDGE PAGE IS LIVE (owner, 2026-11-26: "let's retire
+   * whatever current give page we have"): until then givers keep this
+   * page, so nobody is left without one. */
+  if (M2D_PLEDGE_LIVE) redirect("/m2d/pledge");
   const viewer = await resolveViewer();
   const p = await m2dPrice().catch((err) => {
     console.error("row100k M2D give: not read", err);

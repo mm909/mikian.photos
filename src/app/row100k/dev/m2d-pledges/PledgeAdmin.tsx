@@ -46,7 +46,8 @@ export function PledgeAdmin({ initial }: { initial: PledgeView[] }) {
         <div key={p.id}>
           <PledgeCard centsPerKm={p.centsPerKm} capDollars={p.capDollars} name={p.name} km={p.fill?.km} dollars={p.fill?.dollars} status={statusOf(p)} />
           <p className="pl-who">
-            <b>{p.email}</b> · sent {when(p.createdAt)}
+            <b>{p.email}</b>
+            {p.anonymous ? " · anonymous" : " · named"} · sent {when(p.createdAt)}
             {p.decidedAt ? ` · ${p.status} ${when(p.decidedAt)}` : ""}
             {p.welcomeSentAt ? " · welcome sent" : p.status === "approved" ? " · welcome NOT sent yet" : ""}
             {p.doneSentAt ? ` · total sent ${when(p.doneSentAt)}` : ""}

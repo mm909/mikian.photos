@@ -1886,6 +1886,9 @@ model M2dPledge {
   /// The most it comes to, whole dollars.
   capDollars    Int
   note          String    @default("")
+  /// Shown as "Anonymous" everywhere but the owner's list (owner,
+  /// 2026-11-26: "They can be anonymous ... by default").
+  anonymous     Boolean   @default(true)
   /// "pending" | "approved" | "declined"
   status        String    @default("pending")
   decidedAt     DateTime?

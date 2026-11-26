@@ -8,16 +8,16 @@ import { RowFooter } from "../../RowFooter";
 import { board100kCss } from "../../board/board100kCss";
 import { CHARITIES, m2dWindow } from "../../m2d";
 import { pledgeViews, type PledgeView } from "../../m2dPledgeActions";
+import { M2D_PLEDGE_LIVE, pledgeGated } from "../../m2dPledges";
 import { m2dCss } from "../m2dCss";
 import { pledgeCss } from "./pledgeCss";
 import { PledgeSite } from "./PledgeSite";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Pledge to M2D (dev) — Rowtember",
-  robots: { index: false, follow: false },
-};
+export const metadata: Metadata = M2D_PLEDGE_LIVE
+  ? { title: "Pledge to M2D — Rowtember", description: "Give for every kilometer Rowtember rowers row, Nov 26 to Dec 24, up to a cap you pick." }
+  : { title: "Pledge to M2D (dev) — Rowtember", robots: { index: false, follow: false } };
 
 /* THE M2D PLEDGE (owner, 2026-11-26: "$1 per kilometer for $500"; "let's
  * make sure they created an account"; "make sure it comes to me to review
@@ -34,7 +34,7 @@ const SIGN_IN = `/sign-in?callbackUrl=${encodeURIComponent("/m2d/pledge")}`;
 
 export default async function PledgePage() {
   const viewer = await resolveViewer();
-  if (process.env.NODE_ENV === "production" && !viewer.isAdmin) notFound();
+  if (pledgeGated(viewer.isAdmin)) notFound();
   const w = m2dWindow();
   let mine: PledgeView[] = [];
   let readFailed = false;

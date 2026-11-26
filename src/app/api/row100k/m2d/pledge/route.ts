@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rateLimit";
 import { resolveViewer } from "@/lib/row100kViewer";
 import { m2dWindow } from "@/app/row100k/m2d";
-import { readPledgeBody } from "@/app/row100k/m2dPledges";
+import { pledgeGated, readPledgeBody } from "@/app/row100k/m2dPledges";
 import { pledgeViews, savePledge } from "@/app/row100k/m2dPledgeActions";
 
 /* A GIVER'S M2D PLEDGE (owner, 2026-11-26; row100k/m2dPledges.ts), the
@@ -24,7 +24,7 @@ const bad = (error: string, status = 400) => NextResponse.json({ ok: false, erro
 
 export async function GET() {
   const viewer = await resolveViewer();
-  if (process.env.NODE_ENV === "production" && !viewer.isAdmin) return bad("Not here.", 404);
+  if (pledgeGated(viewer.isAdmin)) return bad("Not here.", 404);
   if (!viewer.actor) return bad("Sign in first.", 401);
   try {
     return NextResponse.json({ ok: true, pledges: await pledgeViews(viewer.actor.photographerId) }, { headers: NO_STORE });
@@ -36,7 +36,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const viewer = await resolveViewer();
-  if (process.env.NODE_ENV === "production" && !viewer.isAdmin) return bad("Not here.", 404);
+  if (pledgeGated(viewer.isAdmin)) return bad("Not here.", 404);
   if (!viewer.actor) return bad("Sign in first.", 401);
   if (m2dWindow().over) return bad("M2D closed on Dec 24.");
   const body = readPledgeBody(await req.json().catch(() => null));

@@ -29,6 +29,15 @@ import { CHARITIES, M2D_FIRST, M2D_KEY, M2D_LAST, type CharityKey, type Shares }
  *
  * SERVER ONLY. */
 
+/* THE GO-LIVE SWITCH (owner, 2026-11-26: "let's retire whatever current
+ * give page we have"). False: the pledge page and its route are in
+ * development (admin-only in production) and /m2d/give stays as it is.
+ * True, once the owner says it goes live: the pledge page is public and
+ * /m2d/give sends its visitors here. Also drop "(dev)" from the pledge
+ * page's title and move its menu link out of DEVELOPMENT (CLAUDE.md). */
+export const M2D_PLEDGE_LIVE = false;
+export const pledgeGated = (isAdmin: boolean): boolean => !M2D_PLEDGE_LIVE && process.env.NODE_ENV === "production" && !isAdmin;
+
 export const PLEDGE_RATES = [25, 50, 100] as const;
 /* A custom rate: 1¢ to $10 a kilometer, to a hundredth of a cent. A cap:
  * whole dollars, $5 to $1,000,000. The owner reads every pledge before it
@@ -47,6 +56,7 @@ export type PledgeRow = {
   centsPerKm: number;
   capDollars: number;
   note: string;
+  anonymous: boolean;
   status: string;
   decidedAt: Date | null;
   decidedBy: string;
@@ -74,17 +84,19 @@ const zeroSplit = () => Object.fromEntries(CHARITIES.map((c) => [c.key, 0])) as 
 export const rateWord = (c: number): string => (c >= 100 ? `$${(c / 100).toFixed(c % 100 ? 2 : 0)}` : `${Math.round(c * 100) / 100}¢`);
 export const capKmOf = (centsPerKm: number, capDollars: number): number => (centsPerKm > 0 ? (capDollars * 100) / centsPerKm : 0);
 const kmWord = (km: number) => `${Math.round(km).toLocaleString("en-US")} km`;
+/* THE NAME THE PUBLIC SEES: "Anonymous" unless the giver said otherwise. */
+export const publicName = (p: { name: string; anonymous?: boolean }): string => (p.anonymous === false ? p.name : "Anonymous");
 /* THE RECEIPT LINE (owner: "$1/km for 500 km · Name"). */
-export const pledgeLine = (p: { name: string; centsPerKm: number; capDollars: number }): string =>
-  `${rateWord(p.centsPerKm)}/km for ${kmWord(capKmOf(p.centsPerKm, p.capDollars))} · ${p.name}`;
+export const pledgeLine = (p: { name: string; anonymous?: boolean; centsPerKm: number; capDollars: number }): string =>
+  `${rateWord(p.centsPerKm)}/km for ${kmWord(capKmOf(p.centsPerKm, p.capDollars))} · ${publicName(p)}`;
 export const pledgeTerms = (p: { centsPerKm: number; capDollars: number }): string =>
   `${rateWord(p.centsPerKm)}/km for ${kmWord(capKmOf(p.centsPerKm, p.capDollars))}`;
 
 const hundredths = (c: number) => Math.abs(Math.round(c * 100) - c * 100) < 1e-6;
 /* The body the pledge route takes, read once: the pledge, or the words to
  * refuse with. */
-export function readPledgeBody(body: unknown): { centsPerKm: number; capDollars: number; name: string; note: string } | string {
-  const b = (body ?? {}) as { cents?: unknown; cap?: unknown; name?: unknown; note?: unknown };
+export function readPledgeBody(body: unknown): { centsPerKm: number; capDollars: number; name: string; note: string; anonymous: boolean } | string {
+  const b = (body ?? {}) as { cents?: unknown; cap?: unknown; name?: unknown; note?: unknown; anonymous?: unknown };
   const c = typeof b.cents === "string" ? Number(b.cents) : b.cents;
   const cap = typeof b.cap === "string" ? Number(b.cap) : b.cap;
   if (typeof c !== "number" || !Number.isFinite(c) || c < PLEDGE_MIN_CENTS || c > PLEDGE_MAX_CENTS || !hundredths(c))
@@ -93,7 +105,8 @@ export function readPledgeBody(body: unknown): { centsPerKm: number; capDollars:
   const name = typeof b.name === "string" ? b.name.trim().replace(/\s+/g, " ") : "";
   if (!name || name.length > 40) return "Put the name the receipts should show (40 letters at most).";
   const note = typeof b.note === "string" ? b.note.trim().slice(0, 500) : "";
-  return { centsPerKm: c, capDollars: cap, name, note };
+  /* Anonymous unless the giver turned it off. */
+  return { centsPerKm: c, capDollars: cap, name, note, anonymous: b.anonymous !== false };
 }
 
 const SELECT = {
@@ -104,6 +117,7 @@ const SELECT = {
   centsPerKm: true,
   capDollars: true,
   note: true,
+  anonymous: true,
   status: true,
   decidedAt: true,
   decidedBy: true,

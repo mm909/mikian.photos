@@ -5,7 +5,7 @@ import { CHALLENGE, CHALLENGE_LIVE, MONTH, nowMs, pacificDay } from "@/lib/row10
 import { previewViewOpts, type Viewer } from "@/lib/row100kViewer";
 import type { Month } from "@/lib/rowPeriod";
 import { boardView } from "./boardData";
-import { filledPledges, pledgeLine } from "./m2dPledges";
+import { filledPledges, pledgeLine, publicName } from "./m2dPledges";
 
 /* M2D, METERS TO DOLLARS (owner, 2026-11-25, of the Concept2 Holiday
  * Challenge, Nov 26 - Dec 24: "we really need a place where we can show
@@ -394,7 +394,7 @@ export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, 
   t.total = cents(t.total + pledgeDollars);
   for (const p of pledged)
     gave.push({
-      name: p.name,
+      name: publicName(p),
       cents: p.centsPerKm,
       cap: p.capDollars,
       dollars: p.fill.dollars,

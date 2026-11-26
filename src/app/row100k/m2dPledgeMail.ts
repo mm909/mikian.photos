@@ -1,5 +1,5 @@
 import { CHARITIES, M2D_LAST, type CharityKey } from "./m2d";
-import { capKmOf, pledgeTerms, rateWord, type PledgeFill } from "./m2dPledges";
+import { capKmOf, pledgeLine, pledgeTerms, rateWord, type PledgeFill } from "./m2dPledges";
 
 /* THE GIVER'S EMAILS (owner, 2026-11-26). Two, both sent with
  * sendPlainEmail (the owner BCC-ed on each):
@@ -13,7 +13,7 @@ import { capKmOf, pledgeTerms, rateWord, type PledgeFill } from "./m2dPledges";
  * The owner sees both at /dev/m2d-pledges/email. Plain words, no address
  * of the site in the body beyond the one link to M2D. */
 
-export type MailPledge = { name: string; email: string; centsPerKm: number; capDollars: number };
+export type MailPledge = { name: string; email: string; centsPerKm: number; capDollars: number; anonymous?: boolean };
 export type Mail = { subject: string; text: string; html: string };
 
 const M2D_URL = "https://www.rowtember.com/m2d";
@@ -65,7 +65,7 @@ export function welcomeMail(pl: MailPledge): Mail {
     `- From today, every kilometer a Rowtember rower logs counts toward your pledge, ${rateWord(pl.centsPerKm)} each.`,
     `- It stops when it reaches ${usd(pl.capDollars)} (that's ${km(capKm)}) or on ${closeDay}, whichever comes first.`,
     "- Each kilometer's dollars go to the charity the rower who rowed it picked, split evenly across the three unless they chose.",
-    `- Your line is on the M2D receipts as "${terms} · ${pl.name}". Watch it fill: ${M2D_URL}`,
+    `- Your line is on the M2D receipts as "${pledgeLine(pl)}". Watch it fill: ${M2D_URL}`,
     "",
     "THE THREE CHARITIES (all Las Vegas)",
     ...charities.map((c) => `- ${c}`),
@@ -88,7 +88,7 @@ export function welcomeMail(pl: MailPledge): Mail {
 <li style="margin-bottom:6px">From today, every kilometer a Rowtember rower logs counts toward your pledge, <b>${rateWord(pl.centsPerKm)}</b> each.</li>
 <li style="margin-bottom:6px">It stops at <b>${usd(pl.capDollars)}</b> (${km(capKm)}) or on ${closeDay}, whichever comes first.</li>
 <li style="margin-bottom:6px">Each kilometer's dollars go to the charity the rower who rowed it picked, split evenly across the three unless they chose.</li>
-<li>Your line on the receipts: <b>${esc(terms)} · ${esc(pl.name)}</b>. <a href="${M2D_URL}" style="color:#0077B6;font-weight:700">Watch it fill</a></li>
+<li>Your line on the receipts: <b>${esc(pledgeLine(pl))}</b>. <a href="${M2D_URL}" style="color:#0077B6;font-weight:700">Watch it fill</a></li>
 </ul>`,
       `<p style="margin:0 0 8px;font:700 12px/1.4 Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#111">The three charities</p>`,
       `<ul style="margin:0 0 18px;padding-left:20px;font:15px/1.5 Arial,sans-serif;color:#111">${CHARITIES.map((c) => `<li style="margin-bottom:6px"><b>${esc(c.name)}</b>: ${esc(c.what)}</li>`).join("")}</ul>`,
@@ -144,11 +144,11 @@ export function doneMail(pl: MailPledge, fill: Pick<PledgeFill, "km" | "dollars"
 
 /* The owner's line when a pledge comes in (CLAUDE.md: every sign-up emails
  * the owner). */
-export function ownerPledgeText(pl: MailPledge & { note: string }, isNew: boolean): { subject: string; text: string } {
+export function ownerPledgeText(pl: MailPledge & { note: string; anonymous: boolean }, isNew: boolean): { subject: string; text: string } {
   const terms = pledgeTerms(pl);
   return {
     subject: `M2D pledge ${isNew ? "to review" : "changed"}: ${terms} · ${pl.name}`,
     text: `${pl.name} (${pl.email}) ${isNew ? "pledged" : "changed their pending pledge to"} ${rateWord(pl.centsPerKm)} a kilometer, up to $${pl.capDollars.toLocaleString("en-US")} (${terms}).
-${pl.note ? `Their note: ${pl.note}\n` : ""}It counts only once you approve it: https://www.rowtember.com/dev/m2d-pledges`,
+${pl.anonymous ? "Anonymous on the receipts.\n" : `Named on the receipts as ${pl.name}.\n`}${pl.note ? `Their note: ${pl.note}\n` : ""}It counts only once you approve it: https://www.rowtember.com/dev/m2d-pledges`,
   };
 }

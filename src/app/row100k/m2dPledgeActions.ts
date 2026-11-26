@@ -15,10 +15,10 @@ import { filledPledges, pledgeLine, pledgesWhere, type PledgeRow } from "./m2dPl
  * surfaced. */
 export async function savePledge(
   actor: { photographerId: string; email: string },
-  p: { centsPerKm: number; capDollars: number; name: string; note: string },
+  p: { centsPerKm: number; capDollars: number; name: string; note: string; anonymous: boolean },
 ): Promise<PledgeRow> {
   const pending = (await pledgesWhere({ accountId: actor.photographerId, status: "pending" }))[0];
-  const data = { name: p.name, centsPerKm: p.centsPerKm, capDollars: p.capDollars, note: p.note, email: actor.email };
+  const data = { name: p.name, anonymous: p.anonymous, centsPerKm: p.centsPerKm, capDollars: p.capDollars, note: p.note, email: actor.email };
   const saved = pending
     ? await db.m2dPledge.update({ where: { id: pending.id }, data })
     : await db.m2dPledge.create({ data: { ...data, challenge: CHALLENGE, window: M2D_KEY, accountId: actor.photographerId } });
@@ -92,6 +92,7 @@ export type PledgeView = {
   centsPerKm: number;
   capDollars: number;
   note: string;
+  anonymous: boolean;
   status: string;
   createdAt: string;
   decidedAt: string | null;
@@ -116,6 +117,7 @@ export async function pledgeViews(accountId?: string): Promise<PledgeView[]> {
       centsPerKm: p.centsPerKm,
       capDollars: p.capDollars,
       note: p.note,
+      anonymous: p.anonymous,
       status: p.status,
       createdAt: p.createdAt.toISOString(),
       decidedAt: iso(p.decidedAt),

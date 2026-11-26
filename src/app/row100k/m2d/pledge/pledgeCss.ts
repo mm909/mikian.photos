@@ -24,6 +24,8 @@ export const pledgeCss = `
 .row100k .pl-in span{font-family:var(--row-archivo-black),sans-serif;font-size:22px;color:var(--gray)}
 .row100k .pl-in input{flex:1;min-width:0;border:0;outline:0;background:none;font-family:var(--row-archivo-black),sans-serif;font-size:30px;color:var(--water);font-variant-numeric:tabular-nums}
 .row100k .pl-in input.txt{font-family:var(--row-archivo),sans-serif;font-size:19px;font-weight:700;color:var(--ink)}
+.row100k .pl-check{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:14px;line-height:1.45;color:var(--ink);cursor:pointer}
+.row100k .pl-check input{width:18px;height:18px;margin-top:1px;accent-color:var(--water);flex:none}
 .row100k .pl-say{margin-top:14px;font-size:14px;line-height:1.5;color:var(--gray)}
 .row100k .pl-say.err{color:var(--ink);font-weight:700}
 .row100k .pl-form .m2-go{margin-top:24px}

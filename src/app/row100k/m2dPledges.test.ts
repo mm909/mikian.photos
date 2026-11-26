@@ -49,9 +49,12 @@ const pledge = { centsPerKm: 100, capDollars: 500, decidedAt: t0 };
 // Not approved: nothing.
 assert.equal(fillPledge({ ...pledge, decidedAt: null }, [{ participantId: "a", meters: 1000, createdAt: at(1) }], ins).dollars, 0);
 
-assert.equal(pledgeLine({ name: "Jordan", centsPerKm: 100, capDollars: 500 }), "$1/km for 500 km · Jordan");
-assert.equal(pledgeLine({ name: "Sam", centsPerKm: 25, capDollars: 250 }), "25¢/km for 1,000 km · Sam");
+assert.equal(pledgeLine({ name: "Jordan", anonymous: false, centsPerKm: 100, capDollars: 500 }), "$1/km for 500 km · Jordan");
+// Anonymous by default (owner, 2026-11-26).
+assert.equal(pledgeLine({ name: "Sam", centsPerKm: 25, capDollars: 250 }), "25¢/km for 1,000 km · Anonymous");
+assert.equal(pledgeLine({ name: "Sam", anonymous: true, centsPerKm: 25, capDollars: 250 }), "25¢/km for 1,000 km · Anonymous");
 assert.equal(typeof readPledgeBody({ cents: 100, cap: 1_000_000_000, name: "Big" }), "string");
-assert.deepEqual(readPledgeBody({ cents: 50, cap: 500, name: "  Pat  " }), { centsPerKm: 50, capDollars: 500, name: "Pat", note: "" });
+assert.deepEqual(readPledgeBody({ cents: 50, cap: 500, name: "  Pat  " }), { centsPerKm: 50, capDollars: 500, name: "Pat", note: "", anonymous: true });
+assert.equal((readPledgeBody({ cents: 50, cap: 500, name: "Pat", anonymous: false }) as { anonymous: boolean }).anonymous, false);
 
 console.log("m2dPledges: ok");

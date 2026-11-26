@@ -24,6 +24,8 @@ export function PledgeSite({ signedIn, signInHref, defaultName, initial }: { sig
   const [capIn, setCapIn] = useState(String(pending?.capDollars ?? 500));
   const [name, setName] = useState(pending?.name ?? defaultName);
   const [note, setNote] = useState(pending?.note ?? "");
+  /* Anonymous by default (owner, 2026-11-26). */
+  const [anon, setAnon] = useState(pending?.anonymous ?? true);
   const [busy, setBusy] = useState(false);
   const [say, setSay] = useState<{ t: string; err?: boolean } | null>(null);
 
@@ -39,7 +41,7 @@ export function PledgeSite({ signedIn, signInHref, defaultName, initial }: { sig
       const res = await fetch("/api/row100k/m2d/pledge", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cents, cap, name: name.trim(), note: note.trim() }),
+        body: JSON.stringify({ cents, cap, name: name.trim(), note: note.trim(), anonymous: anon }),
       });
       if (res.status === 401) {
         window.location.href = signInHref;
@@ -58,7 +60,7 @@ export function PledgeSite({ signedIn, signInHref, defaultName, initial }: { sig
 
   return (
     <>
-      <PledgeCard centsPerKm={cents} capDollars={cap} name={name.trim() || undefined} status="preview" />
+      <PledgeCard centsPerKm={cents} capDollars={cap} name={anon ? "Anonymous" : name.trim() || undefined} status="preview" />
 
       <section className="pl-form" aria-label="Your pledge">
         <p className="pl-q">Per kilometer</p>
@@ -104,9 +106,13 @@ export function PledgeSite({ signedIn, signInHref, defaultName, initial }: { sig
             : "Pick a rate and a cap."}
         </p>
 
-        <p className="pl-q">Your name on the receipts</p>
+        <p className="pl-q">Your name</p>
         <label className="pl-in">
-          <input className="txt" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} aria-label="Your name on the receipts" />
+          <input className="txt" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} aria-label="Your name" />
+        </label>
+        <label className="pl-check">
+          <input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} />
+          <span>Give anonymously. The receipts say &ldquo;Anonymous&rdquo;; only Mikian sees your name.</span>
         </label>
         <p className="pl-q">A note for Mikian (optional)</p>
         <label className="pl-in">

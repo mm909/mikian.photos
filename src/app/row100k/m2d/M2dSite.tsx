@@ -275,8 +275,8 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               </dt>
               <dd>{usd(t.matched)}</dd>
             </div>
-            {(t.givers ?? []).map((g) => (
-              <div key={`${g.name}-${g.cents}-${g.cap}`}>
+            {(t.givers ?? []).map((g, i) => (
+              <div key={`${i}-${g.name}`}>
                 <dt>
                   {/* An approved pledge (2026-11-26) reads "$1/km for 500
                       km · Name"; the old list keeps its own line. */}
