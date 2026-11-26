@@ -29,6 +29,23 @@ Testing the app and giving UX notes all day is work too. That happens anyway, so
 - **In the reel:** show what the app does, in the style of Dr. Mike Israetel's ads. Talk about the training, then say "the app tells me exactly what to do." For example: "today it's a 5K at this pace, because ROW says that's what's on the schedule to hit my month."
 - **The funnel:** reel → app installs → some become paid subscribers, many more log rows and fill the feed → local gym ads and merch.
 
+### The content plan (his voice note, Nov 26)
+
+**The North Star:** "over a 4-week period we have 100 average weekly users" of the ROW app.
+
+**Three reels a day, at most.** Each one is tied to a thing that's happening, so it's a series, not random posting (except the slop):
+
+1. **The row reel**: on the rower in the gym, straight after every row, 10 to 15 seconds. The script: "Hi, my name is Mikian, this is my rower. That was 5K number 26, bringing my total to 130,000 meters this month. See you tomorrow." He likes how short and drilled it is.
+2. **The M2D reel**: daily while M2D runs (it ends Dec 24). Filmed outside, with the phone set where he always puts it on the garage. **Open problem:** the mic plugs into the bottom of the phone. Maybe stand the phone upside down.
+3. **The slop reel**: cinematic rowing footage with a text hook ("while they're playing GTA 5 ..."). He makes these from scrolling the edits page and suggested reels.
+- **The droid reel**: the call for Android testers. A short series that stops once there are 12.
+
+**Where the ROW app ad goes:** not decided. Either inside the row reel or its own reel, in the Dr. Mike Israetel style: bring up a topic, then show the app doing it. He films himself with one phone, so the app appears as screenshots or screen recordings laid over the video.
+
+**Hashtags** (Instagram allows 5): `#rowing #concept2 #indoorrowing #rowingmachine`, plus one per series: row `#lasvegasfitness`, M2D `#rowingforcharity`, droid `#android`, slop `#gymmotivation`.
+
+**How to develop:** "the best way to develop here is just to spend so much time using the app."
+
 ## The queue (in his order, not started)
 
 ### 1. A version number made of meters
