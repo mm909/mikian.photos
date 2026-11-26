@@ -56,6 +56,9 @@
   body.ink .cover i, body.ink .stack i { color: #1A90D4; }
   body.ink .cover, body.ink .stack, body.ink .bare { text-shadow: 0 6px 30px rgba(0,0,0,.45); }
 
+.boxrow { display: inline-block; background: #1A90D4; color: #fff !important; padding: .14em .3em .1em; transform: rotate(-1.2deg) skewX(-2deg); text-shadow: none !important; line-height: 1 !important; }
+  .cover .row { top: 230px; } .cover .row .boxrow { font-size: 200px; }
+
   /* MONEY CARDS */
   .who { font: 400 104px/.96 "Archivo Black"; text-transform: uppercase; margin: 36px 0 4px; }
   .gives { font: 700 30px/1.3 "Space Mono"; letter-spacing: .1em; text-transform: uppercase; color: var(--gray); }
@@ -152,8 +155,8 @@ const catchCard = (k, ours) => {
 
 const bare = (row) => `<div class="bare">${row ? `<div class="row">ROW</div>` : ""}<div class="m2d">M<i>2</i>D</div><div class="say">Meters to dollars</div></div>`;
 const cards = {
-  cover: `<div class="cover"><div class="row">ROW</div><div class="m2d">M<i>2</i>D</div></div>`,
-  stack: `<div class="stack"><div class="row">ROW</div><div class="m2d">M<i>2</i>D</div></div>`,
+  cover: `<div class="cover"><div class="row"><span class="boxrow">ROW</span></div><div class="m2d">M<i>2</i>D</div></div>`,
+  stack: `<div class="stack"><div class="row"><span class="boxrow">ROW</span></div><div class="m2d">M<i>2</i>D</div></div>`,
   "mark-row": bare(true), mark: bare(false),
   title: title(false),
   "title-sticker": title(true),

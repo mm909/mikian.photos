@@ -3749,7 +3749,9 @@ const m2dAllCard: ShareCard = {
 /* THE M2D MARK (owner, 2026-11-25: "give me definitely one with row M2D. I
  * want one that's just M2D ... I also want these to be shareable in the
  * app"). White on clear, like the dollar stickers. One blue per lockup: the
- * 2 carries it, so ROW above it stays all white (owner: "there's these two
+ * 2 carries it; ROW above it wears its own blue box, as it does
+ * everywhere (owner, later: "I want row with the blue background like it
+ * normally has") (owner: "there's these two
  * blue items, that 2, and then ... the O ... I don't know how those should
  * look if they're on the same page"). App only, like the dollar stickers. */
 const M2D_BLUE = "#1A90D4";
@@ -3789,7 +3791,7 @@ const m2dMarkRowCard: ShareCard = {
   light: true,
   available: (d) => !!d.m2d,
   draw(ctx, _data, fonts) {
-    drawCenteredText(ctx, "ROW", { cx: this.width / 2, baseline: 170, font: `120px ${fonts.black}`, color: "#ffffff", tracking: 4 });
+    drawMark(ctx, [{ text: MARK }], { cx: this.width / 2, cy: 130, size: 120, fontFamily: fonts.black });
     drawM2d(ctx, fonts, this.width / 2, 530, 330);
     drawCenteredText(ctx, "METERS TO DOLLARS", { cx: this.width / 2, baseline: 630, font: `44px ${fonts.mono}`, color: "#ffffff", tracking: 10, maxWidth: this.width - 90 });
   },
