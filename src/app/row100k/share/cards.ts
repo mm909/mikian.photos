@@ -3741,15 +3741,16 @@ function m2dFour(f: M2dFigure): ShareCard[] {
   return [
     make(f.id, `${f.label} ($)`, 580, (ctx, fonts, W, x) => drawDollars(ctx, fonts, W, usd(x.dollars), f.line(x.meters, x.dollars)[0])),
     make(`${f.id}-m`, `${f.label} (m)`, 580, (ctx, fonts, W, x) => drawDollars(ctx, fonts, W, mFig(x.meters), f.line(x.meters, x.dollars)[1])),
-    /* The figure and ROW under it, no line (owner, 2026-11-26: "I need a
-     * sticker that's got the 49 cents with just row underneath it"). */
-    make(`${f.id}-row`, `${f.label} ($ + ROW)`, 500, (ctx, fonts, W, x) => {
+    /* The figure and a mark under it, no line (owner, 2026-11-26: "I need a
+     * sticker that's got the 49 cents with just row underneath it"; then
+     * "instead of ROW, can we have it be M2D?"): the M2D mark under it. */
+    make(`${f.id}-mark`, `${f.label} ($ + M2D)`, 470, (ctx, fonts, W, x) => {
       drawFigure(ctx, fonts, W, usd(x.dollars), 250);
-      drawMark(ctx, [{ text: MARK }], { cx: W / 2, cy: 390, size: 104, fontFamily: fonts.black });
+      drawM2d(ctx, fonts, W / 2, 420, 140);
     }),
-    make(`${f.id}-row-m`, `${f.label} (m + ROW)`, 500, (ctx, fonts, W, x) => {
+    make(`${f.id}-mark-m`, `${f.label} (m + M2D)`, 470, (ctx, fonts, W, x) => {
       drawFigure(ctx, fonts, W, mFig(x.meters), 250);
-      drawMark(ctx, [{ text: MARK }], { cx: W / 2, cy: 390, size: 104, fontFamily: fonts.black });
+      drawM2d(ctx, fonts, W / 2, 420, 140);
     }),
     make(`${f.id}-solo`, `${f.label} ($ only)`, 310, (ctx, fonts, W, x) => drawFigure(ctx, fonts, W, usd(x.dollars), 250)),
     make(`${f.id}-solo-m`, `${f.label} (m only)`, 310, (ctx, fonts, W, x) => drawFigure(ctx, fonts, W, mFig(x.meters), 250)),
