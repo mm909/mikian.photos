@@ -6,7 +6,9 @@ import { RowBar } from "../../RowBar";
 import { RowFooter } from "../../RowFooter";
 import { board100kCss } from "../../board/board100kCss";
 import { m2dCss } from "../../m2d/m2dCss";
+import { db } from "@/lib/db";
 import { androidTesters, testerCount } from "../testers";
+import { SendLink } from "./SendLink";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,20 @@ export default async function AndroidListPage() {
   if (!viewer.isAdmin) notFound();
   const list = await androidTesters();
   const { have, goal } = testerCount(list.length);
+  const unsent = list.filter((t) => !t.sent).length;
+  /* DID THEY GET IT (owner, the same day: "how do I know if they download
+   * it"): Play shows only a count of who opted in. Here, per tester, by the
+   * email they gave: a ROW account under it, and an Android phone that has
+   * turned on ROW notifications (the only sure sign of the Android app; the
+   * bell starts off, so its absence proves nothing). */
+  const people = await db.photographer
+    .findMany({ where: { email: { in: list.map((t) => t.email), mode: "insensitive" } }, select: { id: true, email: true } })
+    .catch(() => [] as { id: string; email: string }[]);
+  const droid = await db.rowPushToken
+    .findMany({ where: { userId: { in: people.map((p) => p.id) }, platform: "android" }, select: { userId: true } })
+    .catch(() => [] as { userId: string }[]);
+  const idOf = new Map(people.map((p) => [p.email.toLowerCase(), p.id]));
+  const onAndroid = new Set(droid.map((d) => d.userId));
   const when = (iso: string) =>
     new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" });
 
@@ -45,6 +61,18 @@ export default async function AndroidListPage() {
             <div className="m2-worth-h">
               <h2>{list.length} signed up</h2>
             </div>
+            <p className="m2-give-small">
+              Add each email to the Play Console list ROW testers first, then send them the link.{" "}
+              <a href="/android/list/email" style={{ color: "var(--ink)" }}>
+                See the email
+              </a>
+              {unsent ? (
+                <>
+                  {" "}
+                  <SendLink unsent={unsent} label={`Send to all ${unsent} not sent`} />
+                </>
+              ) : null}
+            </p>
             <dl>
               {list.map((t, i) => (
                 <div key={t.email}>
@@ -52,7 +80,13 @@ export default async function AndroidListPage() {
                     {i + 1}. {t.name || "—"}
                     <small>{t.email}</small>
                   </dt>
-                  <dd style={{ color: "var(--gray)", fontWeight: 400, fontSize: 12 }}>{t.at ? when(t.at) : ""}</dd>
+                  <dd style={{ color: "var(--gray)", fontWeight: 400, fontSize: 12, textAlign: "right" }}>
+                    {t.at ? when(t.at) : ""}
+                    <br />
+                    {idOf.has(t.email) ? (onAndroid.has(idOf.get(t.email)!) ? "ROW account · on Android" : "ROW account") : "no ROW account yet"}
+                    <br />
+                    {t.sent ? `Link sent ${when(t.sent)}` : <SendLink email={t.email} label="Send link" />}
+                  </dd>
                 </div>
               ))}
             </dl>

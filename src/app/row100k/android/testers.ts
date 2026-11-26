@@ -21,7 +21,9 @@ export const ANDROID_BASE = 0;
 export const ANDROID_NEED = 12;
 export const ANDROID_TOP = 20;
 
-export type Tester = { email: string; name: string; at: string };
+/* `sent`: when the Play link went to them (android/invite.ts), set by the
+ * owner's Send on the list page once they are in the Play Console list. */
+export type Tester = { email: string; name: string; at: string; sent?: string };
 
 export async function androidTesters(): Promise<Tester[]> {
   try {
