@@ -279,6 +279,19 @@ export function ExpandIcon({ color = C.ink, size = 24 }: P) {
 /* M2D: a gift, wrapped, a bow on top (owner, 2026-11-25: "I don't like it
  * having the dollar sign ... something that represents Christmas or
  * giving"). */
+/* M2D, set in type (owner, 2026-11-25: "change the icon on the app.
+ * Instead of that gift icon, it's M2D"). The word is the mark: Archivo
+ * Black, in the colour it is given, like every other glyph in the bar. */
+export function M2dIcon({ color = C.ink, size = 24 }: P) {
+  return (
+    <View style={{ height: size, justifyContent: "center", alignItems: "center" }}>
+      <Text style={{ fontFamily: F.black, fontSize: size * 0.66, lineHeight: size * 0.8, letterSpacing: -0.3, color }} allowFontScaling={false}>
+        M2D
+      </Text>
+    </View>
+  );
+}
+
 export function GiftIcon({ color = C.ink, size = 24 }: P) {
   return (
     <Svg {...box(size)}>
