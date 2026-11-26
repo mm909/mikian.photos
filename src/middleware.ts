@@ -59,6 +59,7 @@ const ALLOWED_PREFIXES = [
   "/api/cron/backfill-detection",
   "/api/cron/backup-db",
   "/api/cron/row100k-daily",
+  "/api/cron/m2d-pledges",
   /* The live tracker (TRACKER_SPEC.md, 2026-10-06): the public page, the
    * crew/van/join pages and the APIs they poll and post to. The pages
    * themselves are admin-only in production while in development

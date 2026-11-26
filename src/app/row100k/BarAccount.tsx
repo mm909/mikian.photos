@@ -248,6 +248,14 @@ export function BarAccount({
                 <Link className="acct-item" href="/dev/m2d-plan" onClick={close}>
                   M2D cost planner →
                 </Link>
+                {/* M2D pledges: the giver's page and the owner's approval
+                 * list (2026-11-26), in development. */}
+                <Link className="acct-item" href="/dev/m2d-pledges" onClick={close}>
+                  M2D pledges →
+                </Link>
+                <Link className="acct-item" href="/m2d/pledge" onClick={close}>
+                  M2D pledge page →
+                </Link>
                 {/* The numbers live here rather than on the bar for now
                  * (owner call, 2026-09-05): not ready to be a public tab. */}
                 <Link className="acct-item" href="/analysis" onClick={close}>

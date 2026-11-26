@@ -276,11 +276,15 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               <dd>{usd(t.matched)}</dd>
             </div>
             {(t.givers ?? []).map((g) => (
-              <div key={g.name}>
+              <div key={`${g.name}-${g.cents}-${g.cap}`}>
                 <dt>
-                  {g.name}
+                  {/* An approved pledge (2026-11-26) reads "$1/km for 500
+                      km · Name"; the old list keeps its own line. */}
+                  {g.line ?? g.name}
                   <small>
-                    {cents(g.cents)}/km pledged, up to ${g.cap.toLocaleString("en-US")}
+                    {g.pledge
+                      ? `${Math.round(g.km ?? 0).toLocaleString("en-US")} of ${Math.round(g.capKm ?? 0).toLocaleString("en-US")} km filled`
+                      : `${cents(g.cents)}/km pledged, up to $${g.cap.toLocaleString("en-US")}`}
                   </small>
                 </dt>
                 <dd>{usd(g.dollars)}</dd>

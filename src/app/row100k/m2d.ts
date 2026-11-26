@@ -5,6 +5,7 @@ import { CHALLENGE, CHALLENGE_LIVE, MONTH, nowMs, pacificDay } from "@/lib/row10
 import { previewViewOpts, type Viewer } from "@/lib/row100kViewer";
 import type { Month } from "@/lib/rowPeriod";
 import { boardView } from "./boardData";
+import { filledPledges, pledgeLine } from "./m2dPledges";
 
 /* M2D, METERS TO DOLLARS (owner, 2026-11-25, of the Concept2 Holiday
  * Challenge, Nov 26 - Dec 24: "we really need a place where we can show
@@ -317,7 +318,10 @@ export type M2dTotals = {
   inMeters: number;
   /* The pledges, each its cents a kilometer, its cap and its dollars so
    * far; in `total` and in `split`. */
-  givers: (Giver & { cap: number; dollars: number })[];
+  /* Since 2026-11-26 the approved PLEDGES (m2dPledges.ts) follow the old
+   * list here, each with `line` ("$1/km for 500 km · Name"), its km so far
+   * and the km its cap buys; the app reads name, cents, cap and dollars. */
+  givers: (Giver & { cap: number; dollars: number; line?: string; km?: number; capKm?: number; pledge?: true })[];
 };
 /* `perKm`: what a registered kilometer is paid past Concept2's part:
  * ROWTEMBER's rate and every pledge, each under its cap. */
@@ -337,7 +341,7 @@ export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, 
   const paid = givers.map((g) => fit(g.cents, pledgeCap(g.cents)));
   const perKm = Math.round((rate + paid.reduce((a, r) => a + r, 0)) * 10000) / 10000;
   const split = Object.fromEntries(CHARITIES.map((c) => [c.key, 0])) as Record<CharityKey, number>;
-  const gave = givers.map((g) => ({ ...g, cap: pledgeCap(g.cents), dollars: 0 }));
+  const gave: M2dTotals["givers"] = givers.map((g) => ({ ...g, cap: pledgeCap(g.cents), dollars: 0 }));
   const t: M2dTotals = { meters: 0, raised: 0, matched: 0, total: 0, split, unpicked: 0, locked: 0, unclaimed: 0, rowers: 0, registered: ins.size, past100k: 0, inMeters: 0, givers: gave };
   for (const [id, m] of by) {
     if (m <= 0) continue;
@@ -357,7 +361,19 @@ export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, 
     } else t.unclaimed += both(m, perKm);
   }
   for (const g of gave) g.dollars = cents(Math.min(g.cap, g.dollars));
+  /* THE PLEDGES (m2dPledges.ts): approved only, each on the kilometers
+   * logged after its approval, under its own cap, split where those rowers
+   * picked. They join the receipts after the old list. */
+  const pledged = await filledPledges(ins).catch((err) => {
+    console.error("M2D pledges: not counted", err);
+    return [];
+  });
+  const pledgeSplit = Object.fromEntries(CHARITIES.map((c) => [c.key, 0])) as Record<CharityKey, number>;
+  for (const p of pledged) {
+    for (const c of CHARITIES) pledgeSplit[c.key] += p.fill.split[c.key];
+  }
   const gifts = cents(gave.reduce((a, g) => a + g.dollars, 0));
+  const pledgeDollars = cents(pledged.reduce((a, p) => a + p.fill.dollars, 0));
   t.raised = cents(t.raised);
   t.matched = cents(t.matched);
   t.locked = t.raised;
@@ -372,6 +388,21 @@ export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, 
     const big = CHARITIES.reduce((a, c) => (split[c.key] > split[a.key] ? c : a), CHARITIES[0]);
     split[big.key] = cents(split[big.key] + gap);
   }
+  /* The pledges' own split is exact to the cent already; it is added after
+   * the rounding above. */
+  for (const c of CHARITIES) split[c.key] = cents(split[c.key] + pledgeSplit[c.key]);
+  t.total = cents(t.total + pledgeDollars);
+  for (const p of pledged)
+    gave.push({
+      name: p.name,
+      cents: p.centsPerKm,
+      cap: p.capDollars,
+      dollars: p.fill.dollars,
+      line: pledgeLine(p),
+      km: Math.round(p.fill.km * 10) / 10,
+      capKm: Math.round(p.fill.capKm * 10) / 10,
+      pledge: true,
+    });
   t.unclaimed = cents(t.unclaimed);
   /* `rate` out is the one offered (4¢ on the receipts); perKm is paid. */
   return { totals: t, by, ins, rate: nominal, perKm, givers };

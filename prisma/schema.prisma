@@ -1861,3 +1861,43 @@ model RowLive {
 
   @@index([challenge, meters, updatedAt])
 }
+
+/// AN M2D PLEDGE (owner, 2026-11-26: "$1 per kilometer for $500 ... the
+/// next 500 kilometers that are submitted will get $1 each"). A giver signed
+/// in with Google offers cents a kilometer up to a dollar cap; it saves
+/// `pending` and the owner approves or declines it ("someone just puts in
+/// that they're donating $1 billion"). Only `approved` counts anywhere. It
+/// fills from the kilometers logged after `decidedAt` (its approval), in the
+/// M2D window, until its cap or Dec 24. Nothing is paid through the site:
+/// the giver gives straight to the charities at the end. The math is
+/// row100k/m2dPledges.ts. Additive; reaches production with the build.
+model M2dPledge {
+  id            String    @id @default(cuid())
+  challenge     String    @default("row100k-sep-2026")
+  /// The window this pledge is for (row100k/m2d.ts M2D_KEY).
+  window        String    @default("m2d-2026")
+  /// The Google account that made it (permissions.ts Actor).
+  accountId     String
+  email         String
+  /// The name on the receipts ("$1/km for 500 km · Name").
+  name          String
+  /// Cents a kilometer, to a hundredth.
+  centsPerKm    Float
+  /// The most it comes to, whole dollars.
+  capDollars    Int
+  note          String    @default("")
+  /// "pending" | "approved" | "declined"
+  status        String    @default("pending")
+  decidedAt     DateTime?
+  decidedBy     String    @default("")
+  welcomeSentAt DateTime?
+  /// When the row that filled its cap was logged.
+  claimedAt     DateTime?
+  /// The "your total and the split" email: at the cap, or at the close.
+  doneSentAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([challenge, window, status])
+  @@index([accountId])
+}
