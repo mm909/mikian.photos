@@ -120,14 +120,22 @@ function optsOf(a: ReelAsk, series: ReturnType<typeof buildSeries>): PaintOpts {
 
 type Ctx = Parameters<typeof paintClip>[0];
 
+/* ANY PAINTING, FILMED (2026-11-26, for the M2D count-ups; owner: "I
+ * definitely need an animated meters rolling up for my total meters rowed
+ * during M2D"). A painter draws one frame: the canvas, its size, the moment
+ * of the clip and the clip's length, on the ground asked for. The four ways
+ * a clip leaves the server (the still, the strip, the MP4, the clear GIF)
+ * take any painter; a row's reel is one painter (rowPainter below), the M2D
+ * count-ups (row100k/m2dReel.ts) another. */
+export type Painter = (ctx: Ctx, W: number, H: number, clipS: number, lengthS: number, bg: BgId) => void;
+
 /* The last frame, as a PNG: what the clip ends on, for a preview. */
-export function renderReelStill(a: ReelAsk): Buffer {
+export function paintedStill(paint: Painter, bg: BgId, format: ReelFormat, lengthS: number): Buffer {
   loadFaces();
-  const [W, H] = REEL_FORMATS[a.format];
-  const series = buildSeries(a.doc);
+  const [W, H] = REEL_FORMATS[format];
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
-  paintClip(ctx as unknown as Ctx, W, H, series, frameAt(series, rowTimeAt(a.lengthS, a.lengthS, series.startS, series.totalS)), optsOf(a, series));
+  paint(ctx as unknown as Ctx, W, H, lengthS, lengthS, bg);
   return canvas.toBuffer("image/png");
 }
 
@@ -140,17 +148,14 @@ export function renderReelStill(a: ReelAsk): Buffer {
  * time. A picture, so it needs no video player on the phone and is back in
  * about a second, where the film itself takes several. */
 export const REEL_STRIP = { frames: 50, cols: 10, rows: 5, fps: 10, w: 216, h: 384 } as const;
-export function renderReelStrip(a: ReelAsk): Buffer {
+export function paintedStrip(paint: Painter, bg: BgId): Buffer {
   loadFaces();
   const S = REEL_STRIP;
   /* Painted at twice the cell and drawn down into it, so the small type
    * stays clean. */
   const W = S.w * 2;
   const H = S.h * 2;
-  const series = buildSeries(a.doc);
   const lengthS = S.frames / S.fps;
-  const ask = { ...a, lengthS };
-  const o = optsOf(ask, series);
   const one = createCanvas(W, H);
   const ctx = one.getContext("2d");
   const sheet = createCanvas(S.w * S.cols, S.h * S.rows);
@@ -159,18 +164,16 @@ export function renderReelStrip(a: ReelAsk): Buffer {
     /* The last cell is the clip's last moment, as the film ends on it. */
     const clipS = i === S.frames - 1 ? lengthS : i / S.fps;
     ctx.clearRect(0, 0, W, H);
-    paintClip(ctx as unknown as Ctx, W, H, series, frameAt(series, rowTimeAt(clipS, lengthS, series.startS, series.totalS)), o);
+    paint(ctx as unknown as Ctx, W, H, clipS, lengthS, bg);
     out.drawImage(one, (i % S.cols) * S.w, Math.floor(i / S.cols) * S.h, S.w, S.h);
   }
   return sheet.toBuffer("image/jpeg", 78);
 }
 
 /* The clip, as an MP4. */
-export async function renderReelMp4(a: ReelAsk): Promise<Buffer> {
+export async function paintedMp4(paint: Painter, bg: BgId, format: ReelFormat, lengthS: number): Promise<Buffer> {
   loadFaces();
-  const [W, H] = REEL_FORMATS[a.format];
-  const series = buildSeries(a.doc);
-  const o = optsOf(a, series);
+  const [W, H] = REEL_FORMATS[format];
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
@@ -178,18 +181,18 @@ export async function renderReelMp4(a: ReelAsk): Promise<Buffer> {
   try {
     enc.width = W;
     enc.height = H;
-    const fps = FPS_OF[a.format] ?? FPS;
+    const fps = FPS_OF[format] ?? FPS;
     enc.frameRate = fps;
     enc.quantizationParameter = 24;
     enc.speed = fps === FPS ? 8 : 10;
     enc.groupOfPictures = fps;
     enc.initialize();
-    const frames = Math.round(a.lengthS * fps);
+    const frames = Math.round(lengthS * fps);
     /* One more than the length, so the clip holds its last figure for a frame. */
     for (let i = 0; i <= frames; i++) {
-      const clipS = Math.min(a.lengthS, i / fps);
+      const clipS = Math.min(lengthS, i / fps);
       ctx.clearRect(0, 0, W, H);
-      paintClip(ctx as unknown as Ctx, W, H, series, frameAt(series, rowTimeAt(clipS, a.lengthS, series.startS, series.totalS)), o);
+      paint(ctx as unknown as Ctx, W, H, clipS, lengthS, bg);
       const px = ctx.getImageData(0, 0, W, H).data;
       enc.addFrameRgba(new Uint8Array(px.buffer, px.byteOffset, px.byteLength));
     }
@@ -226,13 +229,11 @@ export async function renderReelMp4(a: ReelAsk): Promise<Buffer> {
 const GIF_DELAY_MS = 80;
 const GIF_HOLD_MS = 2000;
 const breathe = () => new Promise<void>((r) => setImmediate(r));
-export async function renderReelGif(a: ReelAsk): Promise<Buffer> {
+export async function paintedGif(paint: Painter, lengthS: number): Promise<Buffer> {
   loadFaces();
   const [W, H] = REEL_FORMATS.story;
-  const series = buildSeries(a.doc);
-  const o = optsOf({ ...a, bg: "clear" }, series);
-  const frames = Math.round((a.lengthS * 1000) / GIF_DELAY_MS);
-  const rowAt = (i: number) => frameAt(series, rowTimeAt(Math.min(a.lengthS, (i * GIF_DELAY_MS) / 1000), a.lengthS, series.startS, series.totalS));
+  const frames = Math.round((lengthS * 1000) / GIF_DELAY_MS);
+  const clipAt = (i: number) => Math.min(lengthS, (i * GIF_DELAY_MS) / 1000);
 
   /* Pass one: the box, on a sheet a quarter the size. Anything at all in
    * a pixel counts there, so a hairline is not missed. */
@@ -243,7 +244,8 @@ export async function renderReelGif(a: ReelAsk): Promise<Buffer> {
   const sctx = small.getContext("2d");
   let x0 = sw, y0 = sh, x1 = -1, y1 = -1;
   for (let i = 0; i <= frames; i++) {
-    paintClip(sctx as unknown as Ctx, sw, sh, series, rowAt(i), o);
+    sctx.clearRect(0, 0, sw, sh);
+    paint(sctx as unknown as Ctx, sw, sh, clipAt(i), lengthS, "clear");
     const px = sctx.getImageData(0, 0, sw, sh).data;
     for (let y = 0; y < sh; y++) {
       const row = y * sw * 4 + 3;
@@ -281,7 +283,8 @@ export async function renderReelGif(a: ReelAsk): Promise<Buffer> {
   const ctx = canvas.getContext("2d");
   /* A pixel is there or it is not. */
   const cut = (i: number): Uint8ClampedArray => {
-    paintClip(ctx as unknown as Ctx, W, H, series, rowAt(i), o);
+    ctx.clearRect(0, 0, W, H);
+    paint(ctx as unknown as Ctx, W, H, clipAt(i), lengthS, "clear");
     const px = ctx.getImageData(bx, by, w, h).data;
     for (let k = 3; k < px.length; k += 4) {
       if (px[k] >= 128) px[k] = 255;
@@ -314,3 +317,20 @@ export async function renderReelGif(a: ReelAsk): Promise<Buffer> {
   gif.finish();
   return Buffer.from(gif.bytes());
 }
+
+/* A ROW'S REEL as a painter: the site's reel painting (paint.ts) at the row
+ * time the clip's moment stands for. */
+function rowPainter(a: ReelAsk): Painter {
+  const series = buildSeries(a.doc);
+  const opts = new Map<BgId, PaintOpts>();
+  return (ctx, W, H, clipS, lengthS, bg) => {
+    let o = opts.get(bg);
+    if (!o) opts.set(bg, (o = optsOf({ ...a, bg }, series)));
+    paintClip(ctx, W, H, series, frameAt(series, rowTimeAt(clipS, lengthS, series.startS, series.totalS)), o);
+  };
+}
+
+export const renderReelStill = (a: ReelAsk): Buffer => paintedStill(rowPainter(a), a.bg, a.format, a.lengthS);
+export const renderReelStrip = (a: ReelAsk): Buffer => paintedStrip(rowPainter(a), a.bg);
+export const renderReelMp4 = (a: ReelAsk): Promise<Buffer> => paintedMp4(rowPainter(a), a.bg, a.format, a.lengthS);
+export const renderReelGif = (a: ReelAsk): Promise<Buffer> => paintedGif(rowPainter(a), a.lengthS);

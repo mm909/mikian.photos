@@ -28,6 +28,8 @@ const nextConfig = {
       // The reel route also loads its video encoder at run time, outside the
       // bundle (erg/reel/serverReel.ts), so the package is shipped by name.
       "/api/row100k/app/reel": ["./src/app/row100k/share/fonts/*", "./node_modules/h264-mp4-encoder/**/*"],
+      // The M2D count-ups (row100k/m2dReel.ts) are filmed the same way.
+      "/api/row100k/app/m2d-reel": ["./src/app/row100k/share/fonts/*", "./node_modules/h264-mp4-encoder/**/*"],
     },
   },
 

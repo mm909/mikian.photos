@@ -86,7 +86,8 @@ export const CLIPS = [
   { id: "stroke", label: "The stroke" },
   { id: "monitor", label: "The monitor" },
 ] as const;
-export type ClipId = (typeof CLIPS)[number]["id"];
+export type ClipId = string;
+export type Clip = { id: string; label: string };
 export const GROUNDS = [
   { id: "green", label: "Green" },
   { id: "blue", label: "Blue" },
@@ -95,16 +96,44 @@ export const GROUNDS = [
 export type GroundId = (typeof GROUNDS)[number]["id"];
 export const LENGTHS = [5, 10, 15] as const;
 
-const reelUrl = (rowId: string, clip: ClipId, bg: string, len: number, still: boolean) => `${API}/api/row100k/app/reel?row=${rowId}&clip=${clip}&bg=${bg}&len=${len}${still ? "&still=1" : ""}`;
+/* WHERE A SET OF CLIPS IS FILMED (2026-11-26). A row's reel overlays are
+ * filmed off its recording (/api/row100k/app/reel); the M2D count-ups
+ * (/api/row100k/app/m2d-reel) off the rower's M2D meters. Both take the
+ * same clip, ground, length, still, strip and gif asks, so one strip of
+ * tiles and one viewer serve both. `key` keeps their files apart. */
+export type ReelSource = { key: string; tag: string; clips: readonly Clip[]; url: (clip: ClipId, bg: string, len: number, still: boolean) => string };
+export const rowReels = (rowId: string): ReelSource => ({
+  key: rowId,
+  tag: rowId.slice(-6),
+  clips: CLIPS,
+  url: (clip, bg, len, still) => `${API}/api/row100k/app/reel?row=${rowId}&clip=${clip}&bg=${bg}&len=${len}${still ? "&still=1" : ""}`,
+});
+/* THE M2D COUNT-UPS (owner, 2026-11-26: "I definitely need an animated
+ * meters rolling up for my total meters rowed during M2D ... an animation
+ * for a reel for animating the money and meters going up for M2D"). */
+export const M2D_REELS: ReelSource = {
+  key: "m2d",
+  tag: "m2d",
+  clips: [
+    { id: "me-m", label: "My meters" },
+    { id: "me-both", label: "My $ + meters" },
+    { id: "all-m", label: "Everyone's meters" },
+    { id: "all-both", label: "Everyone's $ + m" },
+  ],
+  url: (clip, bg, len, still) => `${API}/api/row100k/app/m2d-reel?clip=${clip}&bg=${bg}&len=${len}${still ? "&still=1" : ""}`,
+};
+/* The M2D figures move all month: a tile or a film of them is kept a
+ * minute, not the visit, so the count a rower shares is today's. */
+const fresh = (src: ReelSource) => (src.key === "m2d" ? `|${Math.floor(Date.now() / 60_000)}` : "");
 
 /* What a clip ends on, on ink, for the tile. */
-export const reelStillUri = (rowId: string, clip: ClipId) => once(`still|${rowId}|${clip}`, () => fetchFile(reelUrl(rowId, clip, "ink", 10, true), `reel-${clip}-${rowId.slice(-6)}.png`)).then((f) => f.uri);
+export const reelStillUri = (src: ReelSource, clip: ClipId) => once(`still|${src.key}|${clip}${fresh(src)}`, () => fetchFile(src.url(clip, "ink", 10, true), `reel-${clip}-${src.tag}.png`)).then((f) => f.uri);
 
 /* THE CLIP, MOVING: its five-second version as fifty small frames on one
  * picture (the site's REEL_STRIP, which these numbers repeat), for the
  * preview that plays when a clip is opened. Fetched once and kept. */
 export const STRIP = { frames: 50, cols: 10, rows: 5, fps: 10 } as const;
-export const reelStripUri = (rowId: string, clip: ClipId) => once(`strip|${rowId}|${clip}`, () => fetchFile(`${reelUrl(rowId, clip, "ink", 5, false)}&strip=1`, `reel-${clip}-${rowId.slice(-6)}-strip.jpg`)).then((f) => f.uri);
+export const reelStripUri = (src: ReelSource, clip: ClipId) => once(`strip|${src.key}|${clip}${fresh(src)}`, () => fetchFile(`${src.url(clip, "ink", 5, false)}&strip=1`, `reel-${clip}-${src.tag}-strip.jpg`)).then((f) => f.uri);
 
 /* FILM A CLIP, THEN SHARE IT, as two steps (2026-11-22, after the owner
  * pressed FILM and the button stayed grey: "I clicked filming and
@@ -113,10 +142,10 @@ export const reelStripUri = (rowId: string, clip: ClipId) => once(`strip|${rowId
  * no longer counts. So the film is made and shown, and SHARE is its own
  * press. A film that has not come back in ninety seconds is given up on,
  * with a sentence. */
-const reelName = (rowId: string, clip: ClipId, bg: GroundId, len: number) => `row-${clip}-${bg}-${len}s-${rowId.slice(-6)}.mp4`;
-export const filmReel = (rowId: string, clip: ClipId, bg: GroundId, len: number): Promise<Fetched> =>
-  once(`reel|${rowId}|${clip}|${bg}|${len}`, () => fetchFile(`${reelUrl(rowId, clip, bg, len, false)}&format=phone`, reelName(rowId, clip, bg, len), 90_000));
-export const shareFilm = (f: Fetched, rowId: string, clip: ClipId, bg: GroundId, len: number): Promise<"share" | "download" | "none"> => shareFile(f, reelName(rowId, clip, bg, len), "video/mp4", "public.mpeg-4");
+const reelName = (src: ReelSource, clip: ClipId, bg: GroundId, len: number) => `row-${clip}-${bg}-${len}s-${src.tag}.mp4`;
+export const filmReel = (src: ReelSource, clip: ClipId, bg: GroundId, len: number): Promise<Fetched> =>
+  once(`reel|${src.key}|${clip}|${bg}|${len}${fresh(src)}`, () => fetchFile(`${src.url(clip, bg, len, false)}&format=phone`, reelName(src, clip, bg, len), 90_000));
+export const shareFilm = (f: Fetched, src: ReelSource, clip: ClipId, bg: GroundId, len: number): Promise<"share" | "download" | "none"> => shareFile(f, reelName(src, clip, bg, len), "video/mp4", "public.mpeg-4");
 
 /* THE CLIP WITH NOTHING BEHIND IT (owner, 2026-11-22, of keying the green
  * out in his editor: "if we can get the same thing, but with the
@@ -126,7 +155,7 @@ export const shareFilm = (f: Fetched, rowId: string, clip: ClipId, bg: GroundId,
  * goes to the share sheet as the films do; COPY there puts it on the
  * clipboard. The app cannot put a moving GIF on the clipboard itself: the
  * clipboard module in the build takes a still picture only. */
-const gifName = (rowId: string, clip: ClipId, len: number) => `row-${clip}-clear-${len}s-${rowId.slice(-6)}.gif`;
-export const gifReel = (rowId: string, clip: ClipId, len: number): Promise<Fetched> =>
-  once(`gif|${rowId}|${clip}|${len}`, () => fetchFile(`${reelUrl(rowId, clip, "green", len, false)}&gif=1`, gifName(rowId, clip, len), 90_000));
-export const shareGif = (f: Fetched, rowId: string, clip: ClipId, len: number): Promise<"share" | "download" | "none"> => shareFile(f, gifName(rowId, clip, len), "image/gif", "com.compuserve.gif");
+const gifName = (src: ReelSource, clip: ClipId, len: number) => `row-${clip}-clear-${len}s-${src.tag}.gif`;
+export const gifReel = (src: ReelSource, clip: ClipId, len: number): Promise<Fetched> =>
+  once(`gif|${src.key}|${clip}|${len}${fresh(src)}`, () => fetchFile(`${src.url(clip, "green", len, false)}&gif=1`, gifName(src, clip, len), 90_000));
+export const shareGif = (f: Fetched, src: ReelSource, clip: ClipId, len: number): Promise<"share" | "download" | "none"> => shareFile(f, gifName(src, clip, len), "image/gif", "com.compuserve.gif");

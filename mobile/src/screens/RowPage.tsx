@@ -9,7 +9,7 @@ import { arcadeFor } from "../arcade/gate";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Dateline, Dot, Eye, Lead, mono } from "../site";
 import type { Fetched } from "../files";
-import { CLIPS, GROUNDS, LENGTHS, STRIP, deck, filmReel, gifReel, shareGif, reelStillUri, reelStripUri, copySticker, shareFilm, shareSticker, stickerUri, type ClipId, type GroundId, type Sticker } from "../stickers";
+import { GROUNDS, LENGTHS, M2D_REELS, STRIP, deck, filmReel, gifReel, rowReels, shareGif, reelStillUri, reelStripUri, copySticker, shareFilm, shareSticker, stickerUri, type ClipId, type GroundId, type ReelSource, type Sticker } from "../stickers";
 import type { Row } from "../store";
 import { C, F, LADDER, fmtClock, fmtInt, fmtPace, lifetimeTag } from "../theme";
 import type { Faked } from "./RowScreen";
@@ -284,7 +284,11 @@ export function RowPage({
           the reel overlays, I want to see the sticker overlays above
           them"). */}
       {mayShare ? <Stickers rowId={r.id} onOpen={() => setSharing(true)} /> : null}
-      {r.canReel && !r.masked && !fake ? <Reels rowId={r.id} /> : null}
+      {r.canReel && !r.masked && !fake ? <Reels src={rowReels(r.id)} /> : null}
+      {/* THE M2D COUNT-UPS, beside the M2D stickers (2026-11-26). They
+          count the rower's M2D total and everyone's, not this row, so they
+          need no recording. */}
+      {mayShare && !fake ? <Reels src={M2D_REELS} title="M2D reels" aside="Counting up" /> : null}
 
       {/* THE ROW'S GAME (owner, 2026-11-24: "after the stickers/reels and
           before the analytics. It shows the XP he got, the items he just
@@ -850,14 +854,37 @@ function GameLines({ g }: { g: Game }) {
   );
 }
 
+/* THE STRIP IS THERE FROM THE FIRST MOMENT (owner, 2026-11-26: "The
+ * stickers section on the post row screen doesn't show up ... there's not
+ * even any placeholders there ... kind of like Reels"). Until the deck has
+ * come, four empty tiles on the ink with the turning wheel, as a reel tile
+ * shows while its picture comes; a deck that could not be fetched says so
+ * and offers another try, where it used to leave nothing at all. Only an
+ * answer with no stickers in it (not the rower's row) takes the strip away. */
 function Stickers({ rowId, onOpen }: { rowId: string; onOpen: () => void }) {
-  const { data } = useLoad(() => deck(rowId), [rowId]);
+  const { data, error, reload } = useLoad(() => deck(rowId), [rowId]);
   const cards = data?.cards ?? [];
-  if (!cards.length) return null;
+  if (data && !cards.length) return null;
   return (
     <>
       <Eye left="Stickers" right="For your story" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+        {!data
+          ? [0, 1, 2, 3].map((k) =>
+              error && k === 0 ? (
+                <Pressable key={k} accessibilityRole="button" accessibilityLabel="The stickers did not load. Try again" onPress={() => reload()} style={{ width: 124 }}>
+                  <View style={{ height: 150, backgroundColor: GROUND, alignItems: "center", justifyContent: "center", padding: 10 }}>
+                    <Text style={[mono(10, true, "#fff", 0.12), { textAlign: "center", lineHeight: 15 }]}>{"Did not load\nTap to try again"}</Text>
+                  </View>
+                </Pressable>
+              ) : (
+                <View key={k} style={{ width: 124 }}>
+                  <View style={{ height: 150, backgroundColor: GROUND, alignItems: "center", justifyContent: "center", opacity: error ? 0.5 : 1 }}>{error ? null : <ActivityIndicator color="#fff" />}</View>
+                  <View style={{ height: 8, width: 70, backgroundColor: C.line, marginTop: 9 }} />
+                </View>
+              ),
+            )
+          : null}
         {cards.map((c) => (
           <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Sticker: ${c.label}`} onPress={onOpen} style={{ width: 124 }}>
             <View style={{ height: 150, backgroundColor: GROUND, alignItems: "center", justifyContent: "center", padding: 10 }}>
@@ -1016,7 +1043,8 @@ function StickerImage({ id, rowId, ratio }: { id: string; rowId?: string; ratio:
  * films it: the server paints every frame and sends back an MP4. Video
  * cannot be see-through, so the overlay comes on a colour to key out
  * (green, blue) or to blend away (black). */
-function Reels({ rowId }: { rowId: string }) {
+export function Reels({ src, title = "Reel overlays", aside = "For your edit" }: { src: ReelSource; title?: string; aside?: string }) {
+  const CLIPS = src.clips;
   const win = useWindowDimensions();
   const w = Math.min(win.width, 560);
   const n = CLIPS.length;
@@ -1068,7 +1096,7 @@ function Reels({ rowId }: { rowId: string }) {
     bar.setValue(0);
     Animated.timing(bar, { toValue: 0.94, duration: eta * 1000, easing: Easing.linear, useNativeDriver: false }).start();
     try {
-      const f = what === "gif" ? await gifReel(rowId, open, len) : await filmReel(rowId, open, bg, len);
+      const f = what === "gif" ? await gifReel(src, open, len) : await filmReel(src, open, bg, len);
       if (mine !== turn.current) return;
       setFilm(f);
     } catch (err) {
@@ -1081,7 +1109,7 @@ function Reels({ rowId }: { rowId: string }) {
     if (!open || !film) return;
     setNote("");
     try {
-      const did = made === "gif" ? await shareGif(film, rowId, open, len) : await shareFilm(film, rowId, open, bg, len);
+      const did = made === "gif" ? await shareGif(film, src, open, len) : await shareFilm(film, src, open, bg, len);
       if (did === "download") setNote("Saved to your downloads.");
     } catch (err) {
       setNote(err instanceof Error ? err.message : "That did not work.");
@@ -1125,12 +1153,12 @@ function Reels({ rowId }: { rowId: string }) {
 
   return (
     <>
-      <Eye left="Reel overlays" right="For your edit" />
+      <Eye left={title} right={aside} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
         {CLIPS.map((c, i) => (
           <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Reel overlay: ${c.label}`} onPress={() => show(i)} style={{ width: 124 }}>
             <View style={{ height: 220, backgroundColor: GROUND, alignItems: "center", justifyContent: "center" }}>
-              <Still rowId={rowId} clip={c.id} />
+              <Still src={src} clip={c.id} />
             </View>
             <Text numberOfLines={1} style={[mono(10, true, C.ink, 0.12), { marginTop: 6 }]}>
               {c.label}
@@ -1178,7 +1206,7 @@ function Reels({ rowId }: { rowId: string }) {
                     ) : live && film ? (
                       <Film uri={film.uri} />
                     ) : (
-                      <Motion rowId={rowId} clip={c.id} play={live} />
+                      <Motion src={src} clip={c.id} play={live} />
                     )}
                   </View>
                 );
@@ -1271,21 +1299,21 @@ function Film({ uri }: { uri: string }) {
  * false: the still alone, for a clip that is beside the one being looked
  * at. */
 const HOLD = 12;
-function Motion({ rowId, clip, play }: { rowId: string; clip: ClipId; play: boolean }) {
+function Motion({ src, clip, play }: { src: ReelSource; clip: ClipId; play: boolean }) {
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [uri, setUri] = useState("");
   const [f, setF] = useState(0);
   useEffect(() => {
     if (!play) return;
     let live = true;
-    reelStripUri(rowId, clip).then(
+    reelStripUri(src, clip).then(
       (u) => live && setUri(u),
       () => null,
     );
     return () => {
       live = false;
     };
-  }, [rowId, clip, play]);
+  }, [src.key, clip, play]);
   const moving = play && !!uri;
   useEffect(() => {
     if (!moving) return;
@@ -1305,7 +1333,7 @@ function Motion({ rowId, clip, play }: { rowId: string; clip: ClipId; play: bool
         </View>
       ) : (
         <View style={{ height: h }}>
-          <Still rowId={rowId} clip={clip} tall />
+          <Still src={src} clip={clip} tall />
         </View>
       )}
     </View>
@@ -1321,20 +1349,20 @@ function Light({ label, on, onPress }: { label: string; on: boolean; onPress: ()
   );
 }
 
-function Still({ rowId, clip, tall }: { rowId: string; clip: ClipId; tall?: boolean }) {
+function Still({ src, clip, tall }: { src: ReelSource; clip: ClipId; tall?: boolean }) {
   const [uri, setUri] = useState("");
   const [bad, setBad] = useState(false);
   useEffect(() => {
     let live = true;
     setUri("");
     setBad(false);
-    reelStillUri(rowId, clip)
+    reelStillUri(src, clip)
       .then((u) => live && setUri(u))
       .catch(() => live && setBad(true));
     return () => {
       live = false;
     };
-  }, [rowId, clip]);
+  }, [src.key, clip]);
   if (bad) return <Text style={mono(10, false, C.gray)}>No preview</Text>;
   if (!uri) return <ActivityIndicator color="#fff" />;
   return <Image source={{ uri }} resizeMode="contain" accessibilityIgnoresInvertColors style={tall ? { height: "100%", aspectRatio: 9 / 16 } : { width: "100%", aspectRatio: 9 / 16 }} />;

@@ -5,7 +5,8 @@ import { useSession } from "../session";
 import { Ctl, Dateline, Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import { Bar, Blocks, Waiting, useLoad, useScrollDir } from "../ui";
-import { StickerViewer } from "./RowPage";
+import { M2D_REELS } from "../stickers";
+import { Reels, StickerViewer } from "./RowPage";
 
 /* M2D, METERS TO DOLLARS: the Concept2 Holiday Challenge, Nov 26 - Dec 24
  * (owner, 2026-11-25, with Concept2's post open: "Let's take over that
@@ -632,6 +633,11 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
           )
         ) : null}
         {inOut.note ? <Text style={[mono(11, true, C.ink, 0.14), { marginTop: 10, lineHeight: 18 }]}>{inOut.note}</Text> : null}
+        {/* THE M2D COUNT-UPS (owner, 2026-11-26: "an animation for a reel
+            for animating the money and meters going up for M2D"): my
+            meters and dollars rolling up, and everyone's, to film over a
+            video. The same tiles and viewer as a row's reel overlays. */}
+        {v.me ? <Reels src={M2D_REELS} title="M2D reels" aside="Counting up" /> : null}
       </View>
       <Pressable accessibilityRole="link" hitSlop={8} onPress={() => setFaq("all")} style={{ alignSelf: "flex-start", marginHorizontal: 20, marginTop: 14 }}>
         <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>How it adds up</Text>
