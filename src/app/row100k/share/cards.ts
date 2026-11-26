@@ -3690,7 +3690,8 @@ export const DAILY_CARD_IDS = dailyCards.map((c) => c.id);
 
 export const BOARD_CARD_IDS = boardCards.map((c) => c.id);
 
-/* THE M2D STICKERS (owner, 2026-11-25): a dollar figure, big, over what it
+/* THE M2D STICKERS (owner, 2026-11-25; 11-26: "I don't like saying for
+ * charity ... dollars raised is fine"): a dollar figure, big, over what it
  * is the worth of, and the mark. Three: this row, the rower's whole
  * challenge so far, and everyone's. A hidden rower's own two stay out of
  * the menu, as the dollars would give their meters away. No address. */
@@ -3732,7 +3733,7 @@ const m2dMeCard: ShareCard = {
   draw(ctx, data, fonts) {
     const m = data.m2d;
     if (!m) return;
-    drawDollars(ctx, fonts, this.width, usd(m.dollars), `${m.meters.toLocaleString("en-US")} M FOR CHARITY`, "NOV 26 - DEC 24");
+    drawDollars(ctx, fonts, this.width, usd(m.dollars), `${m.meters.toLocaleString("en-US")} M ROWED`, "RAISED · NOV 26 - DEC 24");
   },
 };
 const m2dAllCard: ShareCard = {
@@ -3745,7 +3746,7 @@ const m2dAllCard: ShareCard = {
   draw(ctx, data, fonts) {
     const m = data.m2d;
     if (!m) return;
-    drawDollars(ctx, fonts, this.width, usd(m.allRaised), `${m.allMeters.toLocaleString("en-US")} M TOGETHER`, "RAISED FOR CHARITY");
+    drawDollars(ctx, fonts, this.width, usd(m.allRaised), `${m.allMeters.toLocaleString("en-US")} M TOGETHER`, "RAISED");
   },
 };
 
