@@ -61,7 +61,7 @@ export function FollowButton({ num, state, onChange, block }: { num: number; sta
   const label = state === "none" ? "Follow" : state === "pending" ? "Requested" : "Following";
   if (block)
     return (
-      <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={busy} onPress={press} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: state === "none" ? C.accent : C.pale, opacity: busy ? 0.4 : pressed ? 0.6 : 1 })}>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={busy} onPress={press} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderCurve: "continuous", borderRadius: 8, backgroundColor: state === "none" ? C.accent : C.pale, opacity: busy ? 0.4 : pressed ? 0.6 : 1 })}>
         <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: state === "none" ? "#fff" : C.ink }}>{label}</Text>
       </Pressable>
     );

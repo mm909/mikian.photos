@@ -769,7 +769,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                  shouldn't be able to happen"). It was a line at the foot of
                  the page, and the bar floats over the foot of the page. */
               rowing ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Back to the row in progress" onPress={openLog} style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: isDark() ? "rgba(52,56,62,0.94)" : "rgba(21,23,26,0.94)", borderRadius: 23, paddingHorizontal: 18, minHeight: 46, marginBottom: 8, opacity: pressed ? 0.8 : 1 }, Platform.OS === "web" ? ({ backdropFilter: "blur(14px)" } as object) : null]}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Back to the row in progress" onPress={openLog} style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: isDark() ? "rgba(52,56,62,0.94)" : "rgba(21,23,26,0.94)", borderCurve: "continuous", borderRadius: 23, paddingHorizontal: 18, minHeight: 46, marginBottom: 8, opacity: pressed ? 0.8 : 1 }, Platform.OS === "web" ? ({ backdropFilter: "blur(14px)" } as object) : null]}>
                   <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2, color: "#FFFFFF", fontVariant: ["tabular-nums"] }}>
                     <Text style={{ color: C.accentLight }}>● </Text>
                     {erg.live.ended ? "FINISHED" : "ROWING"} · {fmtInt(Math.floor(erg.live.meters))} M · {fmtClock(erg.live.elapsedS, false)}
@@ -891,7 +891,7 @@ function TabBar({ tab, onTab, small, above }: { tab: Tab; onTab: (t: Tab) => voi
         {TABS.map((t) => (
           <Pressable key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: tab === t.id }} onPress={() => onTab(t.id)} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
             {t.id === "profile" && me.me ? (
-              <View style={{ borderRadius: 16, borderWidth: 2, borderColor: tab === t.id ? "#fff" : "transparent" }}>
+              <View style={{ borderCurve: "continuous", borderRadius: 16, borderWidth: 2, borderColor: tab === t.id ? "#fff" : "transparent" }}>
                 <Avatar uri={me.avatar} name={me.me.displayName} num={me.me.rowerNumber} size={28} />
               </View>
             ) : (

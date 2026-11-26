@@ -58,7 +58,7 @@ export function Eyebrow({ children, style }: { children: ReactNode; style?: Styl
 /* A figure that always stays on one line, shrinking before it wraps. */
 export function Num({ children, size = 28, color = C.ink, style }: { children: ReactNode; size?: number; color?: string; style?: StyleProp<TextStyle> }) {
   return (
-    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} style={[{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.12), color, fontVariant: ["tabular-nums"], letterSpacing: size > 40 ? -1 : 0 }, style]}>
+    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} maxFontSizeMultiplier={1.4} style={[{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.12), color, fontVariant: ["tabular-nums"], letterSpacing: size > 40 ? -1 : 0 }, style]}>
       {children}
     </Text>
   );
@@ -78,7 +78,7 @@ export function Btn({ label, onPress, quiet, disabled, style }: { label: string;
       onPress={onPress}
       style={({ pressed }) => [styles.btn, quiet ? styles.btnQuiet : null, disabled ? { opacity: 0.4 } : null, pressed ? { opacity: 0.7 } : null, style]}
     >
-      <Text style={[styles.btnText, quiet ? { color: C.soft } : null]}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.4} style={[styles.btnText, quiet ? { color: C.soft } : null]}>{label}</Text>
     </Pressable>
   );
 }
@@ -207,7 +207,7 @@ export function SkelCards({ n = 2, pad = 0 }: { n?: number; pad?: number }) {
   return (
     <View accessibilityLabel="Loading" style={{ paddingHorizontal: pad, paddingTop: pad }}>
       {Array.from({ length: n }, (_, i) => (
-        <View key={i} style={{ backgroundColor: C.card, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+        <View key={i} style={{ backgroundColor: C.card, borderCurve: "continuous", borderRadius: 10, padding: 12, marginBottom: 12 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <Skel w={36} h={36} r={18} />
             <View style={{ flex: 1 }}>
@@ -281,7 +281,10 @@ export function Picks<T extends string>({ options, value, onPick, style }: { opt
       {options.map((o) => {
         const on = o.key === value;
         return (
-          <Pressable key={o.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onPick(o.key)} style={{ paddingVertical: 10, minHeight: 40, borderBottomWidth: 3, borderColor: on ? C.accent : "transparent" }}>
+          <Pressable key={o.key} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => {
+              if (!on) buzz.tick();
+              onPick(o.key);
+            }} hitSlop={{ top: 4, bottom: 4 }} style={{ paddingVertical: 10, minHeight: 44, borderBottomWidth: 3, borderColor: on ? C.accent : "transparent" }}>
             <Text style={{ fontFamily: on ? F.monoBold : F.mono, fontSize: 12, letterSpacing: 1.8, color: on ? C.ink : C.gray }}>{o.label.toUpperCase()}</Text>
           </Pressable>
         );
@@ -402,7 +405,7 @@ export function PhotoPair({ photos, style, menu, gallery }: { photos: Photo[]; s
   return (
     <View style={[{ flexDirection: "row", gap: 4 }, style]}>
       {shown.map((p, i) => (
-        <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel={i === 0 ? "The rower's photo" : "The monitor's photo"} onPress={() => setOpen(i)} style={{ flex: 1, aspectRatio: shown.length === 1 ? 4 / 3 : 4 / 5, backgroundColor: C.pale, borderRadius: 8, overflow: "hidden" }}>
+        <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel={i === 0 ? "The rower's photo" : "The monitor's photo"} onPress={() => setOpen(i)} style={{ flex: 1, aspectRatio: shown.length === 1 ? 4 / 3 : 4 / 5, backgroundColor: C.pale, borderCurve: "continuous", borderRadius: 8, overflow: "hidden" }}>
           <Image source={{ uri: p.full }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
         </Pressable>
       ))}

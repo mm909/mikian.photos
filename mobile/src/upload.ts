@@ -1,6 +1,7 @@
 import { SaveFormat, manipulateAsync } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { api } from "./api";
+import { buzz } from "./buzz";
 import type { TelemetryDoc } from "./pm5/session";
 
 /* THE TWO PHOTOS, AND THE ROW (owner, 2026-11-20: "exactly 2 photos", on
@@ -230,6 +231,7 @@ export async function logRow(row: NewRow, step: (p: Progress) => void): Promise<
     }
   }
   step({ at: 1, to: 1, word: "Logged" });
+  buzz.done();
   return { id: made.id, recorded };
 }
 

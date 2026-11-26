@@ -156,7 +156,7 @@ export function EditRow({ row, onClose, onSaved }: { row: Editable; onClose: () 
               maxLength={500}
               placeholder="Say something about this row"
               placeholderTextColor={C.gray}
-              style={[{ fontFamily: F.sans, fontSize: 16, lineHeight: 22, color: C.ink, minHeight: 92, padding: 12, borderWidth: 1, borderColor: C.line, borderRadius: 8, backgroundColor: C.card, textAlignVertical: "top" }, noRing]}
+              style={[{ fontFamily: F.sans, fontSize: 16, lineHeight: 22, color: C.ink, minHeight: 92, padding: 12, borderWidth: 1, borderColor: C.line, borderCurve: "continuous", borderRadius: 8, backgroundColor: C.card, textAlignVertical: "top" }, noRing]}
             />
             <Text style={[mono(10, false, C.gray, 0.08), { textAlign: "right", marginTop: 4 }]}>{text.length} / 500</Text>
 
@@ -201,7 +201,7 @@ export function EditRow({ row, onClose, onSaved }: { row: Editable; onClose: () 
               <View style={{ flexDirection: "row", gap: 10 }}>
                 {slots.map((x, i) => (
                   <View key={i} style={{ flex: 1 }}>
-                    <Pressable accessibilityRole="imagebutton" accessibilityLabel={x ? `Change photo ${i + 1}` : `Add photo ${i + 1}`} onPress={() => choose(i, "library")} style={{ aspectRatio: 4 / 5, borderRadius: 8, overflow: "hidden", backgroundColor: C.pale, alignItems: "center", justifyContent: "center", borderWidth: x ? 0 : 1.5, borderStyle: "dashed", borderColor: C.gray }}>
+                    <Pressable accessibilityRole="imagebutton" accessibilityLabel={x ? `Change photo ${i + 1}` : `Add photo ${i + 1}`} onPress={() => choose(i, "library")} style={{ aspectRatio: 4 / 5, borderCurve: "continuous", borderRadius: 8, overflow: "hidden", backgroundColor: C.pale, alignItems: "center", justifyContent: "center", borderWidth: x ? 0 : 1.5, borderStyle: "dashed", borderColor: C.gray }}>
                       {x ? <Image source={{ uri: x.kind === "kept" ? x.uri : x.pick.uri }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : <Text style={mono(11, true, C.accent, 0.12)}>Add a photo</Text>}
                       {x ? (
                         <Pressable accessibilityRole="button" accessibilityLabel={`Remove photo ${i + 1}`} onPress={() => put(i, null)} hitSlop={8} style={{ position: "absolute", top: 6, right: 6, width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}>

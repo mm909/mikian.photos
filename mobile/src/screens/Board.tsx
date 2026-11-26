@@ -98,7 +98,7 @@ export function MonthSheet({ open, onClose, top, m2d, onM2d }: { open: boolean; 
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable accessibilityLabel="Close the months" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.25)" }}>
         <View style={{ position: "absolute", top: top ?? 112, left: 0, right: 0, alignItems: "center" }}>
-          <Pressable onPress={() => {}} style={{ width: 132, backgroundColor: C.paper, borderWidth: 2, borderColor: C.ink, borderRadius: 8, paddingVertical: 6 }}>
+          <Pressable onPress={() => {}} style={{ width: 132, backgroundColor: C.paper, borderWidth: 2, borderColor: C.ink, borderCurve: "continuous", borderRadius: 8, paddingVertical: 6 }}>
             {onM2d ? (
               <Pressable
                 accessibilityRole="menuitem"

@@ -137,7 +137,7 @@ function Drawing({ kind }: { kind: "minute" | "program" | "show" | "match" }) {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Text style={mono(10, false, C.gray, 0.1)}>Rowing at</Text>
           {PACES.map((p) => (
-            <Pressable key={p} accessibilityRole="button" accessibilityLabel={`At ${clock(p)} a 500`} onPress={() => setPace(p)} hitSlop={4} style={{ paddingHorizontal: 9, paddingVertical: 5, borderWidth: 1, borderColor: C.ink, borderRadius: 6, backgroundColor: p === pace ? C.ink : "transparent" }}>
+            <Pressable key={p} accessibilityRole="button" accessibilityLabel={`At ${clock(p)} a 500`} onPress={() => setPace(p)} hitSlop={4} style={{ paddingHorizontal: 9, paddingVertical: 5, borderWidth: 1, borderColor: C.ink, borderCurve: "continuous", borderRadius: 6, backgroundColor: p === pace ? C.ink : "transparent" }}>
               <Text style={mono(11, true, p === pace ? C.paper : C.ink, 0.06)}>{clock(p)}</Text>
             </Pressable>
           ))}

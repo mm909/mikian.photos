@@ -834,7 +834,7 @@ function GameLines({ g }: { g: Game }) {
           if (!s) return null;
           const on = l.equipped[s.layer] === id;
           return (
-            <View key={`${id}${i}`} style={{ width: 104, borderWidth: 1.5, borderColor: RARITY_COLOR[s.rarity], borderRadius: 7, padding: 6, alignItems: "center" }}>
+            <View key={`${id}${i}`} style={{ width: 104, borderWidth: 1.5, borderColor: RARITY_COLOR[s.rarity], borderCurve: "continuous", borderRadius: 7, padding: 6, alignItems: "center" }}>
               <View style={{ height: 4, alignSelf: "stretch", backgroundColor: RARITY_COLOR[s.rarity], borderRadius: 2, marginBottom: 4 }} />
               <TokenArt paint={wear({ ...STOCK, [s.layer]: id })} size={56} t={1.3} trail={s.layer === "aura"} uid={`gs${id}${i}`} />
               <Text numberOfLines={1} style={{ fontFamily: F.bold, fontSize: 12, color: C.ink, marginTop: 4 }}>{s.name}</Text>

@@ -89,7 +89,7 @@ export function WordMenu<T extends string>({
     <>
       <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={`${ariaLabel}: ${word}`} accessibilityState={{ expanded: at !== null }} onPress={open} hitSlop={8}>
         {chip ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: tight ? 5 : 8, borderWidth: 1.5, borderColor: C.ink, borderRadius: 8, paddingHorizontal: tight ? 7 : 14, paddingVertical: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: tight ? 5 : 8, borderWidth: 1.5, borderColor: C.ink, borderCurve: "continuous", borderRadius: 8, paddingHorizontal: tight ? 7 : 14, paddingVertical: 8 }}>
             <Text numberOfLines={1} style={[mono(tight ? 11 : 12, true), textStyle]}>{word}</Text>
             <Text style={[mono(10, true, C.gray)]}>▼</Text>
           </View>
@@ -102,7 +102,7 @@ export function WordMenu<T extends string>({
           {at ? (
             <Pressable
               onPress={() => {}}
-              style={{ position: "absolute", left: Math.max(12, Math.min(at.x, win.width - width - 12)), top: Math.min(at.y + at.h + 8, win.height - 320), width, backgroundColor: C.paper, borderWidth: 2, borderColor: C.ink, paddingVertical: panel ? 0 : 6, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 15, shadowOffset: { width: 0, height: 10 }, elevation: 8 }}
+              style={{ position: "absolute", left: Math.max(12, Math.min(at.x, win.width - width - 12)), top: Math.min(at.y + at.h + 8, win.height - 320), width, backgroundColor: C.paper, borderWidth: 2, borderColor: C.ink, paddingVertical: panel ? 0 : 6, boxShadow: "0 10px 24px rgba(0,0,0,0.12)" }}
             >
               {panel ? (
                 panel(close)

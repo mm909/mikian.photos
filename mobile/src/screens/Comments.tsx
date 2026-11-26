@@ -426,7 +426,7 @@ export function CommentsSheet({ entryId, onClose, onRower, onCount }: { entryId:
                 <View style={{ height: 40, justifyContent: "center" }}>
                   <Avatar uri={me.avatar} name={me.me.displayName} num={me.me.rowerNumber} size={34} />
                 </View>
-                <View style={{ flex: 1, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 14, justifyContent: "center" }}>
+                <View style={{ flex: 1, minHeight: 40, borderCurve: "continuous", borderRadius: 20, borderWidth: 1, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 14, justifyContent: "center" }}>
                   <TextInput
                     ref={field as never}
                     accessibilityLabel={to ? `Reply to ${to.name}` : "Add a comment"}

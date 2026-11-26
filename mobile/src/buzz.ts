@@ -28,4 +28,8 @@ export const buzz = {
   tick: () => run(() => Haptics.selectionAsync()),
   tap: () => run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)),
   thud: () => run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)),
+  /* THE APPLE PASS (owner, 2026-11-25: "app only, keep the look"): the
+   * phone's own "done" when a row is saved, and a knock as the rower passes
+   * a boat on the race page. */
+  done: () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
 };

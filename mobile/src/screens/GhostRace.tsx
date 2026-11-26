@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 import type { ReactNode } from "react";
 import { api } from "../api";
+import { buzz } from "../buzz";
 import { DRIVE, PASS_S, ghostClock, ghostDone, ghostMeters, ghostTrend, leadSeconds, nextBoat, oarAngle, phaseOf, pickRivals, rowerKey, trendOf, type Ghost, type Ghosts } from "../erg/ghosts";
 import { useLiveRowers } from "../erg/liveRace";
 import { milestone } from "../erg/milestone";
@@ -293,6 +294,8 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
   const target = live.targetM;
   const own = useRace(race ? 0 : target);
   const { field, failed, said, shown, strokes, rate, pulling, rivals, seeded, lineAt, path, bestBorn, handedAt, swappedAt, lineWall } = race ?? own;
+  /* Which side of the rower each boat was on, for the knock of a pass (buzz.ts). */
+  const sides = useRef(new Map<string, number>());
 
   const ghosts = useMemo(() => field?.ghosts ?? [], [field]);
   /* The rower's fastest row over the distance: it rows in the rower's own
@@ -583,6 +586,13 @@ export function GhostRace({ erg, width, height, active, race, upright = false, d
    * next half minute, the rower carried on at their average; a trade
    * waits until it is nearer by three meters and the two are a boat's
    * length apart along the water. */
+  /* A PASS, felt: a boat that was ahead of the rower and now is behind. */
+  for (const r of rivals.current) {
+    const d = gapOf(r.g);
+    const was = sides.current.get(r.g.id);
+    if (drive && active && !live.ended && was !== undefined && was > 0.5 && d < -0.5) buzz.tap();
+    if (Math.abs(d) > 0.5) sides.current.set(r.g.id, d);
+  }
   const soon = (g: Ghost): number => [0, 10, 20, 30].reduce((sum, a) => sum + Math.abs(gapOf(g, t + a, myM + a * speed)), 0) / 4;
   for (const s of [-1, 1] as const) {
     const two = rivals.current.filter((r) => r.side === s);

@@ -2,7 +2,7 @@ import Constants from "expo-constants";
 import { M2dPlanner, M2dReturn } from "./M2D";
 import * as Updates from "expo-updates";
 import { useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { SITE, api, edits, type SocialSettings } from "../api";
 import { resetBoat, resetCoins, resetHull, resetSkills } from "../arcade/boat";
 import { resetLook, resetUnlocks, unlockAll } from "../arcade/locker";
@@ -16,7 +16,7 @@ import { Eye, mono } from "../site";
 import { C, F } from "../theme";
 import { pickFace, setAvatar } from "../upload";
 import { Avatar, Waiting, useLoad } from "../ui";
-import { Act, Sheet, Small, Toggle, type PeopleList } from "./Social";
+import { Act, Sheet, Small, type PeopleList } from "./Social";
 
 /* SETTINGS, behind the three lines on the rower's own profile (owner,
  * 2026-11-21: "the settings should probably just be like ... how do they
@@ -251,7 +251,7 @@ function AccountPage({ s, name, num, save, onPhoto, onDeleted }: { s: SocialSett
     });
     setState(ok ? "saved" : "");
   };
-  const field = { borderWidth: 1, borderColor: C.line, backgroundColor: C.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontFamily: F.sans, fontSize: 16, color: C.ink } as const;
+  const field = { borderWidth: 1, borderColor: C.line, backgroundColor: C.card, borderCurve: "continuous", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontFamily: F.sans, fontSize: 16, color: C.ink } as const;
   const label = (t: string) => <Text style={[mono(10, false, C.gray, 0.14), { marginTop: 18, marginBottom: 6 }]}>{t}</Text>;
 
   return (
@@ -507,7 +507,7 @@ function DeveloperPassword() {
   const [pass, setPass] = useState("");
   const [state, setState] = useState<"" | "busy" | "saved">("");
   const [bad, setBad] = useState("");
-  const field = { borderWidth: 1, borderColor: C.line, backgroundColor: C.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontFamily: F.sans, fontSize: 16, color: C.ink } as const;
+  const field = { borderWidth: 1, borderColor: C.line, backgroundColor: C.card, borderCurve: "continuous", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontFamily: F.sans, fontSize: 16, color: C.ink } as const;
   const submit = async () => {
     if (pass.length < 8) {
       setBad("At least 8 characters.");
@@ -682,7 +682,7 @@ function Setting({ title, body, on, onChange }: { title: string; body: string; o
         <Text style={{ fontFamily: F.bold, fontSize: 16, color: C.ink }}>{title}</Text>
         {body ? <Text style={{ fontFamily: F.sans, fontSize: 13, lineHeight: 18, color: C.gray, marginTop: 4 }}>{body}</Text> : null}
       </View>
-      <Toggle label={title} on={on} onChange={onChange} />
+      <Switch accessibilityLabel={title} value={on} onValueChange={onChange} trackColor={{ false: C.line, true: C.accent }} thumbColor={Platform.OS === "android" ? "#fff" : undefined} ios_backgroundColor={C.line} />
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiError, api } from "./api";
+import { buzz } from "./buzz";
 import { dropPending, loadPending, loadPendingDoc, markPending, pendingSettled, type Pending } from "./store";
 
 /* A ROW OFF THE MONITOR LOGS ITSELF (owner, 2026-11-23: "Strava does this
@@ -144,6 +145,7 @@ export function sendPiece(id: string): Promise<AutoState> {
       await remember(p);
       await dropPending(id);
       tries.delete(id);
+      buzz.done();
       return set(id, { state: "saved", rowId: r.entryId, day: r.day, meters: r.meters, seconds: r.seconds, title: r.title, recorded: r.recorded });
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;

@@ -170,7 +170,7 @@ export function LiftMenu({ head, photo, photos, figures, from, items, onClose, o
     }),
   ).current;
 
-  const box = { position: "absolute" as const, left, top, width: cardW, height: cardH, borderRadius: 18 };
+  const box = { position: "absolute" as const, left, top, width: cardW, height: cardH, borderCurve: "continuous" as const, borderRadius: 18 };
   return (
     <Modal visible transparent animationType="none" onRequestClose={leave} statusBarTranslucent>
       <View style={{ flex: 1 }}>
@@ -179,7 +179,7 @@ export function LiftMenu({ head, photo, photos, figures, from, items, onClose, o
         </Animated.View>
         {/* The card's paper and its shadow, under the card, coming up with
             the words: the photo flies alone and lands on it. */}
-        <Animated.View pointerEvents="none" style={[box, { backgroundColor: C.paper, opacity: late, shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 24, shadowOffset: { width: 0, height: 14 }, elevation: 16, transform: trans }]} />
+        <Animated.View pointerEvents="none" style={[box, { backgroundColor: C.paper, opacity: late, boxShadow: "0 14px 32px rgba(0,0,0,0.35)", transform: trans }]} />
         <Animated.View {...pan.panHandlers} style={[box, { overflow: "hidden", elevation: 16, transform: trans }]}>
           <Pressable accessibilityLabel="Close" accessibilityHint="Or drag it down" onPress={leave} style={{ flex: 1 }}>
             {head ? (
@@ -226,7 +226,7 @@ export function LiftMenu({ head, photo, photos, figures, from, items, onClose, o
             ) : null}
           </Pressable>
         </Animated.View>
-        <Animated.View accessibilityRole="menu" style={{ position: "absolute", left: menuX, top: menuY, width: menuW, borderRadius: 14, overflow: "hidden", backgroundColor: C.paper, elevation: 16, opacity: menuOp, transform: [{ translateY: menuRise }] }}>
+        <Animated.View accessibilityRole="menu" style={{ position: "absolute", left: menuX, top: menuY, width: menuW, borderCurve: "continuous", borderRadius: 14, overflow: "hidden", backgroundColor: C.paper, boxShadow: "0 10px 30px rgba(0,0,0,0.22)", opacity: menuOp, transform: [{ translateY: menuRise }] }}>
           {items.map((it, k) => (
             <Pressable
               key={it.label}

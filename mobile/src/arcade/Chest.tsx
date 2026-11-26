@@ -204,7 +204,7 @@ function Items({ ids, e, width, top, room }: { ids: string[]; e: number; width: 
         );
         return (
           <View key={id} style={{ width: cardW, opacity: clamp(le / 0.2), transform: [{ translateY: (1 - k) * 70 + float }, { scale: 0.55 + 0.45 * pop(le / 0.45) }, { rotate: `${((1 - k) * (i % 2 ? 7 : -7)).toFixed(1)}deg` }] }}>
-            <View style={{ backgroundColor: C.paper, borderWidth: 3, borderColor: edge, borderRadius: 12, overflow: "hidden", shadowColor: c, shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 0 } }}>
+            <View style={{ backgroundColor: C.paper, borderWidth: 3, borderColor: edge, borderCurve: "continuous", borderRadius: 12, overflow: "hidden", boxShadow: `0 0 16px ${c}80` }}>
               <View style={{ height: 6, backgroundColor: c }} />
               {flat ? (
                 <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, columnGap: 6 }}>
@@ -276,7 +276,7 @@ function Reel({ chest, e, width, y, fade }: { chest: Chest; e: number; width: nu
         const cx = mid + i * pitch - x0;
         const on = landed && i === PRIZE;
         return (
-          <View key={i} style={{ position: "absolute", left: cx - tile / 2, top: 10, width: tile, height: tile, borderRadius: 8, borderWidth: on ? 3 : 2, borderColor: c, backgroundColor: C.paper, alignItems: "center", justifyContent: "center", overflow: "hidden", transform: [{ scale: on ? 1 + 0.1 * flash : 1 }] }}>
+          <View key={i} style={{ position: "absolute", left: cx - tile / 2, top: 10, width: tile, height: tile, borderCurve: "continuous", borderRadius: 8, borderWidth: on ? 3 : 2, borderColor: c, backgroundColor: C.paper, alignItems: "center", justifyContent: "center", overflow: "hidden", transform: [{ scale: on ? 1 + 0.1 * flash : 1 }] }}>
             <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: tile * 0.28, backgroundColor: c, opacity: 0.22 }} />
             <TokenArt paint={wear({ ...STOCK, [sk.layer]: id })} size={tile * 0.62} t={1.3} trail={sk.layer === "aura"} uid={`reel${i}`} />
             <View style={{ position: "absolute", left: 0, right: 0, top: 0, height: 5, backgroundColor: c }} />

@@ -924,7 +924,7 @@ function SkillRing({ s, k, size, on }: { s: SkillView; k: number; size: number; 
 /* THE FLOOR, big, in the corner; the stars of the runs done under it. */
 function FloorBadge({ floor, boss, stars, size }: { floor: number; boss: boolean; stars: number; size: number }) {
   return (
-    <View pointerEvents="none" style={{ marginLeft: 10, marginTop: 8, alignItems: "center", minWidth: size * 1.3, paddingHorizontal: 8, paddingBottom: 4, backgroundColor: C.paper, borderWidth: 2.5, borderColor: boss ? BEST : C.ink, borderRadius: 6 }}>
+    <View pointerEvents="none" style={{ marginLeft: 10, marginTop: 8, alignItems: "center", minWidth: size * 1.3, paddingHorizontal: 8, paddingBottom: 4, backgroundColor: C.paper, borderWidth: 2.5, borderColor: boss ? BEST : C.ink, borderCurve: "continuous", borderRadius: 6 }}>
       <Text style={{ fontFamily: F.monoBold, fontSize: Math.max(10, Math.round(size * 0.2)), letterSpacing: 1.5, color: boss ? BEST : C.soft, marginTop: 3 }}>{boss ? "BOSS" : "FLOOR"}</Text>
       <Text style={{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.08), color: boss ? BEST : C.ink, fontVariant: ["tabular-nums"] }}>{`${floor}`}</Text>
       {stars > 0 ? <Text style={{ fontFamily: F.black, fontSize: Math.round(size * 0.26), color: DOT_ON }}>{"★".repeat(Math.min(5, stars))}</Text> : null}
@@ -1090,7 +1090,7 @@ function Battle(p: P) {
         <FloorBadge floor={floorNow} boss={!!m?.boss || (resting && isBossFloor(b.at))} stars={run.stars + b.runsDone} size={wide ? Math.round(Math.min(52, height * 0.12)) : 40} />
       </View>
       {word ? (
-        <View pointerEvents="none" style={{ position: "absolute", top: 8, alignSelf: "center", alignItems: "center", backgroundColor: C.paper, paddingHorizontal: 14, paddingVertical: 4, borderWidth: 2.5, borderColor: C.ink, borderRadius: 6, maxWidth: g.W - 140 }}>
+        <View pointerEvents="none" style={{ position: "absolute", top: 8, alignSelf: "center", alignItems: "center", backgroundColor: C.paper, paddingHorizontal: 14, paddingVertical: 4, borderWidth: 2.5, borderColor: C.ink, borderCurve: "continuous", borderRadius: 6, maxWidth: g.W - 140 }}>
           <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: evOn ? 30 : 24, color: word.c }}>
             {word.big}
           </Text>
@@ -1101,8 +1101,8 @@ function Battle(p: P) {
       ) : null}
       {wide && !b.lost ? (
         <>
-          <View pointerEvents="none" style={{ position: "absolute", left: 12, bottom: 12, opacity: inBars, padding: 6, backgroundColor: C.paper, borderRadius: 6 }}>{hullBar}</View>
-          <View pointerEvents="none" style={{ position: "absolute", right: 10, bottom: 8, opacity: inBars, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: C.paper, borderRadius: 10 }}>{rings}</View>
+          <View pointerEvents="none" style={{ position: "absolute", left: 12, bottom: 12, opacity: inBars, padding: 6, backgroundColor: C.paper, borderCurve: "continuous", borderRadius: 6 }}>{hullBar}</View>
+          <View pointerEvents="none" style={{ position: "absolute", right: 10, bottom: 8, opacity: inBars, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: C.paper, borderCurve: "continuous", borderRadius: 10 }}>{rings}</View>
         </>
       ) : null}
     </View>
@@ -1587,7 +1587,7 @@ function EndScreen({ v, width, height, wall, paint, showed, logIt }: P) {
       ) : (
         <View style={[{ paddingBottom: 14 }, fade(3)]}>
           {logIt ? (
-            <Pressable accessibilityRole="button" onPress={logIt} style={({ pressed }) => ({ backgroundColor: C.ink, borderRadius: 10, paddingVertical: 18, alignItems: "center", opacity: pressed ? 0.7 : 1 })}>
+            <Pressable accessibilityRole="button" onPress={logIt} style={({ pressed }) => ({ backgroundColor: C.ink, borderCurve: "continuous", borderRadius: 10, paddingVertical: 18, alignItems: "center", opacity: pressed ? 0.7 : 1 })}>
               <Text style={{ fontFamily: F.black, fontSize: 26, letterSpacing: 2, color: C.paper }}>LOG IT</Text>
             </Pressable>
           ) : (

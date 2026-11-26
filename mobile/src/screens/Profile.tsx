@@ -489,11 +489,11 @@ export function ProfileScreen({
           {p.isMe ? (
             <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
               {onEdit ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Edit your profile" onPress={onEdit} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Edit your profile" onPress={onEdit} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderCurve: "continuous", borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
                   <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Edit profile</Text>
                 </Pressable>
               ) : null}
-              <Pressable accessibilityRole="button" accessibilityLabel="Share your stickers" onPress={() => setSharing(true)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Share your stickers" onPress={() => setSharing(true)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderCurve: "continuous", borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
                 <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Share</Text>
               </Pressable>
             </View>
@@ -644,11 +644,11 @@ function SocialLine({ p, rel, counts, onPeople, onChange, onRow, onSettings }: {
       {!p.isMe && me.me ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
           <FollowButton block num={n} state={rel.following} onChange={onChange} />
-          <Pressable accessibilityRole="button" accessibilityLabel={`Share a link to ${p.rower.displayName}'s page`} onPress={() => shareLink(`${p.rower.displayName} on ROW.`, ROWER_URL(n)).catch(() => null)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Share a link to ${p.rower.displayName}'s page`} onPress={() => shareLink(`${p.rower.displayName} on ROW.`, ROWER_URL(n)).catch(() => null)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderCurve: "continuous", borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
             <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Share</Text>
           </Pressable>
           {rel.following === "accepted" ? (
-            <Pressable accessibilityRole="switch" accessibilityState={{ checked: rel.bell }} accessibilityLabel={rel.bell ? `Stop notifications when ${p.rower.displayName} rows` : `Notify me when ${p.rower.displayName} rows`} disabled={ringing} onPress={ring} hitSlop={8} style={({ pressed }) => ({ width: 40, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: C.pale, opacity: pressed || ringing ? 0.5 : 1 })}>
+            <Pressable accessibilityRole="switch" accessibilityState={{ checked: rel.bell }} accessibilityLabel={rel.bell ? `Stop notifications when ${p.rower.displayName} rows` : `Notify me when ${p.rower.displayName} rows`} disabled={ringing} onPress={ring} hitSlop={8} style={({ pressed }) => ({ width: 40, height: 32, alignItems: "center", justifyContent: "center", borderCurve: "continuous", borderRadius: 8, backgroundColor: C.pale, opacity: pressed || ringing ? 0.5 : 1 })}>
               <RingIcon on={rel.bell} />
             </Pressable>
           ) : null}
@@ -795,7 +795,7 @@ function Upgrades() {
               <Text style={mono(11, true)}>{`${u.name} · LEVEL ${lv}`}</Text>
               <Text style={mono(10, false, C.gray, 0.1)}>{u.line}</Text>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={top ? `${u.name} is at the top` : `Buy ${u.name} for ${cost} coins`} disabled={!can} onPress={() => buy(u.id).catch(() => null)} style={({ pressed }) => ({ minWidth: 96, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1.5, borderColor: can ? C.ink : C.line, backgroundColor: can ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+            <Pressable accessibilityRole="button" accessibilityLabel={top ? `${u.name} is at the top` : `Buy ${u.name} for ${cost} coins`} disabled={!can} onPress={() => buy(u.id).catch(() => null)} style={({ pressed }) => ({ minWidth: 96, paddingVertical: 7, paddingHorizontal: 8, borderCurve: "continuous", borderRadius: 6, borderWidth: 1.5, borderColor: can ? C.ink : C.line, backgroundColor: can ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
               <Text style={mono(10, true, can ? C.paper : C.gray)}>{top ? "TOP" : `${fmtInt(cost)} COINS`}</Text>
             </Pressable>
           </View>
@@ -806,7 +806,7 @@ function Upgrades() {
           <Text style={mono(11, true)}>A CHEST</Text>
           <Text style={mono(10, false, C.gray, 0.1)}>One item, sometimes three; yours when you press</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Buy a chest for ${CHEST_COST} coins`} disabled={!canChest} onPress={buyOne} style={({ pressed }) => ({ minWidth: 96, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1.5, borderColor: canChest ? C.ink : C.line, backgroundColor: canChest ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Buy a chest for ${CHEST_COST} coins`} disabled={!canChest} onPress={buyOne} style={({ pressed }) => ({ minWidth: 96, paddingVertical: 7, paddingHorizontal: 8, borderCurve: "continuous", borderRadius: 6, borderWidth: 1.5, borderColor: canChest ? C.ink : C.line, backgroundColor: canChest ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
           <Text style={mono(10, true, canChest ? C.paper : C.gray)}>{`${fmtInt(CHEST_COST)} COINS`}</Text>
         </Pressable>
       </View>

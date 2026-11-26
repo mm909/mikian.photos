@@ -319,7 +319,7 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
 
       {/* ONE SPLIT IS SHOWING: said over the pictures, with the way back. */}
       {sel ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Show the whole piece again" onPress={() => setPick(null)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 22, paddingHorizontal: 12, minHeight: 44, borderRadius: 8, backgroundColor: C.accent, opacity: pressed ? 0.7 : 1 })}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Show the whole piece again" onPress={() => setPick(null)} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 22, paddingHorizontal: 12, minHeight: 44, borderCurve: "continuous", borderRadius: 8, backgroundColor: C.accent, opacity: pressed ? 0.7 : 1 })}>
           <Text style={mono(11, true, "#fff", 0.1)}>{only}</Text>
           <Text style={mono(10, true, "#fff", 0.1)}>Whole piece ✕</Text>
         </Pressable>

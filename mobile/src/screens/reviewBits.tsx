@@ -66,7 +66,7 @@ export function Key({ color, label, dashed }: { color: string; label: string; da
 export const BOX_PAD = 14;
 export function Box({ title, note, say, fill, foot, children }: { title: string; note?: ReactNode; say?: string | null; /* Takes the height it is given: one of two cards side by side. */ fill?: boolean; foot?: ReactNode; children: ReactNode }) {
   return (
-    <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderRadius: 8, padding: BOX_PAD, marginTop: 14, flex: fill ? 1 : undefined }}>
+    <View style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.line, borderCurve: "continuous", borderRadius: 8, padding: BOX_PAD, marginTop: 14, flex: fill ? 1 : undefined }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", columnGap: 10, rowGap: 2, marginBottom: 10 }}>
         <Text style={{ fontFamily: F.black, fontSize: 18, lineHeight: 22, color: C.ink }}>{title}</Text>
         {typeof note === "string" ? <Text style={mono(10, false, C.gray, 0.1)}>{note}</Text> : (note ?? null)}

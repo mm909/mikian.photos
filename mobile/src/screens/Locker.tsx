@@ -125,7 +125,7 @@ export function LockerScreen({ start }: { start?: Layer } = {}) {
           {LAYERS.map((ly) => {
             const on = ly === layer;
             return (
-              <Pressable key={ly} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={LAYER_WORD[ly]} onPress={() => setLayer(ly)} style={({ pressed }) => ({ flex: 1, paddingVertical: 7, borderRadius: 6, borderWidth: 1.5, borderColor: on ? C.ink : C.line, backgroundColor: on ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
+              <Pressable key={ly} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={LAYER_WORD[ly]} onPress={() => setLayer(ly)} style={({ pressed }) => ({ flex: 1, paddingVertical: 7, borderCurve: "continuous", borderRadius: 6, borderWidth: 1.5, borderColor: on ? C.ink : C.line, backgroundColor: on ? C.ink : C.paper, alignItems: "center", opacity: pressed ? 0.6 : 1 })}>
                 <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 1.4, color: on ? C.paper : C.ink }}>{LAYER_WORD[ly].toUpperCase()}</Text>
               </Pressable>
             );
@@ -159,7 +159,7 @@ function LayerRow({ layer, equipped, owned, fresh, cardW }: { layer: Layer; equi
               accessibilityLabel={have ? `${s.name}, ${RARITY_WORD[s.rarity]}${isOn ? ", worn" : ". Put it on"}` : `Not found yet, ${RARITY_WORD[s.rarity]}`}
               disabled={!have || isOn}
               onPress={() => equip(layer, s.id).catch(() => null)}
-              style={({ pressed }) => ({ width: cardW, borderWidth: isOn ? 2.5 : 1.5, borderColor: isOn ? C.ink : have ? c : C.line, borderRadius: 7, padding: 5, opacity: pressed ? 0.6 : 1, backgroundColor: C.paper })}
+              style={({ pressed }) => ({ width: cardW, borderWidth: isOn ? 2.5 : 1.5, borderColor: isOn ? C.ink : have ? c : C.line, borderCurve: "continuous", borderRadius: 7, padding: 5, opacity: pressed ? 0.6 : 1, backgroundColor: C.paper })}
             >
               <View style={{ height: 4, backgroundColor: c, borderRadius: 2, marginBottom: 3, opacity: have ? 1 : 0.5 }} />
               {have ? (
@@ -169,7 +169,7 @@ function LayerRow({ layer, equipped, owned, fresh, cardW }: { layer: Layer; equi
               ) : (
                 <View style={{ width: cardW - 12, height: cardArt(cardW), alignItems: "center", justifyContent: "center", backgroundColor: C.tint, borderRadius: 4 }}>
                   {/* Not found yet: the shape of a box, in its rarity's colour. */}
-                  <View style={{ width: 34, height: 32, borderRadius: 9, borderWidth: 2, borderStyle: "dashed", borderColor: c, alignItems: "center", justifyContent: "center" }}>
+                  <View style={{ width: 34, height: 32, borderCurve: "continuous", borderRadius: 9, borderWidth: 2, borderStyle: "dashed", borderColor: c, alignItems: "center", justifyContent: "center" }}>
                     <Text style={{ fontFamily: F.black, fontSize: 18, lineHeight: 22, color: c }}>?</Text>
                   </View>
                 </View>
@@ -198,7 +198,7 @@ export function ChestSheet({ chest, onClose }: { chest: { c: Chest; at: number; 
   return (
     <Modal transparent animationType="fade" onRequestClose={onClose}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close the chest" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}>
-        <View style={{ width: w, height: h + 70, backgroundColor: C.paper, borderRadius: 12, overflow: "hidden" }}>
+        <View style={{ width: w, height: h + 70, backgroundColor: C.paper, borderCurve: "continuous", borderRadius: 12, overflow: "hidden" }}>
           <ChestOpen chest={chest.c} at={chest.at} t={t} width={w} height={h} won={false} note={chest.note ?? "A TRY, WITH NO ROW"} />
           <Text style={{ fontFamily: F.monoBold, fontSize: 12, letterSpacing: 2, color: done ? C.ink : C.line, textAlign: "center", paddingVertical: 24 }}>TAP TO CLOSE</Text>
         </View>
