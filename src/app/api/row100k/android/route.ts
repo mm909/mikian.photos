@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendOwnerNotification } from "@/lib/email";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
+import { resolveViewer } from "@/lib/row100kViewer";
 import { androidTesters, saveAndroidTesters, testerCount } from "@/app/row100k/android/testers";
 
 /* AN ANDROID TESTER WRITES IN (row100k/android/page.tsx). POST { email,
@@ -40,4 +41,18 @@ export async function POST(req: Request) {
     console.error("android tester: not saved", err);
     return no("That did not save. Try again.", 500);
   }
+}
+
+/* TAKE ONE OFF THE LIST (owner, 2026-11-26, of an address Play would not
+ * take: "remove Jazz's mother-in-law"). DELETE { email }. The owner's alone. */
+export async function DELETE(req: Request) {
+  const viewer = await resolveViewer();
+  if (!viewer.isAdmin) return no("Not found", 404);
+  const body = (await req.json().catch(() => null)) as { email?: unknown } | null;
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const list = await androidTesters();
+  const next = list.filter((t) => t.email !== email);
+  if (next.length === list.length) return no("Not on the list.", 404);
+  await saveAndroidTesters(next);
+  return NextResponse.json({ ok: true, ...testerCount(next.length) }, { headers: NO_STORE });
 }

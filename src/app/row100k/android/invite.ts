@@ -13,7 +13,9 @@ const PHONE = "(702) 540-4190";
 
 export const INVITE_SUBJECT = "You're in: test ROW on Android";
 
-const first = (name: string) => (name || "").trim().split(/\s+/)[0] || "there";
+/* NO NAME IN THE GREETING (owner, 2026-11-26: "we can just say hi ROW app
+ * reviewer, because for some of them we don't have their real name"). */
+const first = (_name: string) => "ROW app reviewer";
 
 export function inviteText(name: string, email: string): string {
   return [
