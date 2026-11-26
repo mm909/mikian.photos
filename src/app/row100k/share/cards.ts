@@ -3800,24 +3800,23 @@ const m2dMarkRowCard: ShareCard = {
   },
 };
 /* DAY X (owner, 2026-11-26: "I need a day X sticker for meters to
- * dollars"): the M2D mark, the day big, and of how many. The row's own
- * day on a row's deck, otherwise today. Only once the window is open:
- * there is no DAY 0. No address. */
+ * dollars"; then "I don't want of 29 and I don't want meters to dollars on
+ * there. I just want the M2D day 1"): the M2D mark over the day, nothing
+ * else. The row's own day on a row's deck, otherwise today. Only once the
+ * window is open: there is no DAY 0. No address. */
 const m2dDayCard: ShareCard = {
   id: "m2d-day",
   label: "M2D: day",
   width: 1080,
-  height: 760,
+  height: 600,
   light: true,
   available: (d) => !!d.m2d?.day,
   draw(ctx, data, fonts) {
     const m = data.m2d;
     if (!m?.day) return;
     const cx = this.width / 2;
-    drawM2d(ctx, fonts, cx, 170, 150);
-    drawCenteredText(ctx, `DAY ${m.day}`, { cx, baseline: 450, font: `250px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 90 });
-    drawCenteredText(ctx, `OF ${m.days ?? 29}`, { cx, baseline: 540, font: `44px ${fonts.mono}`, color: "rgba(255,255,255,0.82)", tracking: 10, maxWidth: this.width - 90 });
-    drawCenteredText(ctx, "METERS TO DOLLARS", { cx, baseline: 640, font: `36px ${fonts.mono}`, color: "rgba(255,255,255,0.62)", tracking: 8, maxWidth: this.width - 90 });
+    drawM2d(ctx, fonts, cx, 230, 190);
+    drawCenteredText(ctx, `DAY ${m.day}`, { cx, baseline: 520, font: `250px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 90 });
   },
 };
 

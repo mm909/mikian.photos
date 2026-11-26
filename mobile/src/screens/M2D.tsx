@@ -602,7 +602,7 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
 
       <View style={{ marginHorizontal: 20, marginTop: 36, paddingBottom: 9, borderBottomWidth: 1, borderColor: C.ink, flexDirection: "row", alignItems: "baseline" }}>
         <Text style={{ flex: 1, fontFamily: F.black, fontSize: 17, lineHeight: 18, color: C.ink, textTransform: "uppercase" }}>The board</Text>
-        {v.me ? <ShareBtn label="Share the total" only="m2d-all,m2d-mark" /> : <Text style={mono(10, false, C.gray, 0.1)}>Meters · $</Text>}
+        {v.me ? <ShareBtn label="Share the total" only="m2d-day,m2d-all,m2d-mark" /> : <Text style={mono(10, false, C.gray, 0.1)}>Meters · $</Text>}
       </View>
       {!w.started ? (
         <Text style={[mono(11, false, C.gray), { paddingHorizontal: 20, paddingVertical: 14, lineHeight: 18 }]}>The board opens Nov 26. Every meter from then counts.</Text>
@@ -691,7 +691,7 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
     <View style={{ paddingTop: 18, paddingBottom: 40 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
         <Text style={mono(10, true, C.ink, 0.12)}>M2D · {windowWord(v)}</Text>
-        {own && v.me ? <ShareBtn label="Share" only="m2d-me,m2d-mark" /> : null}
+        {own && v.me ? <ShareBtn label="Share" only="m2d-me,m2d-day,m2d-mark" /> : null}
       </View>
       {hidden ? (
         <View style={{ marginTop: 18 }}>
