@@ -583,7 +583,7 @@ export function M2dGoal({ v }: { v: M2dView }) {
  * register ... all this shit should be gone. It's already done"); a rower
  * not yet in gets one small JOIN M2D, which opens the steps here. A tap on
  * CONCEPT2 or ROWTEMBER opens the math (M2dFaq) in place. */
-export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => void; onScrollDir?: (down: boolean) => void }) {
+export function M2dScreen({ onRower, onScrollDir, onShareables }: { onRower: (n: number) => void; onScrollDir?: (down: boolean) => void; onShareables?: () => void }) {
   const dir = useScrollDir(onScrollDir);
   const { data: v, error, loading, reload } = useM2d();
   const inOut = useIn(v ?? null, reload);
@@ -633,15 +633,21 @@ export function M2dScreen({ onRower, onScrollDir }: { onRower: (n: number) => vo
           )
         ) : null}
         {inOut.note ? <Text style={[mono(11, true, C.ink, 0.14), { marginTop: 10, lineHeight: 18 }]}>{inOut.note}</Text> : null}
-        {/* THE M2D COUNT-UPS (owner, 2026-11-26: "an animation for a reel
-            for animating the money and meters going up for M2D"): my
-            meters and dollars rolling up, and everyone's, to film over a
-            video. The same tiles and viewer as a row's reel overlays. */}
-        {v.me ? <Reels src={M2D_REELS} title="M2D reels" aside="Counting up" /> : null}
       </View>
-      <Pressable accessibilityRole="link" hitSlop={8} onPress={() => setFaq("all")} style={{ alignSelf: "flex-start", marginHorizontal: 20, marginTop: 14 }}>
-        <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>How it adds up</Text>
-      </Pressable>
+      {/* THE REELS AND STICKERS ON A PAGE OF THEIR OWN (owner, 2026-11-26:
+          "when I scroll left and right, it actually just moves the tab ...
+          we should also have this on a shareables page maybe, instead of
+          just right here ... We should probably have a shareables link"). */}
+      <View style={{ flexDirection: "row", columnGap: 18, marginHorizontal: 20, marginTop: 14 }}>
+        {v.me && onShareables ? (
+          <Pressable accessibilityRole="link" hitSlop={8} onPress={onShareables}>
+            <Text style={[mono(10, true, C.accent, 0.12), { textDecorationLine: "underline" }]}>Shareables ↗</Text>
+          </Pressable>
+        ) : null}
+        <Pressable accessibilityRole="link" hitSlop={8} onPress={() => setFaq("all")}>
+          <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>How it adds up</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -756,6 +762,32 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
 /* THE MATH AS A PAGE, behind the ? in the bar on the M2D tab (owner,
  * 2026-11-25: "The how it adds up button should be ... up at the top where
  * we have the bell ... a little question mark thing"). */
+/* M2D SHAREABLES, opened from the M2D tab: the stickers, then the
+ * count-up reels (owner, 2026-11-26: "an animation for a reel for
+ * animating the money and meters going up for M2D"), my meters and dollars
+ * rolling up and everyone's, to film over a video. A page over the tabs, so
+ * scrolling the reel tiles sideways no longer swipes to the next tab. */
+export function M2dSharePage({ onScrollDir }: { onScrollDir?: (down: boolean) => void }) {
+  const dir = useScrollDir(onScrollDir);
+  const { data: v, error, reload } = useM2d();
+  if (!v) return <Waiting error={error} onRetry={reload} />;
+  const head = (t: string) => (
+    <View style={{ marginTop: 26, paddingBottom: 9, borderBottomWidth: 1, borderColor: C.ink }}>
+      <Text style={{ fontFamily: F.black, fontSize: 17, lineHeight: 18, color: C.ink, textTransform: "uppercase" }}>{t}</Text>
+    </View>
+  );
+  return (
+    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 132 }}>
+      {head("Stickers")}
+      <View style={{ rowGap: 14, marginTop: 14 }}>
+        <ShareBtn label="Everyone's total" only="m2d-day,m2d-all,m2d-mark" />
+        {v.me ? <ShareBtn label="My meters and dollars" only="m2d-me,m2d-day,m2d-mark" /> : null}
+      </View>
+      {v.me ? <Reels src={M2D_REELS} title="M2D reels" aside="Counting up" /> : <Text style={[mono(11, false, C.gray), { marginTop: 18 }]}>Sign in for the reels.</Text>}
+    </ScrollView>
+  );
+}
+
 export function M2dFaqPage({ onScrollDir }: { onScrollDir?: (down: boolean) => void }) {
   const { data: v, error, reload } = useM2d();
   if (!v) return <Waiting error={error} onRetry={reload} />;

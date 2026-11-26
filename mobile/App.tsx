@@ -12,7 +12,7 @@ import { BackIcon, BellIcon, DotsIcon, FeedIcon, M2dIcon, MenuIcon, PlusIcon, Pr
 import { BadgeSlot, Mark, type MarkKind } from "./src/mark";
 import { LookCtx, loadLook, saveLook } from "./src/look";
 import { BoardScreen, MonthSheet, loadBoardMonths, monthMark, useBoardMonth } from "./src/screens/Board";
-import { M2D_PATH, M2dFaqPage, M2dScreen, totalOf, usd, type M2dView } from "./src/screens/M2D";
+import { M2dFaqPage, M2dScreen, M2dSharePage } from "./src/screens/M2D";
 import { FeedScreen } from "./src/screens/Feed";
 import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
 import { DemoPage, ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
@@ -106,6 +106,7 @@ type Over = { k: number } & (
   | { kind: "wiki"; id?: string }
   | { kind: "locker" }
   | { kind: "m2dfaq" }
+  | { kind: "m2dshare" }
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
   | { kind: "erg"; id: string }
@@ -212,14 +213,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       setMonthsOpen(true);
     });
   };
-  /* Every meter anybody has logged: the mark on the stats tab until the
-   * M2D dollars took its place (2026-11-25). */
+  /* Every meter anybody has logged: the mark on the stats tab. */
   const [total, setTotal] = useState<number | null>(null);
-  /* THE DOLLARS RAISED, the mark on the stats tab (owner, 2026-11-25:
-   * "Definitely at the header of stats, where we usually have meters ...
-   * Let's put the dollar value there, and it doesn't start until that
-   * date"). Screens/M2D.tsx says how they are reckoned. */
-  const [raised, setRaised] = useState<number | null>(null);
   /* Whether the middle tab shows M2D or a month's 100K board, picked from
    * its title's menu. M2D first. */
   const [m2dOn, setM2dOn] = useState(true);
@@ -236,10 +231,9 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
    * of them shows what is already here (api.ts keeps every answer). */
   const mine = me.me?.rowerNumber;
   useEffect(() => {
-    warm(["/api/row100k/app/board", "/api/row100k/app/feed", "/api/row100k/stats?m=all", "/api/row100k/app/people?q="]);
+    warm(["/api/row100k/app/board", "/api/row100k/app/feed", "/api/row100k/stats", "/api/row100k/app/people?q="]);
     if (mine != null) warm(["/api/row100k/app/profile?", "/api/row100k/app/settings", "/api/row100k/app/notifications"]);
     api<{ meters: number }>("/api/row100k/app/total").then((r) => setTotal(r.meters), () => null);
-    api<M2dView>(M2D_PATH).then((r) => setRaised(r.window.started ? totalOf(r) : null), () => null);
     loadBoardMonths();
   }, [mine, stamp]);
 
@@ -464,7 +458,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       <SearchScreen text={find} onRower={openRower} onScrollDir={setAway} />
     ) : t === "board" ? (
       m2dOn ? (
-        <M2dScreen key={stamp} onRower={openRower} onScrollDir={setAway} />
+        <M2dScreen key={stamp} onRower={openRower} onScrollDir={setAway} onShareables={() => push({ kind: "m2dshare" })} />
       ) : (
         <BoardScreen key={stamp} look={boardLook} onRower={openRower} onScrollDir={setAway} />
       )
@@ -523,10 +517,9 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   if (logOn) mark = "LOG";
   else if (!top) {
     if (tab === "profile" && mine != null) mark = num3(mine);
-    else if (tab === "stats" && raised !== null) {
-      mark = usd(raised);
-      markIs = "money";
-    } else if (tab === "stats" && total !== null) {
+    /* Every meter rowed is the stats tab's title again (owner, 2026-11-26:
+     * "the title be the total meters rode. So let's revert that change"). */
+    else if (tab === "stats" && total !== null) {
       mark = `${fmtInt(total)}M`;
       markIs = "meters";
     } else if (tab === "board" && m2dOn) {
@@ -548,7 +541,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : top.kind === "m2dshare" ? "Shareables" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -572,6 +565,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       <LockerScreen />
     ) : o.kind === "m2dfaq" ? (
       <M2dFaqPage onScrollDir={setAway} />
+    ) : o.kind === "m2dshare" ? (
+      <M2dSharePage onScrollDir={setAway} />
     ) : o.kind === "wiki" ? (
       <WikiScreen id={o.id} onPage={(id) => push({ kind: "wiki", id })} />
     ) : o.kind === "stories" ? (

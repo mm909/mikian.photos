@@ -96,17 +96,12 @@ const about = (share: number) => `about ${Math.max(1, Math.min(99, Math.round(sh
 export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRower: (n: number) => void; onRow?: (id: string) => void; onRankings?: (period: string, rec: string) => void; onScrollDir?: (down: boolean) => void }) {
   const dir = useScrollDir(onScrollDir);
   const { me } = useSession();
-  /* ALL TIME first (owner, 2026-11-22: "on the stats, let's default it to
-   * all time"). */
-  const [period, setPeriod] = useState("all");
-  /* M2D FIRST WHILE IT RUNS (owner, 2026-11-25: "that all time should go
-   * to M2D whenever it goes and showing dollars"): from Nov 26 to Dec 24
-   * the page opens on M2D, in dollars; all time is one pick away. */
-  const [m2d, setM2d] = useState(() => {
-    const d = new Date();
-    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    return day >= "2026-11-26" && day <= "2026-12-24";
-  });
+  /* THE CURRENT MONTH FIRST (owner, 2026-11-26: "on the stats page, let's
+   * actually have it default to just the current month ... let's revert
+   * that change"): no ?m, so the server answers with this month. M2D and
+   * all time are one pick away. */
+  const [period, setPeriod] = useState("");
+  const [m2d, setM2d] = useState(false);
   /* THE STAT LEFT ON IS THE STAT COME BACK TO (owner, 2026-11-23: "make
    * the stat page remember the category that I left off at. Right now it
    * resets to total meters"): kept for the app's life and on the phone. */
@@ -206,7 +201,7 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
       </View>
 
       {m2d ? <M2dStatsView onRower={onRower} /> : null}
-      {m2d ? null : rec ? <Records key={rec.key} s={s} rec={rec} onRower={onRower} onRow={onRow} onAll={onRankings ? () => onRankings(period, rec.key) : undefined} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
+      {m2d ? null : rec ? <Records key={rec.key} s={s} rec={rec} onRower={onRower} onRow={onRow} onAll={onRankings ? () => onRankings(period || s.period.key, rec.key) : undefined} /> : <ByPeriod s={s} mode={key as "day" | "week"} slot={slot} onSlot={setSlot} onMode={setStat} onRower={onRower} />}
 
       {month && !m2d ? (
         <>
