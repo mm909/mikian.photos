@@ -261,13 +261,25 @@ export function m2dWindow(at = Number.isFinite(DEV_AT) ? DEV_AT : nowMs()): M2dW
   return { first: M2D_FIRST, last: M2D_LAST, days: M2D_DAYS, day, started, over, until };
 }
 
-/* Every registered rower, and their shares of the match (null: no pick yet). */
-export async function m2dOptIns(): Promise<Map<string, Shares | null>> {
-  const rows = await db.rowMonthOptIn.findMany({
-    where: { challenge: CHALLENGE, month: M2D_KEY, cancelledAt: null },
-    select: { participantId: true, choice: true },
-  });
-  return new Map(rows.map((r) => [r.participantId, parseShares(r.choice) ?? EVEN_SHARES]));
+/* EVERY ROWER COUNTS (owner, 2026-11-26, of a rower whose dollars showed
+ * grey: "Make it by default just evenly distribute to all 3 charities ...
+ * even if they haven't interacted with it, that way they still count").
+ * Who is in: every rower with meters in the window, split evenly unless
+ * they picked, plus everyone who pressed in. Out only by their own word:
+ * a row under M2D_KEY with cancelledAt set. */
+export async function m2dOptIns(meters?: Map<string, number>): Promise<Map<string, Shares | null>> {
+  const [rows, by] = await Promise.all([
+    db.rowMonthOptIn.findMany({
+      where: { challenge: CHALLENGE, month: M2D_KEY },
+      select: { participantId: true, choice: true, cancelledAt: true },
+    }),
+    meters ? Promise.resolve(meters) : windowMeters(),
+  ]);
+  const out = new Set(rows.filter((r) => r.cancelledAt).map((r) => r.participantId));
+  const ins = new Map<string, Shares | null>();
+  for (const [id, m] of by) if (m > 0 && !out.has(id)) ins.set(id, EVEN_SHARES);
+  for (const r of rows) if (!r.cancelledAt) ins.set(r.participantId, parseShares(r.choice) ?? EVEN_SHARES);
+  return ins;
 }
 
 /* Each rower's meters in the window. */
@@ -310,7 +322,8 @@ export type M2dTotals = {
 /* `perKm`: what a registered kilometer is paid past Concept2's part:
  * ROWTEMBER's rate and every pledge, each under its cap. */
 export async function m2dTotals(): Promise<{ totals: M2dTotals; by: Map<string, number>; ins: Map<string, Shares | null>; rate: number; perKm: number; givers: Giver[] }> {
-  const [by, ins, nominal, givers] = await Promise.all([windowMeters(), m2dOptIns(), m2dRate(), m2dGivers()]);
+  const by = await windowMeters();
+  const [ins, nominal, givers] = await Promise.all([m2dOptIns(by), m2dRate(), m2dGivers()]);
   /* UNDER THE CAPS: what the registered meters would cost at each rate; a
    * part that would pass its cap is paid at the rate that meets it. The
    * receipts print the rate offered; the dollars are the paid ones. */
