@@ -3691,13 +3691,18 @@ export const DAILY_CARD_IDS = dailyCards.map((c) => c.id);
 export const BOARD_CARD_IDS = boardCards.map((c) => c.id);
 
 /* THE M2D STICKERS (owner, 2026-11-25; 11-26: "I don't like saying for
- * charity ... dollars raised is fine"): a dollar figure, big, over what it
- * is the worth of, and the mark. Three: this row, the rower's whole
- * challenge so far, and everyone's. A hidden rower's own two stay out of
- * the menu, as the dollars would give their meters away. No address. */
+ * charity ... dollars raised is fine"; later the same day: "the small text
+ * that's not bolded is hard to read ... we definitely don't want 3 layers
+ * of text, 2 layers of text most ... we definitely need stickers where one
+ * has meters first and one has dollars first, or just solo"). At most two
+ * lines, both bold: the figure, big, and one line under it; then the mark.
+ * Each figure four ways: dollars first, meters first, and each alone. Ids
+ * share a prefix so the app's M2D buttons (which match on the start of an
+ * id) pick up every version. A hidden rower's own stay out of the menu, as
+ * the dollars would give their meters away. No address. */
 const usd = (d: number) => `$${d.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-function drawDollars(ctx: CanvasRenderingContext2D, fonts: ShareFonts, W: number, big: string, line1: string, line2: string) {
-  const cx = W / 2;
+const mFig = (m: number) => `${m.toLocaleString("en-US")} M`;
+function drawFigure(ctx: CanvasRenderingContext2D, fonts: ShareFonts, W: number, big: string, baseline: number) {
   const maxW = W - 90;
   let size = 220;
   ctx.font = `${size}px ${fonts.black}`;
@@ -3705,50 +3710,71 @@ function drawDollars(ctx: CanvasRenderingContext2D, fonts: ShareFonts, W: number
     size -= 6;
     ctx.font = `${size}px ${fonts.black}`;
   }
-  drawCenteredText(ctx, big, { cx, baseline: 250, font: `${size}px ${fonts.black}`, color: "#ffffff", maxWidth: maxW });
-  drawCenteredText(ctx, line1, { cx, baseline: 318, font: `36px ${fonts.mono}`, color: "rgba(255,255,255,0.82)", tracking: 7, maxWidth: maxW });
-  drawCenteredText(ctx, line2, { cx, baseline: 368, font: `28px ${fonts.mono}`, color: "rgba(255,255,255,0.62)", tracking: 6, maxWidth: maxW });
-  drawMark(ctx, [{ text: MARK }], { cx, cy: 500, size: 104, fontFamily: fonts.black });
+  drawCenteredText(ctx, big, { cx: W / 2, baseline, font: `${size}px ${fonts.black}`, color: "#ffffff", maxWidth: maxW });
 }
-const m2dRowCard: ShareCard = {
+/* The figure, one bold line, the mark. */
+function drawDollars(ctx: CanvasRenderingContext2D, fonts: ShareFonts, W: number, big: string, line: string) {
+  drawFigure(ctx, fonts, W, big, 250);
+  drawCenteredText(ctx, line, { cx: W / 2, baseline: 340, font: `56px ${fonts.black}`, color: "#ffffff", tracking: 2, maxWidth: W - 90 });
+  drawMark(ctx, [{ text: MARK }], { cx: W / 2, cy: 480, size: 104, fontFamily: fonts.black });
+}
+type M2dFigure = {
+  id: string;
+  label: string;
+  pick: (d: ShareData) => { meters: number; dollars: number } | null;
+  /* The line under the figure: [under dollars, under meters]. */
+  line: (meters: number, dollars: number) => [string, string];
+};
+function m2dFour(f: M2dFigure): ShareCard[] {
+  const make = (id: string, label: string, h: number, draw: (ctx: CanvasRenderingContext2D, fonts: ShareFonts, W: number, x: { meters: number; dollars: number }) => void): ShareCard => ({
+    id,
+    label,
+    width: 1080,
+    height: h,
+    light: true,
+    available: (d) => !!f.pick(d),
+    draw(ctx, data, fonts) {
+      const x = f.pick(data);
+      if (x) draw(ctx, fonts, this.width, x);
+    },
+  });
+  return [
+    make(f.id, `${f.label} ($)`, 580, (ctx, fonts, W, x) => drawDollars(ctx, fonts, W, usd(x.dollars), f.line(x.meters, x.dollars)[0])),
+    make(`${f.id}-m`, `${f.label} (m)`, 580, (ctx, fonts, W, x) => drawDollars(ctx, fonts, W, mFig(x.meters), f.line(x.meters, x.dollars)[1])),
+    /* The figure and ROW under it, no line (owner, 2026-11-26: "I need a
+     * sticker that's got the 49 cents with just row underneath it"). */
+    make(`${f.id}-row`, `${f.label} ($ + ROW)`, 500, (ctx, fonts, W, x) => {
+      drawFigure(ctx, fonts, W, usd(x.dollars), 250);
+      drawMark(ctx, [{ text: MARK }], { cx: W / 2, cy: 390, size: 104, fontFamily: fonts.black });
+    }),
+    make(`${f.id}-row-m`, `${f.label} (m + ROW)`, 500, (ctx, fonts, W, x) => {
+      drawFigure(ctx, fonts, W, mFig(x.meters), 250);
+      drawMark(ctx, [{ text: MARK }], { cx: W / 2, cy: 390, size: 104, fontFamily: fonts.black });
+    }),
+    make(`${f.id}-solo`, `${f.label} ($ only)`, 310, (ctx, fonts, W, x) => drawFigure(ctx, fonts, W, usd(x.dollars), 250)),
+    make(`${f.id}-solo-m`, `${f.label} (m only)`, 310, (ctx, fonts, W, x) => drawFigure(ctx, fonts, W, mFig(x.meters), 250)),
+  ];
+}
+const m2dRowCards = m2dFour({
   id: "m2d-row",
   label: "M2D: this row",
-  width: 1080,
-  height: 620,
-  light: true,
-  available: (d) => !d.masked && !!d.m2d?.row && d.m2d.row.meters > 0,
-  draw(ctx, data, fonts) {
-    const r = data.m2d?.row;
-    if (!r) return;
-    drawDollars(ctx, fonts, this.width, usd(r.dollars), `${r.meters.toLocaleString("en-US")} M ROWED`, "METERS TO DOLLARS");
-  },
-};
-const m2dMeCard: ShareCard = {
+  pick: (d) => (!d.masked && d.m2d?.row && d.m2d.row.meters > 0 ? d.m2d.row : null),
+  line: (m, dl) => [`${mFig(m)} ROWED`, `${usd(dl)} RAISED`],
+});
+/* MY M2D METERS (owner, 2026-11-26: "the total number of meters that I've
+ * rowed for M2D"): the meters-first versions of my total. */
+const m2dMeCards = m2dFour({
   id: "m2d-me",
   label: "M2D: my total",
-  width: 1080,
-  height: 620,
-  light: true,
-  available: (d) => !d.masked && !!d.m2d,
-  draw(ctx, data, fonts) {
-    const m = data.m2d;
-    if (!m) return;
-    drawDollars(ctx, fonts, this.width, usd(m.dollars), `${m.meters.toLocaleString("en-US")} M ROWED`, "RAISED · NOV 26 - DEC 24");
-  },
-};
-const m2dAllCard: ShareCard = {
+  pick: (d) => (!d.masked && d.m2d ? { meters: d.m2d.meters, dollars: d.m2d.dollars } : null),
+  line: (m, dl) => [`${mFig(m)} ROWED`, `${usd(dl)} RAISED`],
+});
+const m2dAllCards = m2dFour({
   id: "m2d-all",
   label: "M2D: everyone",
-  width: 1080,
-  height: 620,
-  light: true,
-  available: (d) => !!d.m2d,
-  draw(ctx, data, fonts) {
-    const m = data.m2d;
-    if (!m) return;
-    drawDollars(ctx, fonts, this.width, usd(m.allRaised), `${m.allMeters.toLocaleString("en-US")} M TOGETHER`, "RAISED");
-  },
-};
+  pick: (d) => (d.m2d ? { meters: d.m2d.allMeters, dollars: d.m2d.allRaised } : null),
+  line: (m, dl) => [`${mFig(m)} TOGETHER`, `${usd(dl)} RAISED`],
+});
 
 /* THE M2D MARK (owner, 2026-11-25: "give me definitely one with row M2D. I
  * want one that's just M2D ... I also want these to be shareable in the
@@ -3825,10 +3851,10 @@ export const CARDS: ShareCard[] = [
   // M2D (2026-11-25): the dollar stickers first while the Holiday Challenge
   // runs. Only the app's deck sets data.m2d (serverCard.ts), so the site's
   // share dialog never offers them.
-  m2dRowCard,
+  ...m2dRowCards,
   m2dDayCard,
-  m2dMeCard,
-  m2dAllCard,
+  ...m2dMeCards,
+  ...m2dAllCards,
   m2dMarkCard,
   m2dMarkRowCard,
   rowtemberRow,
