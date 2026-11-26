@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from "react";
 import type { Photo } from "./api";
 import { peek } from "./api";
-import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, Easing, Image, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent, type ImageStyle, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { buzz } from "./buzz";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { CloseIcon, DotsIcon } from "./icons";
@@ -53,6 +53,16 @@ export function Bar({ value, goal, height = 8, color = C.accent, delay = 0 }: { 
 
 export function Eyebrow({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
   return <Text style={[styles.eyebrow, style]}>{children}</Text>;
+}
+
+/* THE SMALL COPY, OR THE WHOLE PHOTO (owner, 2026-11-25, of a blank first
+ * square on his grid: "Why is this one photo at the front not showing?").
+ * The server always names a small copy, but the phone makes it best effort
+ * (upload.ts), so a row can have none: when the small copy will not load,
+ * the whole photo is shown in its place. */
+export function Thumb({ photo, style }: { photo: Photo; style?: StyleProp<ImageStyle> }) {
+  const [whole, setWhole] = useState(!photo.thumb);
+  return <Image source={{ uri: whole ? photo.full : (photo.thumb as string) }} onError={() => setWhole(true)} resizeMode="cover" style={style} />;
 }
 
 /* A figure that always stays on one line, shrinking before it wraps. */

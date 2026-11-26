@@ -58,7 +58,7 @@ export function EditRow({ row, onClose, onSaved }: { row: Editable; onClose: () 
   const [meters, setMeters] = useState(String(row.meters));
   const [time, setTime] = useState(clock(row.seconds));
   const [title, setTitle] = useState(row.title);
-  const [slots, setSlots] = useState<Slot[]>(() => [0, 1].map((i) => (row.photoKeys[i] && row.photos[i] ? { kind: "kept" as const, key: row.photoKeys[i], uri: row.photos[i].thumb ?? row.photos[i].full } : null)));
+  const [slots, setSlots] = useState<Slot[]>(() => [0, 1].map((i) => (row.photoKeys[i] && row.photos[i] ? { kind: "kept" as const, key: row.photoKeys[i], uri: row.photos[i].full } : null)));
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 

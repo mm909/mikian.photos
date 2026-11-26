@@ -8,7 +8,7 @@ import { useSession } from "../session";
 import { Ctl, mono } from "../site";
 import { C, F, MONTHS, dayKey, wholeSplit } from "../theme";
 import { LiftMenu, whereOnScreen, type Rect, type Spot } from "../lift";
-import { Avatar, Blocks, HOLD_MS, PhotoSwap, Waiting, useScrollDir, type Gallery, type Held, type HoldItem, Skel, SkelCards } from "../ui";
+import { Avatar, Blocks, HOLD_MS, PhotoSwap, Thumb, Waiting, useScrollDir, type Gallery, type Held, type HoldItem, Skel, SkelCards } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
 import { RecapStrip } from "./Recap";
 import { deck } from "../stickers";
@@ -570,7 +570,7 @@ export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boo
                 collapsable={false}
                 style={{ width: "100%", aspectRatio: 3 / 4, backgroundColor: C.pale, alignItems: "center", justifyContent: "center" }}
               >
-                {photo ? <Image source={{ uri: photo.thumb ?? photo.full }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : <Text style={mono(10, false, C.gray, 0.1)}>{it.dayStr}</Text>}
+                {photo ? <Thumb key={photo.full} photo={photo} style={{ width: "100%", height: "100%" }} /> : <Text style={mono(10, false, C.gray, 0.1)}>{it.dayStr}</Text>}
               </View>
             </Pressable>
           );

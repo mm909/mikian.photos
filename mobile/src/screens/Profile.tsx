@@ -10,7 +10,7 @@ import { M2dPanel } from "./M2D";
 import { useSession } from "../session";
 import { Chip, Ctl, Dash, Eye, Ledger, WordMenu, mono } from "../site";
 import { C, F, MONTHS, fmtClock, fmtInt, isDark } from "../theme";
-import { Avatar, Bar, Blocks, Btn, PhotoViewer, Waiting, modals, scrub, setSideDrag, useLoad, useScrollDir } from "../ui";
+import { Avatar, Bar, Blocks, Btn, PhotoViewer, Waiting, modals, scrub, setSideDrag, Thumb, useLoad, useScrollDir } from "../ui";
 import { RowGrid } from "./Feed";
 import { Join, SignIn } from "./Account";
 import { StickerViewer } from "./RowPage";
@@ -1271,7 +1271,7 @@ function LogLine({ r, onRow, onPhoto }: { r: LogRow; onRow?: (id: string) => voi
           ? null
           : r.photos.slice(0, 2).map((ph, i) => (
               <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel="Open the photo" onPress={() => onPhoto?.(i)}>
-                <Image source={{ uri: ph.thumb ?? ph.full }} resizeMode="cover" style={{ width: 40, height: 50, backgroundColor: C.pale }} />
+                <Thumb key={ph.full} photo={ph} style={{ width: 40, height: 50, backgroundColor: C.pale }} />
               </Pressable>
             ))}
       </Pressable>
