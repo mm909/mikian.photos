@@ -3725,7 +3725,7 @@ const m2dMeCard: ShareCard = {
   width: 1080,
   height: 620,
   light: true,
-  available: (d) => !d.masked && !!d.m2d && d.m2d.meters > 0,
+  available: (d) => !d.masked && !!d.m2d,
   draw(ctx, data, fonts) {
     const m = data.m2d;
     if (!m) return;
@@ -3738,11 +3738,60 @@ const m2dAllCard: ShareCard = {
   width: 1080,
   height: 620,
   light: true,
-  available: (d) => !!d.m2d && d.m2d.allMeters > 0,
+  available: (d) => !!d.m2d,
   draw(ctx, data, fonts) {
     const m = data.m2d;
     if (!m) return;
     drawDollars(ctx, fonts, this.width, usd(m.allRaised), `${m.allMeters.toLocaleString("en-US")} M TOGETHER`, "RAISED FOR CHARITY");
+  },
+};
+
+/* THE M2D MARK (owner, 2026-11-25: "give me definitely one with row M2D. I
+ * want one that's just M2D ... I also want these to be shareable in the
+ * app"). White on clear, like the dollar stickers. One blue per lockup: the
+ * 2 carries it, so ROW above it stays all white (owner: "there's these two
+ * blue items, that 2, and then ... the O ... I don't know how those should
+ * look if they're on the same page"). App only, like the dollar stickers. */
+const M2D_BLUE = "#1A90D4";
+function drawM2d(ctx: CanvasRenderingContext2D, fonts: ShareFonts, cx: number, baseline: number, size: number) {
+  ctx.save();
+  ctx.font = `${size}px ${fonts.black}`;
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
+  const parts: [string, string][] = [["M", "#ffffff"], ["2", M2D_BLUE], ["D", "#ffffff"]];
+  const kern = -size * 0.03;
+  const widths = parts.map(([t]) => ctx.measureText(t).width);
+  let x = cx - (widths.reduce((a, b) => a + b, 0) + kern * 2) / 2;
+  parts.forEach(([t, color], i) => {
+    ctx.fillStyle = color;
+    ctx.fillText(t, x, baseline);
+    x += widths[i] + kern;
+  });
+  ctx.restore();
+}
+const m2dMarkCard: ShareCard = {
+  id: "m2d-mark",
+  label: "M2D",
+  width: 1080,
+  height: 620,
+  light: true,
+  available: (d) => !!d.m2d,
+  draw(ctx, _data, fonts) {
+    drawM2d(ctx, fonts, this.width / 2, 400, 330);
+    drawCenteredText(ctx, "METERS TO DOLLARS", { cx: this.width / 2, baseline: 500, font: `44px ${fonts.mono}`, color: "#ffffff", tracking: 10, maxWidth: this.width - 90 });
+  },
+};
+const m2dMarkRowCard: ShareCard = {
+  id: "m2d-mark-row",
+  label: "ROW M2D",
+  width: 1080,
+  height: 760,
+  light: true,
+  available: (d) => !!d.m2d,
+  draw(ctx, _data, fonts) {
+    drawCenteredText(ctx, "ROW", { cx: this.width / 2, baseline: 170, font: `120px ${fonts.black}`, color: "#ffffff", tracking: 4 });
+    drawM2d(ctx, fonts, this.width / 2, 530, 330);
+    drawCenteredText(ctx, "METERS TO DOLLARS", { cx: this.width / 2, baseline: 630, font: `44px ${fonts.mono}`, color: "#ffffff", tracking: 10, maxWidth: this.width - 90 });
   },
 };
 
@@ -3753,6 +3802,8 @@ export const CARDS: ShareCard[] = [
   m2dRowCard,
   m2dMeCard,
   m2dAllCard,
+  m2dMarkCard,
+  m2dMarkRowCard,
   rowtemberRow,
   rowtemberRowFull,
   rowtemberReceipt,

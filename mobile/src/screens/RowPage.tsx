@@ -895,7 +895,7 @@ export function StickerViewer({ rowId, onClose, only, empty }: { rowId?: string;
   const [note, setNote] = useState("");
   /* `only`: the stickers whose id starts with it (the M2D share buttons
    * open the deck at its dollar stickers alone). */
-  const cards = (data?.cards ?? []).filter((c) => !only || c.id.startsWith(only));
+  const cards = (data?.cards ?? []).filter((c) => !only || only.split(",").some((o) => c.id.startsWith(o)));
   const card = cards[Math.min(at, cards.length - 1)];
   /* ROUND AND ROUND (owner, 2026-11-21: "if I try to swipe left and I
    * can't go left, just go to the last one ... when I'm at the end ... show

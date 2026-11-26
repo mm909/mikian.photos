@@ -457,7 +457,8 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
  * figure the page prints big. */
 export type M2dShare = { meters: number; dollars: number; in: boolean; allMeters: number; allRaised: number; row: { meters: number; dollars: number } | null };
 export async function m2dShare(participantId: string | null, row: { day: string; meters: number } | null): Promise<M2dShare | null> {
-  if (!m2dWindow().started) return null;
+  /* Open before Nov 26 too, at $0 (owner, 2026-11-25: "let me share the
+   * M2D stickers, even if it says 0 ... like now"). */
   const { totals, by, ins, perKm: rate } = await m2dTotals();
   const m = participantId ? (by.get(participantId) ?? 0) : 0;
   /* A row's own dollars are what it added to the rower's: ROWTEMBER's on

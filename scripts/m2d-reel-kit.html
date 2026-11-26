@@ -1,0 +1,156 @@
+<!doctype html>
+<!-- M2D REEL KIT (owner, 2026-11-25: "I need something at the very start of
+     the reel for when I say turn your meters into dollars ... when I say
+     Concept 2 is donating money, I need to know how much ... with us ... how
+     much money we're donating ... there's a catch though, your meters don't
+     start counting until you hit 100K. And I need a nice graphic").
+     ?card= one of: title, title-sticker, c2, us, catch-40, catch-99, catch-100,
+     catch-150, us-catch. ?bg=solid paints the cream ground (full-frame
+     cards); default is transparent, to lay over video. 1080x1920.
+     No site address on any of them (CLAUDE.md). -->
+<html>
+<head>
+<meta charset="utf-8" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;700&family=Space+Mono:wght@400;700&display=block" rel="stylesheet" />
+<style>
+  :root { --ink: #15171a; --blue: #0077B6; --gray: #6b6b6b; --line: #dcdcdc; --cream: #f6f1e7; }
+  html, body { margin: 0; width: 1080px; height: 1920px; background: transparent; overflow: hidden; }
+  body.solid { background: var(--cream); }
+  body { display: flex; align-items: center; justify-content: center; color: var(--ink); }
+  .card { width: 880px; background: #fff; padding: 60px 64px 56px; box-shadow: 0 24px 80px rgba(0,0,0,.35); box-sizing: border-box; }
+  body.solid .card { box-shadow: none; background: transparent; }
+  .eye { font: 700 26px/1 "Space Mono", monospace; letter-spacing: .14em; text-transform: uppercase; display: flex; justify-content: space-between; padding-bottom: 18px; border-bottom: 4px solid var(--ink); }
+  .eye b { color: var(--blue); }
+  .mono { font-family: "Space Mono", monospace; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .blk { font-family: "Archivo Black", sans-serif; font-weight: 400; }
+  .blue { color: var(--blue); }
+
+  /* TITLE */
+  .title { text-align: center; width: 940px; }
+  .title .row { font: 400 120px/1 "Archivo Black"; letter-spacing: .02em; }
+  .title .m2d { font: 400 400px/.86 "Archivo Black"; letter-spacing: -.04em; margin: 28px 0 8px; }
+  .title .m2d i { font-style: normal; color: var(--blue); }
+  .title .say { font: 700 44px/1.2 "Space Mono"; letter-spacing: .2em; text-transform: uppercase; }
+  .title .rule { height: 8px; background: var(--ink); margin: 44px 90px; }
+  .title .line { font: 400 82px/1.04 "Archivo Black"; text-transform: uppercase; }
+  .title .dates { font: 700 34px/1 "Space Mono"; letter-spacing: .16em; color: var(--gray); margin-top: 40px; text-transform: uppercase; }
+  .title.sticker { background: #fff; padding: 70px 60px 64px; box-shadow: 0 24px 80px rgba(0,0,0,.35); width: 860px; box-sizing: border-box; }
+  .title.sticker .m2d { font-size: 330px; }
+  .title.sticker .dates { font-size: 28px; letter-spacing: .1em; }
+
+.bare { text-align: center; }
+  .bare .row { font: 400 150px/1 "Archivo Black"; letter-spacing: .02em; }
+  .bare .m2d { font: 400 440px/.86 "Archivo Black"; letter-spacing: -.04em; margin-top: 30px; }
+  .bare .m2d i { font-style: normal; color: var(--blue); }
+  .bare .say { font: 700 50px/1.2 "Space Mono"; letter-spacing: .2em; text-transform: uppercase; margin-top: 26px; }
+  body.ink { color: #fff; }
+  body.ink .bare .m2d i { color: #1A90D4; }
+
+  /* MONEY CARDS */
+  .who { font: 400 104px/.96 "Archivo Black"; text-transform: uppercase; margin: 36px 0 4px; }
+  .gives { font: 700 30px/1.3 "Space Mono"; letter-spacing: .1em; text-transform: uppercase; color: var(--gray); }
+  .rate { display: flex; align-items: baseline; gap: 22px; margin: 26px 0 8px; }
+  .rate .n { font: 400 250px/.86 "Archivo Black"; color: var(--blue); letter-spacing: -.04em; }
+  .rate .u { font: 700 40px/1.2 "Space Mono"; text-transform: uppercase; letter-spacing: .06em; }
+  .note { font: 700 30px/1.35 "Archivo"; margin: 6px 0 22px; }
+  .tab { border-top: 3px solid var(--ink); }
+  .tr { display: flex; justify-content: space-between; align-items: baseline; padding: 18px 0; border-bottom: 2px solid var(--line); }
+  .tr .k { font: 400 50px/1 "Archivo Black"; }
+  .tr .v { font: 700 54px/1 "Space Mono"; color: var(--blue); }
+  .tr.zero .v, .tr.zero .k { color: #b9b9b9; }
+  .foot { font: 700 24px/1.4 "Space Mono"; letter-spacing: .08em; text-transform: uppercase; color: var(--gray); margin-top: 22px; }
+  .cap { display: inline-block; background: var(--ink); color: #fff; font: 700 30px/1 "Space Mono"; letter-spacing: .1em; text-transform: uppercase; padding: 14px 18px; margin-top: 26px; }
+
+  /* THE CATCH */
+  .catch-h { font: 400 150px/.9 "Archivo Black"; text-transform: uppercase; margin: 34px 0 6px; letter-spacing: -.02em; }
+  .catch-s { font: 700 32px/1.3 "Space Mono"; letter-spacing: .08em; text-transform: uppercase; color: var(--gray); }
+  .bar { position: relative; height: 96px; background: #ececec; margin: 64px 0 18px; }
+  .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #b9b9b9; }
+  .bar.lit .fill { background: var(--blue); }
+  .bar .over { position: absolute; top: 0; bottom: 0; background: var(--blue); }
+  .bar .gate { position: absolute; top: -26px; bottom: 0; width: 8px; background: var(--ink); }
+  .ticks { position: relative; height: 40px; margin-top: 8px; font: 700 26px/1 "Space Mono"; color: var(--gray); }
+  .ticks span { position: absolute; transform: translateX(-50%); }
+  .ticks span.g { color: var(--ink); }
+  .readout { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 46px; padding-top: 28px; border-top: 3px solid var(--ink); }
+  .readout .m { font: 400 96px/1 "Archivo Black"; }
+  .readout .m small { display: block; font: 700 24px/1.4 "Space Mono"; letter-spacing: .12em; color: var(--gray); text-transform: uppercase; }
+  .readout .d { font: 400 150px/.9 "Archivo Black"; color: var(--blue); text-align: right; }
+  .readout .d small { display: block; font: 700 24px/1.4 "Space Mono"; letter-spacing: .12em; color: var(--gray); text-transform: uppercase; }
+  .readout .d.zero { color: #b9b9b9; }
+  .lock { font: 400 64px/1 "Archivo Black"; margin-top: 40px !important; text-transform: uppercase; } .lock.x { letter-spacing: .08em; text-transform: uppercase; margin-top: 30px; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script>
+const p = new URLSearchParams(location.search);
+const q = p.get("card") || "title";
+if (p.get("bg") === "solid") document.body.classList.add("solid");
+if (p.get("on") === "ink") document.body.classList.add("ink");
+const eye = (l, r) => `<div class="eye"><span>${l}</span><b>${r}</b></div>`;
+const tr = (k, v, zero) => `<div class="tr${zero ? " zero" : ""}"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+const M2D = `M<span class="blue">2</span>D`;
+
+const title = (sticker) => `<div class="title${sticker ? " sticker" : ""}">
+  <div class="row">ROW</div>
+  <div class="m2d">M<i>2</i>D</div>
+  <div class="say">Meters to dollars</div>
+  <div class="rule"></div>
+  <div class="line">Turn your meters<br/>into dollars</div>
+  <div class="dates">Nov 26 – Dec 24</div>
+</div>`;
+
+/* Concept2: past 100K, 2¢ a km for the first 100 km ($2), 4¢ every km after. */
+const c2 = `<div class="card">${eye("Concept2", "Holiday Challenge")}
+  <div class="who">Concept2<br/>gives</div>
+  <div class="rate"><span class="n">4¢</span><span class="u">a km<br/>past 100K</span></div>
+  <div class="note">Hit 100K and your first 100 km count for $2. Every km after: 4¢.</div>
+  <div class="tab">${tr("50K", "$0", true)}${tr("100K", "$2")}${tr("150K", "$4")}${tr("200K", "$6")}${tr("300K", "$10")}</div>
+  <div class="foot">Register for the Holiday Challenge for it to count</div>
+</div>`;
+
+/* ROWTEMBER: matches the 4¢, from meter one, up to $1,000. */
+const us = `<div class="card">${eye("ROWTEMBER", "We match")}
+  <div class="who">ROWTEMBER<br/>matches</div>
+  <div class="rate"><span class="n">4¢</span><span class="u">a km<br/>from meter one</span></div>
+  <div class="note">No 100K needed. Every km you log on ROW counts.</div>
+  <div class="tab">${tr("10K", "$0.40")}${tr("50K", "$2")}${tr("100K", "$4")}${tr("200K", "$8")}${tr("300K", "$12")}</div>
+  <div class="cap">Matching up to $1,000</div>
+</div>`;
+
+/* THE CATCH: a 0–150K bar, the gate at 100K. Concept2's dollars at a given distance. */
+const MAX = 150;
+const x = (k) => (k / MAX) * 100;
+const c2usd = (k) => (k < 100 ? 0 : 2 + (k - 100) * 0.04);
+const catchCard = (k, ours) => {
+  const lit = k >= 100;
+  const usd = ours ? k * 0.04 : c2usd(k);
+  const d = usd === 0 ? "$0" : "$" + (Number.isInteger(usd) ? usd : usd.toFixed(2));
+  const head = ours ? `<div class="catch-h">Not<br/>with us</div><div class="catch-s">ROWTEMBER counts from meter one</div>`
+                    : `<div class="catch-h">The<br/>catch</div><div class="catch-s">Nothing counts until 100K</div>`;
+  const bar = ours
+    ? `<div class="bar lit"><div class="fill" style="width:${x(k)}%"></div><div class="gate" style="left:calc(${x(100)}% - 4px);opacity:.25"></div></div>`
+    : `<div class="bar${lit ? " lit" : ""}"><div class="fill" style="width:${x(k)}%"></div><div class="gate" style="left:calc(${x(100)}% - 4px)"></div></div>`;
+  const ticks = `<div class="ticks"><span style="left:2%">0</span><span style="left:${x(50)}%">50K</span><span class="g" style="left:${x(100)}%">100K</span><span style="left:96%">150K</span></div>`;
+  const lock = ours ? "Every km counts" : lit ? "Unlocked" : "$0 until 100K";
+  return `<div class="card">${eye(ours ? "ROWTEMBER" : "Concept2", "Your meters")}
+    ${head}${bar}${ticks}
+    <div class="lock${!ours && !lit ? "" : " blue"}">${lock}</div>
+  </div>`;
+};
+
+const bare = (row) => `<div class="bare">${row ? `<div class="row">ROW</div>` : ""}<div class="m2d">M<i>2</i>D</div><div class="say">Meters to dollars</div></div>`;
+const cards = {
+  "mark-row": bare(true), mark: bare(false),
+  title: title(false),
+  "title-sticker": title(true),
+  c2, us,
+  "catch-40": catchCard(40), "catch-99": catchCard(99), "catch-100": catchCard(100), "catch-150": catchCard(150),
+  "us-catch": catchCard(40, true),
+};
+document.getElementById("out").innerHTML = cards[q] || cards.title;
+document.fonts.ready.then(() => (document.title = "done"));
+</script>
+</body>
+</html>
