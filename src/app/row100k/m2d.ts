@@ -455,7 +455,10 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
  * Null before the window opens: no sticker says $0 for a challenge that
  * has not started. `allRaised` is the total (Concept2 and the match), the
  * figure the page prints big. */
-export type M2dShare = { meters: number; dollars: number; in: boolean; allMeters: number; allRaised: number; row: { meters: number; dollars: number } | null };
+/* `day`: the challenge day the DAY X sticker prints (owner, 2026-11-26: "I
+ * need a day X sticker for meters to dollars"): the row's own day when the
+ * deck is a row's, otherwise today's. 0 before the window opens. */
+export type M2dShare = { meters: number; dollars: number; in: boolean; allMeters: number; allRaised: number; row: { meters: number; dollars: number } | null; day: number; days: number };
 export async function m2dShare(participantId: string | null, row: { day: string; meters: number } | null): Promise<M2dShare | null> {
   /* Open before Nov 26 too, at $0 (owner, 2026-11-25: "let me share the
    * M2D stickers, even if it says 0 ... like now"). */
@@ -465,7 +468,9 @@ export async function m2dShare(participantId: string | null, row: { day: string;
    * every meter, and Concept2's once the rower is past 100K. */
   let r: M2dShare["row"] = null;
   if (row && inWindow(row.day)) r = { meters: row.meters, dollars: cents(both(m, rate) - both(Math.max(0, m - row.meters), rate)) };
-  return { meters: m, dollars: both(m, rate), in: !!participantId && ins.has(participantId), allMeters: totals.meters, allRaised: totals.total, row: r };
+  const w = m2dWindow();
+  const day = row && inWindow(row.day) ? Math.round((Date.parse(`${row.day}T00:00:00Z`) - Date.parse(`${M2D_FIRST}T00:00:00Z`)) / 86_400_000) + 1 : w.day;
+  return { meters: m, dollars: both(m, rate), in: !!participantId && ins.has(participantId), allMeters: totals.meters, allRaised: totals.total, row: r, day, days: M2D_DAYS };
 }
 
 /* The body both routes take, { in, choice? , shares? }, read once: the

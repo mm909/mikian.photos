@@ -121,6 +121,9 @@ export type ShareData = {
     allMeters: number;
     allRaised: number;
     row: { meters: number; dollars: number } | null;
+    /* The challenge day for DAY X (0 before Nov 26), and how many there are. */
+    day?: number;
+    days?: number;
   } | null;
   community?: {
     meters: number;
@@ -3796,12 +3799,34 @@ const m2dMarkRowCard: ShareCard = {
     drawCenteredText(ctx, "METERS TO DOLLARS", { cx: this.width / 2, baseline: 630, font: `44px ${fonts.mono}`, color: "#ffffff", tracking: 10, maxWidth: this.width - 90 });
   },
 };
+/* DAY X (owner, 2026-11-26: "I need a day X sticker for meters to
+ * dollars"): the M2D mark, the day big, and of how many. The row's own
+ * day on a row's deck, otherwise today. Only once the window is open:
+ * there is no DAY 0. No address. */
+const m2dDayCard: ShareCard = {
+  id: "m2d-day",
+  label: "M2D: day",
+  width: 1080,
+  height: 760,
+  light: true,
+  available: (d) => !!d.m2d?.day,
+  draw(ctx, data, fonts) {
+    const m = data.m2d;
+    if (!m?.day) return;
+    const cx = this.width / 2;
+    drawM2d(ctx, fonts, cx, 170, 150);
+    drawCenteredText(ctx, `DAY ${m.day}`, { cx, baseline: 450, font: `250px ${fonts.black}`, color: "#ffffff", maxWidth: this.width - 90 });
+    drawCenteredText(ctx, `OF ${m.days ?? 29}`, { cx, baseline: 540, font: `44px ${fonts.mono}`, color: "rgba(255,255,255,0.82)", tracking: 10, maxWidth: this.width - 90 });
+    drawCenteredText(ctx, "METERS TO DOLLARS", { cx, baseline: 640, font: `36px ${fonts.mono}`, color: "rgba(255,255,255,0.62)", tracking: 8, maxWidth: this.width - 90 });
+  },
+};
 
 export const CARDS: ShareCard[] = [
   // M2D (2026-11-25): the dollar stickers first while the Holiday Challenge
   // runs. Only the app's deck sets data.m2d (serverCard.ts), so the site's
   // share dialog never offers them.
   m2dRowCard,
+  m2dDayCard,
   m2dMeCard,
   m2dAllCard,
   m2dMarkCard,
