@@ -912,7 +912,7 @@ const GROUND = "#1f2226";
  * ... and then I can close it"). One screen on the dark ground the stickers
  * are made for, one sticker to a page, a swipe to the next; SHARE hands the
  * one showing to the phone's share sheet, COPY puts it on the clipboard. */
-export function StickerViewer({ rowId, onClose, only, empty }: { rowId?: string; onClose: () => void; only?: string; empty?: string }) {
+export function StickerViewer({ rowId, onClose, only, empty, start }: { rowId?: string; onClose: () => void; only?: string; empty?: string; start?: string }) {
   useModalHold();
   const win = useWindowDimensions();
   const w = Math.min(win.width, 560);
@@ -923,6 +923,13 @@ export function StickerViewer({ rowId, onClose, only, empty }: { rowId?: string;
   /* `only`: the stickers whose id starts with it (the M2D share buttons
    * open the deck at its dollar stickers alone). */
   const cards = (data?.cards ?? []).filter((c) => !only || only.split(",").some((o) => c.id.startsWith(o)));
+  /* `start`: the sticker to open on (a tile on the Shareables page). */
+  const startAt = Math.max(0, start ? cards.findIndex((c) => c.id === start) : 0);
+  const begun = useRef(false);
+  if (!begun.current && cards.length) {
+    begun.current = true;
+    if (startAt !== at) setAt(startAt);
+  }
   const card = cards[Math.min(at, cards.length - 1)];
   /* ROUND AND ROUND (owner, 2026-11-21: "if I try to swipe left and I
    * can't go left, just go to the last one ... when I'm at the end ... show
@@ -935,9 +942,10 @@ export function StickerViewer({ rowId, onClose, only, empty }: { rowId?: string;
   const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const placed = useRef(false);
   const place = () => {
-    if (!loop || placed.current) return;
+    if (placed.current) return;
     placed.current = true;
-    strip.current?.scrollTo({ x: w, animated: false });
+    const x = (loop ? startAt + 1 : startAt) * w;
+    if (x) strip.current?.scrollTo({ x, animated: false });
   };
   const onStrip = (x: number) => {
     const page = Math.round(x / Math.max(1, w));
@@ -991,7 +999,7 @@ export function StickerViewer({ rowId, onClose, only, empty }: { rowId?: string;
           ) : !data ? (
             <View style={{ flex: 1, justifyContent: "center" }}>{error ? <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", paddingHorizontal: 20 }]}>{error}</Text> : <ActivityIndicator color="#fff" />}</View>
           ) : (
-            <ScrollView ref={strip as never} horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentOffset={loop ? { x: w, y: 0 } : undefined} onContentSizeChange={place} onScroll={(e) => onStrip(e.nativeEvent.contentOffset.x)} scrollEventThrottle={32} style={{ flex: 1 }}>
+            <ScrollView ref={strip as never} horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentOffset={loop ? { x: (startAt + 1) * w, y: 0 } : startAt ? { x: startAt * w, y: 0 } : undefined} onContentSizeChange={place} onScroll={(e) => onStrip(e.nativeEvent.contentOffset.x)} scrollEventThrottle={32} style={{ flex: 1 }}>
               {pages.map((c, i) => (
                 <Pressable key={`${c.id}-${i}`} onPress={onClose} style={{ width: w, paddingHorizontal: 20, justifyContent: "center" }}>
                   <Pressable onPress={() => {}}>
@@ -1016,6 +1024,41 @@ export function StickerViewer({ rowId, onClose, only, empty }: { rowId?: string;
         </View>
       </Pressable>
     </Modal>
+  );
+}
+
+/* STICKERS AS TILES (owner, 2026-11-26: "should prob have previews of the
+ * stickers like we do for the reels"): the deck's stickers (`only`, as the
+ * viewer takes it) in a sideways row of dark tiles, each drawn as it will
+ * be shared; a tap opens the viewer at that one to share or copy. */
+export function StickerTiles({ only, title = "Stickers", aside = "Tap to share", empty }: { only?: string; title?: string; aside?: string; empty?: string }) {
+  const { data, error } = useLoad(() => deck(), []);
+  const [open, setOpen] = useState<string | null>(null);
+  const cards = (data?.cards ?? []).filter((c) => !only || only.split(",").some((o) => c.id.startsWith(o)));
+  return (
+    <>
+      <Eye left={title} right={aside} />
+      {!data ? (
+        error ? <Text style={mono(11, false, C.gray)}>{error}</Text> : <ActivityIndicator color={C.ink} />
+      ) : cards.length === 0 ? (
+        <Text style={mono(11, false, C.gray)}>{empty ?? "Nothing to share yet."}</Text>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+          {cards.map((c) => (
+            <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Sticker: ${c.label}`} onPress={() => setOpen(c.id)} style={({ pressed }) => ({ width: 164, opacity: pressed ? 0.7 : 1 })}>
+              <View style={{ height: 164, backgroundColor: GROUND, alignItems: "center", justifyContent: "center", padding: 10 }}>
+                <StickerImage id={c.id} ratio={c.width / c.height} />
+              </View>
+              <Text numberOfLines={1} style={[mono(10, true, C.ink, 0.12), { marginTop: 6 }]}>
+                {c.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+      <Dash style={{ marginTop: 14 }} />
+      {open ? <StickerViewer only={only} start={open} empty={empty} onClose={() => setOpen(null)} /> : null}
+    </>
   );
 }
 

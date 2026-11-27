@@ -6,7 +6,7 @@ import { Ctl, Dateline, Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import { Blocks, Waiting, useLoad, useScrollDir } from "../ui";
 import { M2D_REELS } from "../stickers";
-import { Reels, StickerViewer } from "./RowPage";
+import { Reels, StickerTiles, StickerViewer } from "./RowPage";
 
 /* M2D, METERS TO DOLLARS: the Concept2 Holiday Challenge, Nov 26 - Dec 24
  * (owner, 2026-11-25, with Concept2's post open: "Let's take over that
@@ -760,18 +760,9 @@ export function M2dSharePage({ onScrollDir }: { onScrollDir?: (down: boolean) =>
   const dir = useScrollDir(onScrollDir);
   const { data: v, error, reload } = useM2d();
   if (!v) return <Waiting error={error} onRetry={reload} />;
-  const head = (t: string) => (
-    <View style={{ marginTop: 26, paddingBottom: 9, borderBottomWidth: 1, borderColor: C.ink }}>
-      <Text style={{ fontFamily: F.black, fontSize: 17, lineHeight: 18, color: C.ink, textTransform: "uppercase" }}>{t}</Text>
-    </View>
-  );
   return (
     <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 132 }}>
-      {head("Stickers")}
-      <View style={{ rowGap: 14, marginTop: 14 }}>
-        <ShareBtn label="Everyone's total" only="m2d-day,m2d-all,m2d-mark" />
-        {v.me ? <ShareBtn label="My meters and dollars" only="m2d-me,m2d-day,m2d-mark" /> : null}
-      </View>
+      <StickerTiles title="M2D stickers" only={v.me ? "m2d-all,m2d-me,m2d-day,m2d-mark" : "m2d-all,m2d-day,m2d-mark"} empty="The M2D stickers open Nov 26, with the first meters." />
       {v.me ? <Reels src={M2D_REELS} title="M2D reels" aside="Counting up" /> : <Text style={[mono(11, false, C.gray), { marginTop: 18 }]}>Sign in for the reels.</Text>}
     </ScrollView>
   );
