@@ -251,8 +251,26 @@ export async function appUsage(): Promise<AppUsage> {
   const androidIds = new Set([...by.entries()].filter(([, p]) => p.platforms.has("android")).map(([id]) => id));
   const testerAccounts = await db.photographer.findMany({ where: { email: { in: testers.map((x) => x.email.trim().toLowerCase()) } }, select: { id: true, email: true } });
   const idOf = new Map(testerAccounts.map((a) => [a.email.toLowerCase(), a.id]));
+  /* BY NAME WHEN THE EMAIL IS ANOTHER (owner, 2026-11-26: "Abe's account
+   * ... just shows as invited on the testers page"): Abe gave the list one
+   * Gmail and signs in to the app with another. A tester whose email is no
+   * account here is matched to the one rower with the same name, if just
+   * one has it. */
+  const named = await db.rowParticipant.findMany({
+    where: { challenge: CHALLENGE, displayName: { in: testers.map((x) => x.name.trim()).filter(Boolean), mode: "insensitive" } },
+    select: { userId: true, displayName: true },
+  });
+  const byName = new Map<string, string | null>();
+  for (const r of named) {
+    const k = r.displayName.trim().toLowerCase();
+    byName.set(k, byName.has(k) ? null : r.userId);
+  }
   const list = testers.map((x) => {
-    const id = idOf.get(x.email.trim().toLowerCase());
+    /* The email's account first; when that one is not on the app (Abe's
+     * tester Gmail is an account of its own, from the site), the rower of
+     * the same name. */
+    const byMail = idOf.get(x.email.trim().toLowerCase());
+    const id = byMail && by.has(byMail) ? byMail : (byName.get(x.name.trim().toLowerCase()) ?? byMail ?? undefined);
     /* On an Android by its record, or on the app by what they did there
      * with no iPhone known: a closed tester's phone is an Android. */
     const p = id ? by.get(id) : undefined;
