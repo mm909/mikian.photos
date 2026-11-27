@@ -1,4 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { AppState, Platform } from "react-native";
+import { STAMP } from "./splash";
 import * as WebBrowser from "expo-web-browser";
 import { API, api, loadToken, setToken, type Me } from "./api";
 
@@ -48,6 +50,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  /* THE APP, OPENED (owner, 2026-11-26: "I need to know who's using the
+   * app"): once signed in, and each time the app comes back to the front,
+   * the site counts a day of use (api/row100k/app/seen). Nothing waits on
+   * it and nothing is said if it fails. */
+  const signedIn = me.signedIn;
+  const lastSeen = useRef(0);
+  useEffect(() => {
+    if (!signedIn) return;
+    const seen = () => {
+      const now = Date.now();
+      if (now - lastSeen.current < 60_000) return;
+      lastSeen.current = now;
+      api("/api/row100k/app/seen", { body: { platform: Platform.OS, version: STAMP } }).catch(() => null);
+    };
+    seen();
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") seen();
+    });
+    return () => sub.remove();
+  }, [signedIn]);
 
   const take = useCallback(
     async (body: Record<string, string>) => {

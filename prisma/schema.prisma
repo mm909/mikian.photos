@@ -1787,6 +1787,27 @@ model RowPushToken {
   @@index([userId])
 }
 
+/// THE APP, OPENED (owner, 2026-11-26: "I need like a total number of
+/// downloads, total number of users, total number of times used in a day
+/// ... I need to know who's using the app"). One line per account, Pacific
+/// day and platform ("ios" | "android" | "web"); `opens` counts the times
+/// the app came to the front that day (api/row100k/app/seen). Signed-in
+/// only. `userId` is Photographer.id, no FK, like the rest of the phone
+/// app's tables. Additive; a new table.
+model RowAppSeen {
+  id        String   @id @default(cuid())
+  userId    String
+  day       String
+  platform  String
+  version   String   @default("")
+  opens     Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, day, platform])
+  @@index([day])
+}
+
 /// LIKES AND COMMENTS on a logged row (owner, 2026-11-22: "I've officially
 /// bit the bullet. I think we want like, comment, share on the posts").
 /// Named by RowEntry.id and RowParticipant.id, no FKs, like the rest of the

@@ -554,7 +554,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : top.page === "concept2" ? "Concept2" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : top.kind === "m2dshare" ? "Shareables" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : top.page === "m2d" ? "M2D" : top.page === "usage" ? "App usage" : top.page === "concept2" ? "Concept2" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : top.kind === "m2dshare" ? "Shareables" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -826,7 +826,13 @@ function Slide({ children, top, still, width, onGone, hand }: { children: ReactN
   });
   const edge = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => g.dx > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      /* NOT UNDER A SCRUB (owner, 2026-11-26: "when I'm scrubbing through
+       * the stories ... it's also moving the page. In general, anytime we're
+       * moving something left or right or scrubbing through something on a
+       * page, you probably should also not control that page movement"): a
+       * drag that began on a chart or a sideways scroller (ui.tsx scrub)
+       * never pulls the page back. */
+      onMoveShouldSetPanResponder: (_e, g) => modals.open === 0 && !scrub.on && g.dx > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
       onPanResponderGrant: () => setSideDrag(true),
       onPanResponderMove: (_e, g) => x.setValue(Math.max(0, g.dx)),
       onPanResponderRelease: (_e, g) => {

@@ -58,7 +58,8 @@ function Empty({ height, text }: { height: number; text: string }) {
  * the piece. */
 export function SplitBars({ splits, avgTenths, derived }: { splits: AnalysisSplit[]; avgTenths: number | null; derived: boolean }) {
   const pts = splits.filter((s) => typeof s.paceTenths === "number" && (s.paceTenths as number) > 0);
-  const note = derived ? `${pts.length} · cut from the tick stream` : `${pts.length} · as the monitor recorded them`;
+  const note = `${pts.length} · every ${Math.round(splits[0]?.meters ?? 500).toLocaleString("en-US")} m`;
+  void derived;
   if (pts.length < 2) {
     return (
       <Panel title="Split by split" note={note} wide>

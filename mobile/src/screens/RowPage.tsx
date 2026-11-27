@@ -13,7 +13,7 @@ import { GROUNDS, LENGTHS, M2D_REELS, STRIP, deck, filmReel, gifReel, rowReels, 
 import type { Row } from "../store";
 import { C, F, LADDER, fmtClock, fmtInt, fmtPace, lifetimeTag } from "../theme";
 import type { Faked } from "./RowScreen";
-import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad, useModalHold } from "../ui";
+import { Avatar, Blocks, Btn, PhotoPair, Pop, Waiting, useCount, useLoad, useModalHold, sideways } from "../ui";
 import { CommentsSheet, PostActions } from "./Comments";
 import { EditRow } from "./EditRow";
 import { Review } from "./Review";
@@ -317,7 +317,7 @@ export function RowPage({
         </>
       ) : null}
 
-      {doc ? <Review row={{ id: r.id, day: r.day, meters: r.meters ?? 0 }} rows={rows} doc={doc} onMetric={onMetric} /> : null}
+      {doc ? <Review row={{ id: r.id, day: r.day, meters: r.meters ?? 0 }} rows={rows} doc={doc} onMetric={onMetric} own={r.mine} /> : null}
 
       {fresh ? <Btn label="Done" onPress={onDone} style={{ marginTop: 34 }} /> : null}
 
@@ -439,7 +439,7 @@ export function ErgPage({ id, rows, onMetric }: { id: string; rows: Row[]; onMet
   const s = data.session;
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 140 }}>
-      <Review row={{ id: s.id, day: s.day, meters: s.meters }} rows={rows} doc={s.doc} onMetric={onMetric} />
+      <Review row={{ id: s.id, day: s.day, meters: s.meters }} rows={rows} doc={s.doc} onMetric={onMetric} own />
     </ScrollView>
   );
 }
@@ -874,7 +874,7 @@ function Stickers({ rowId, onOpen, part }: { rowId: string; onOpen: (id: string)
   return (
     <>
       <Eye left={part === "m2d" ? "M2D stickers" : "Stickers"} right="For your story" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+      <ScrollView horizontal {...sideways} showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
         {!data
           ? [0, 1, 2, 3].map((k) =>
               error && k === 0 ? (
@@ -1026,7 +1026,7 @@ export function StickerTiles({ only, title = "Stickers", aside = "Tap to share",
       ) : cards.length === 0 ? (
         <Text style={mono(11, false, C.gray)}>{empty ?? "Nothing to share yet."}</Text>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+        <ScrollView horizontal {...sideways} showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
           {cards.map((c) => (
             <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Sticker: ${c.label}`} onPress={() => setOpen(c.id)} style={({ pressed }) => ({ width: 164, opacity: pressed ? 0.7 : 1 })}>
               <View style={{ height: 164, backgroundColor: GROUND, alignItems: "center", justifyContent: "center", padding: 10 }}>
@@ -1180,7 +1180,7 @@ export function Reels({ src, title = "Reel overlays", aside = "For your edit" }:
   return (
     <>
       <Eye left={title} right={aside} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+      <ScrollView horizontal {...sideways} showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
         {CLIPS.map((c, i) => (
           <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Reel overlay: ${c.label}`} onPress={() => show(i)} style={{ width: 124 }}>
             <View style={{ height: 220, backgroundColor: GROUND, alignItems: "center", justifyContent: "center" }}>
@@ -1212,7 +1212,7 @@ export function Reels({ src, title = "Reel overlays", aside = "For your edit" }:
                 five-second version at ten frames a second, round and
                 round, from the moment the clip is opened and while the site
                 films. The film itself takes its place once it is made. */}
-            <ScrollView ref={strip} horizontal pagingEnabled scrollEnabled={!busy} showsHorizontalScrollIndicator={false} contentOffset={{ x: (first.current + 1) * w, y: 0 }} onContentSizeChange={place}
+            <ScrollView ref={strip} horizontal {...sideways} pagingEnabled scrollEnabled={!busy} showsHorizontalScrollIndicator={false} contentOffset={{ x: (first.current + 1) * w, y: 0 }} onContentSizeChange={place}
               onLayout={(e) => {
                 setTall(Math.floor(e.nativeEvent.layout.height));
                 place();

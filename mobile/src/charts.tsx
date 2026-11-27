@@ -3,7 +3,7 @@ import { PanResponder, Platform, Pressable, ScrollView, Text, View, type Gesture
 import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
 import type { Kde, KdeYou } from "./api";
 import { mono } from "./site";
-import { scrub } from "./ui";
+import { scrub, sideways } from "./ui";
 import { C, F, fmtInt } from "./theme";
 
 /* THE CHARTS, drawn from what the site's own stats and profile compute
@@ -779,6 +779,7 @@ export function PaceLine({ curve, dots, fmt, height = 220 }: { curve: PacePoint[
             </Svg>
             <ScrollView
               ref={scroller}
+              {...(scrollable ? sideways : {})}
               horizontal
               scrollEnabled={scrollable}
               showsHorizontalScrollIndicator={false}

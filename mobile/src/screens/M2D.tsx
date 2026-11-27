@@ -851,7 +851,7 @@ export function M2dFaq({ v, focus, onBack, onScrollDir, onCharity }: { v: M2dVie
     <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, textTransform: "uppercase", marginTop: 30, paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>{h}</Text>
   );
   return (
-    <ScrollView ref={ref as never} {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132, paddingHorizontal: 20 }}>
+    <ScrollView {...dir} ref={ref as never} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132, paddingHorizontal: 20 }}>
       {onBack ? (
         <Pressable accessibilityRole="button" hitSlop={10} onPress={onBack} style={{ alignSelf: "flex-start", marginBottom: 14 }}>
           <Text style={mono(11, true, C.ink, 0.12)}>‹ M2D</Text>
@@ -1194,6 +1194,8 @@ type Return = {
   stretches: { label: string; first: string; last: string; partial: boolean }[];
   perStarted: number | null;
   perStartedStill: number | null;
+  january?: { rowers: number; per: number | null; partial: boolean } | null;
+  appUse?: { rowers: number; opened: number; avgDays: number | null };
 };
 const RETURN_PATH = "/api/row100k/app/m2d/return";
 const pctOf = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : "—");
@@ -1233,6 +1235,21 @@ export function M2dReturn() {
         ROWTEMBER&apos;s match {usd(d.cost)} of the {usd(d.cap)} cap · {d.started.rowers} started
         {d.perStartedStill != null ? ` · ${usd(d.perStartedStill)} per starter still rowing` : ""}
       </Text>
+      {/* KEPT INTO JANUARY (owner, 2026-11-26: "how many people rowed the
+          next month, like starting in January, that rowed during M2D ...
+          the amount we spent divided by that is how much we spent to get a
+          user"). */}
+      {head("Kept into January")}
+      {row("Cost per rower who rows in January", d.january?.per != null ? usd(d.january.per) : "—", d.january ? `${d.january.rowers} of the ${d.started.rowers + d.rowed.rowers} M2D rowers rowed in January${d.january.partial ? " so far" : ""}` : "Counts from Jan 1: the M2D rowers who log a row in January.")}
+      {/* THE APP DURING M2D (owner: "how often do these rowers use the app
+          during the event"). */}
+      {d.appUse ? (
+        <>
+          {head("The app during M2D")}
+          {row("Opened the app in M2D", `${d.appUse.opened} of ${d.appUse.rowers}`, d.appUse.rowers ? `${pctOf(d.appUse.opened, d.appUse.rowers)} of the rowers in the window` : undefined)}
+          {row("Days in the app, each", d.appUse.avgDays != null ? `${d.appUse.avgDays}` : "—", "On average, of those who opened it. Counted from Nov 26.")}
+        </>
+      ) : null}
       {klass("Started in M2D", d.started, "Their first row on ROW was between Nov 26 and Dec 24.")}
       {klass("Rowed in M2D", d.rowed, "They rowed on ROW before Nov 26, and in M2D too.")}
       {!d.stretches.length ? (

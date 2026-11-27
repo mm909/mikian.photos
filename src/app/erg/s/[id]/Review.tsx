@@ -131,7 +131,7 @@ export function Review({ row, a, doc, play }: { row: TelemetrySavedRow; a: ErgAn
       <section className="rv-sec">
         <h2>
           The shape of it{" "}
-          {a.splitsDerived ? <em>· splits cut from the tick stream{a.splitsFromMeters > 0 ? `, from ${Math.round(a.splitsFromMeters).toLocaleString("en-US")} m where the recording starts` : ""}</em> : null}
+          {a.splitsDerived && a.splitsFromMeters > 0 ? <em>· from {Math.round(a.splitsFromMeters).toLocaleString("en-US")} m, where the recording starts</em> : null}
         </h2>
         <div className="rv-panels">
           <SplitBars splits={a.splits} avgTenths={a.avgSplitTenths} derived={a.splitsDerived} />
@@ -172,11 +172,11 @@ export function Review({ row, a, doc, play }: { row: TelemetrySavedRow; a: ErgAn
           Splits{" "}
           {a.splitsDerived ? (
             <em>
-              · derived, not the monitor’s own figures
+              · every {Math.round(a.splits[0]?.meters ?? 500).toLocaleString("en-US")} m
               {a.splitsFromMeters > 0 ? ` · the first bar begins at ${Math.round(a.splitsFromMeters).toLocaleString("en-US")} m, where this recording starts` : ""}
             </em>
           ) : (
-            <em>· as the monitor recorded them</em>
+            <em>· every {Math.round(a.splits[0]?.meters ?? 500).toLocaleString("en-US")} m</em>
           )}
         </h2>
         {a.splits.length ? (

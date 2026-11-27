@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import { M2dPlanner, M2dReturn } from "./M2D";
+import { AppUsage } from "./Usage";
 import * as Updates from "expo-updates";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
@@ -47,7 +48,7 @@ import { Concept2Card } from "../concept2";
 /* DEVELOPER is one page (owner, 2026-11-24: every developer option "into
  * one submenu", like the others): the arcade's resets, the Developer
  * account's reset, and the way to PASSWORD. */
-export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "concept2" | "developer" | "password" | "planner" | "return" | "about";
+export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "concept2" | "developer" | "password" | "planner" | "return" | "m2d" | "usage" | "about";
 
 const KIND: Record<string, [string, string]> = {
   passed: ["A rower I follow passes me", "At most one a day, however many passed."],
@@ -108,10 +109,12 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
             "put it in the settings page"). */}
         {/* M2D EXPOSURE, a press from the list (owner, 2026-11-25: "I need
             that exposure page in the app"): what M2D can cost at the rate. */}
-        {me.isAdmin ? <Go label="M2D exposure" sub="What the match can cost: so far, projected, per cent. Only you see this." onPress={() => onPage("planner")} /> : null}
-        {/* M2D RETURN, under the exposure (owner, 2026-11-25 evening: "a
-            section for my ROI"): who started, who rowed, who keeps rowing. */}
-        {me.isAdmin ? <Go label="M2D return" sub="Cost per rower, who started and who rowed, who keeps rowing after. Only you see this." onPress={() => onPage("return")} /> : null}
+        {/* ONE M2D ROW (owner, 2026-11-26: "the two M2D settings options
+            can be put into one M2D"): the exposure, then the return, on one
+            page. */}
+        {me.isAdmin ? <Go label="M2D" sub="What the match can cost, and what it buys: cost per rower, who keeps rowing. Only you see this." onPress={() => onPage("m2d")} /> : null}
+        {/* WHO USES THE APP (owner, 2026-11-26). */}
+        {me.isAdmin ? <Go label="App usage" sub="Accounts on the app, a day's use, who, the Android testers. Only you see this." onPress={() => onPage("usage")} /> : null}
         {me.isAdmin && onWiki ? <Go label="Wiki" sub="The plans, the arcade, the order of work. Only you see this." onPress={onWiki} /> : null}
         {arcadeFor(me) && onLocker ? <Go label="Locker" sub="Your piece's skins from the arcade's chests. Only you see this." onPress={onLocker} /> : null}
         <View style={{ height: 26 }} />
@@ -142,6 +145,17 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
    * only, in the developer settings (screens/M2D.tsx M2dPlanner). */
   if (page === "planner") return wrap(me.isAdmin ? <M2dPlanner /> : null);
   if (page === "return") return wrap(me.isAdmin ? <M2dReturn /> : null);
+  if (page === "m2d")
+    return wrap(
+      me.isAdmin ? (
+        <>
+          <M2dPlanner />
+          <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, textTransform: "uppercase", marginTop: 44, paddingBottom: 8, borderBottomWidth: 3, borderColor: C.ink }}>Return</Text>
+          <M2dReturn />
+        </>
+      ) : null,
+    );
+  if (page === "usage") return wrap(me.isAdmin ? <AppUsage /> : null);
   /* ABOUT, A PAGE OF ITS OWN (owner, 2026-11-25: "the about should
    * definitely just be in its own little settings folder"). */
   if (page === "about") return wrap(<About />);
@@ -149,7 +163,6 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
   if (page === "developer") {
     return wrap(
       <>
-        {me.isAdmin ? <Go label="M2D cost planner" sub="What M2D costs, and ROWTEMBER's rate. Only you see this." onPress={() => onPage("planner")} /> : null}
         {me.isAdmin ? <ArcadeDev /> : null}
         {me.isDev || me.isAdmin ? <DeveloperRows isDev={!!me.isDev} onPassword={() => onPage("password")} onReset={() => refresh()} /> : null}
       </>,

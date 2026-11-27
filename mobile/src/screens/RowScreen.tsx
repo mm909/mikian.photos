@@ -12,7 +12,7 @@ import { ApiError, api } from "../api";
 import { autoOf, onAuto, sendPiece, type Saved } from "../autolog";
 import { PENDING_MIN_M, dropPending, loadPending, loadPendingDoc, onPending, type Pending } from "../store";
 import { C, F, MONTHS, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
-import { Btn, Eyebrow, Num, styles } from "../ui";
+import { Btn, Eyebrow, Num, styles, sideways } from "../ui";
 import { FRAME, finishRow, logRow, pacificToday, pickPhoto, pickPhotos, shiftDay, type Picked, type Progress } from "../upload";
 import { SignIn } from "./Account";
 import { GhostRace, useRace } from "./GhostRace";
@@ -318,7 +318,11 @@ export function RowScreen({ erg, opened, onLogged, onLeave, onDemoRead }: { erg:
             <Text style={[styles.body, { flex: 1 }]}>{line}</Text>
           </View>
         ))}
-        {erg.phase === "idle" ? (
+        {/* THE DEMO ROWS, FOR THE OWNER AND THE REVIEWER ONLY (owner,
+            2026-11-26: "Do normal users see no rowing machine here, run a
+            demo row real time? Because they probably shouldn't, right?"):
+            an admin, or the developer sign-in Apple's reviewer uses. */}
+        {erg.phase === "idle" && (me.isAdmin || me.isDev) ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Run a demo row" onPress={() => erg.startDemo(DEMO_METERS, DEMO_SPEED)} hitSlop={6} style={({ pressed }) => ({ paddingVertical: 16, opacity: pressed ? 0.5 : 1 })}>
             <Text style={[styles.body, { fontSize: 14 }]}>
               No rowing machine here? <Text style={{ fontFamily: F.bold, color: C.ink, textDecorationLine: "underline" }}>Run a demo row</Text>
@@ -328,7 +332,7 @@ export function RowScreen({ erg, opened, onLogged, onLeave, onDemoRead }: { erg:
         {/* THE SAME DEMO AT THE SPEED OF A CLOCK (owner, 2026-11-24: "a
             real-time demo versus sped-up demo row"). Either can be switched
             to the other as it rows, from the strip under the pages. */}
-        {erg.phase === "idle" ? (
+        {erg.phase === "idle" && (me.isAdmin || me.isDev) ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Run a demo row in real time" onPress={() => erg.startDemo(DEMO_METERS, 1)} hitSlop={6} style={({ pressed }) => ({ paddingBottom: 16, marginTop: -8, opacity: pressed ? 0.5 : 1 })}>
             <Text style={[styles.body, { fontSize: 14 }]}>
               Or <Text style={{ fontFamily: F.bold, color: C.ink, textDecorationLine: "underline" }}>a demo row in real time</Text>
@@ -780,7 +784,7 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
 
       <View style={{ flex: 1 }} onLayout={onLayout}>
         {w ? (
-          <ScrollView ref={pages} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} onMomentumScrollEnd={onScroll} scrollEventThrottle={64}>
+          <ScrollView ref={pages} horizontal {...sideways} pagingEnabled showsHorizontalScrollIndicator={false} onScroll={onScroll} onMomentumScrollEnd={onScroll} scrollEventThrottle={64}>
             {order.map((k) => (
               <Fragment key={k}>{node[k]}</Fragment>
             ))}

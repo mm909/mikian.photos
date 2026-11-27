@@ -10,7 +10,8 @@ import { fmtTenthsClock, type TelemetryDoc } from "../pm5/session";
 import { Chip, Ctl, Dash, Eye, mono } from "../site";
 import { asSaved, loadDoc, type Row } from "../store";
 import { C, F, fmtInt } from "../theme";
-import { Skel } from "../ui";
+import { Skel, sideways } from "../ui";
+import { useSession } from "../session";
 import { Ask, FIELD_PATH, fieldHas, Flip, PaceField, ratePages, smallField, steadyPages, workPages, type FieldAnswer, type FieldForce, type MetricId } from "./Field";
 import { Pages } from "./Pages";
 import { Axes, Box, BOX_PAD, Key, Lab, PAD, pathOf } from "./reviewBits";
@@ -70,7 +71,8 @@ const whole = (y: number) => String(Math.round(y));
 
 /* `doc` is the recording when the caller already has it (the row page
  * reads it off the site); without it the phone's own copy is opened. */
-export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id" | "day" | "meters">; rows: Row[]; doc?: TelemetryDoc | null; /* Opens a card's questions, with this row's figures. */ onMetric?: (id: MetricId, mine: RowMeasure) => void }) {
+export function Review({ row, rows, doc: given, onMetric, own = false }: { row: Pick<Row, "id" | "day" | "meters">; rows: Row[]; doc?: TelemetryDoc | null; /* Opens a card's questions, with this row's figures. */ onMetric?: (id: MetricId, mine: RowMeasure) => void; /* The viewer's own row: the month's cue is theirs to act on. */ own?: boolean }) {
+  const { me: who } = useSession();
   const [state, setState] = useState<{ doc: TelemetryDoc; compare: { title: string; doc: TelemetryDoc } | null; usual: number[] | null } | "missing" | null>(null);
   /* The width the page gives the read, measured: every chart is drawn at
    * that many points, so a point on the glass is a point in the chart. */
@@ -262,7 +264,7 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
 
   /* COACHING is about the whole piece, whichever split is showing. */
   const allWork = range ? smooth(trimEnds(counted.filter((s) => num(s.workJ)).map((s) => ({ x: s.n, y: s.workJ as number }))), windowOf(counted.length)) : smooth(workRaw, win);
-  const cues = coachOf(a, craft, allWork, new Map(counted.map((s) => [s.n, s.distanceM])), field);
+  const cues = coachOf(a, craft, allWork, new Map(counted.map((s) => [s.n, s.distanceM])), field, own && who.totals && who.month ? { meters: who.totals.monthMeters, goal: who.month.goal, key: who.month.key, label: who.month.label } : null);
 
   return (
     <View key="read" onLayout={(e) => setW(Math.round(e.nativeEvent.layout.width))}>
@@ -408,7 +410,11 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
           or the blue bar over the pictures, brings the whole piece back. */}
       {w && a.splits.length ? (
         <>
-          <Eye left="Splits" right={a.splitsDerived ? `Derived, not the monitor's own figures${from ? ` · the first begins at ${from} m, where this recording starts` : ""}` : "As the monitor recorded them"} />
+          {/* JUST THE SPLITS (owner, 2026-11-26: "our app can make our own
+              split ... We don't have to derive the 500 meter splits. We can
+              just say what the 500 splits were"): the app records every
+              stroke, so a 500 is a 500, said plainly. */}
+          <Eye left="Splits" right={`Every ${fmtInt(a.splits[0]?.meters ?? 500)} m${a.splitsDerived && from ? ` · from ${from} m, where this recording starts` : ""}`} />
           <Text style={[mono(10, false, C.gray, 0.1), { marginBottom: 8, lineHeight: 15 }]}>{sel ? `${only}: the charts above show only its strokes. Press it again for the whole piece.` : "Press a split to see only its strokes in the charts above."}</Text>
           <SplitsTable splits={a.splits} fastest={a.fastestSplit} w={w} on={pick ?? -1} onPick={(k) => setPick((cur) => (cur === k ? null : k))} />
         </>
@@ -462,8 +468,56 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
 type Cue = { goal: string; act: string; why: string };
 const FASTER = "For a faster time";
 const ONE_PACE = "To hold one pace";
-function coachOf(a: ErgAnalysis, c: Craft, work: XY[], metersAt: Map<number, number>, field: FieldForce | null): Cue[] {
+/* TWO MORE GOALS (owner, 2026-11-26: "Let's do hit your month and row more
+ * meters"), first in the list when they apply.
+ *
+ * TO ROW MORE METERS: the next distance up from this one, at the split a
+ * rower usually holds for it. A distance twice as long is held about five
+ * seconds a 500 slower (Paul's law), so the target is this row's average
+ * plus 5 s for each doubling.
+ *
+ * TO HIT YOUR MONTH: on the viewer's own row only, the meters a day left
+ * to the month's goal, and how long a day that is at this row's split. */
+const LADDER = [1000, 2000, 3000, 5000, 6000, 8000, 10_000, 15_000, 21_097, 30_000, 42_195];
+type MonthNow = { meters: number; goal: number; key: string; label: string };
+function moreCue(a: ErgAnalysis): Cue | null {
+  if (!(a.meters >= 500) || !num(a.avgPaceTenths) || (a.avgPaceTenths as number) <= 0) return null;
+  const next = LADDER.find((d) => d >= a.meters * 1.15);
+  if (!next) return null;
+  const avg = a.avgPaceTenths as number;
+  const slower = Math.round(50 * Math.log2(next / a.meters));
+  const name = next === 21_097 ? "a half marathon" : next === 42_195 ? "a marathon" : `${fmtInt(next)} m`;
+  return {
+    goal: "To row more meters",
+    act: `try ${name} at ${split(avg + slower)}.`,
+    why: `This one was ${fmtInt(a.meters)} m at ${split(avg)}. A piece that much longer is usually held about ${fmtGap(slower)} a 500 slower: start at ${split(avg + slower)} and hold it, and the distance comes.`,
+  };
+}
+function monthCue(a: ErgAnalysis, m: MonthNow | null): Cue | null {
+  if (!m || !(m.goal > 0)) return null;
+  const left = m.goal - m.meters;
+  if (left <= 0) return null;
+  const [y, mo] = m.key.split("-").map(Number);
+  if (!y || !mo) return null;
+  const days = new Date(y, mo, 0).getDate();
+  const now = new Date();
+  if (now.getFullYear() !== y || now.getMonth() + 1 !== mo) return null;
+  const daysLeft = days - now.getDate() + 1;
+  const perDay = Math.ceil(left / daysLeft / 100) * 100;
+  const pace = num(a.avgPaceTenths) && (a.avgPaceTenths as number) > 0 ? (a.avgPaceTenths as number) : null;
+  const mins = pace ? Math.max(1, Math.round(((perDay / 500) * pace) / 600)) : null;
+  return {
+    goal: "To hit your month",
+    act: `row ${fmtInt(perDay)} m a day.`,
+    why: `${fmtInt(left)} m to go to ${fmtInt(m.goal)} in ${m.label}, with ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left, today counted.${mins ? ` At this row's ${split(pace)} split that is about ${mins} minutes a day.` : ""}`,
+  };
+}
+function coachOf(a: ErgAnalysis, c: Craft, work: XY[], metersAt: Map<number, number>, field: FieldForce | null, month: MonthNow | null = null): Cue[] {
   const out: Cue[] = [];
+  const mc = monthCue(a, month);
+  if (mc) out.push(mc);
+  const more = moreCue(a);
+  if (more) out.push(more);
   const h = a.halves;
   if (h) {
     const score = c.steady !== null ? `Steady pace ${c.steady} out of 100: ${Math.round(c.within1 * 100)}% of the strokes within a second of ${paceFmt(c.paceMean)}. ` : "";
@@ -502,7 +556,7 @@ function coachOf(a: ErgAnalysis, c: Craft, work: XY[], metersAt: Map<number, num
     else if (field ? field.peakPct - p >= 8 : p < 30) out.push({ goal: "For more speed from each stroke", act: "hold the pressure on through the back.", why: `Peak force comes early, at ${p.toFixed(0)}% of the drive${field ? ` against ${field.peakPct}% for the field` : ""}: a hard hit off the catch that falls away. Keep pushing as the back opens and the rest of the curve fills in.` });
   }
   if (c.same !== null && c.same < 70) out.push({ goal: "To be more consistent", act: "make every stroke the same stroke.", why: `Same stroke ${c.same} out of 100: the shape of the push kept changing. For the first 1,000 m think only of repeating the stroke before.` });
-  return out.slice(0, 4);
+  return out.slice(0, 5);
 }
 
 /* ---- the head ----------------------------------------------------------- */
@@ -703,7 +757,7 @@ function Table({ cols, rows, w, on = -1, accent = -1, onRow }: { cols: Col[]; ro
     </View>
   );
   return need > w ? (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} {...sideways}>
       {body}
     </ScrollView>
   ) : (

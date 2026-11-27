@@ -335,13 +335,43 @@ export function Tag({ children, on }: { children: ReactNode; on?: boolean }) {
  * list, which moved it again. So nothing is told within a short way of the
  * end, nor while the list is pulled past either end. */
 type ScrollEv = { nativeEvent: { contentOffset: { y: number }; contentSize?: { height: number }; layoutMeasurement?: { height: number } } };
-export function useScrollDir(tell?: (down: boolean) => void): { onScroll: (e: ScrollEv) => void; scrollEventThrottle: number; scrollEnabled: boolean } {
+export function useScrollDir(tell?: (down: boolean) => void): {
+  onScroll: (e: ScrollEv) => void;
+  scrollEventThrottle: number;
+  scrollEnabled: boolean;
+  ref: (r: unknown) => void;
+  onLayout: (e: { nativeEvent: { layout: { height: number } } }) => void;
+  onContentSizeChange: (w: number, h: number) => void;
+} {
   const last = useRef(0);
   const across = useSyncExternalStore(sideListen, sideRead, sideRead);
+  /* NO PAGE PAST ITS END (owner, 2026-11-26: "after clicking to opt in on
+   * the profile page, I'm left with just a blank screen"): the M2D steps
+   * are long, with the button at their foot; once in, the page is much
+   * shorter, and it stayed scrolled past its new end, all blank. When the
+   * content shrinks under where the page is, the page comes back to its
+   * end. Every page that takes these props gets it. */
+  type Scroller = { scrollTo?: (o: { y: number; animated?: boolean }) => void; scrollToOffset?: (o: { offset: number; animated?: boolean }) => void };
+  const view = useRef<Scroller | null>(null);
+  const viewH = useRef(0);
   return {
     scrollEventThrottle: 64,
     /* A page stands still under a drag across it (setSideDrag, below). */
     scrollEnabled: !across,
+    ref: (r) => {
+      view.current = (r as Scroller | null) ?? null;
+    },
+    onLayout: (e) => {
+      viewH.current = e.nativeEvent.layout.height;
+    },
+    onContentSizeChange: (_w, h) => {
+      const end = Math.max(0, h - viewH.current);
+      if (viewH.current > 0 && last.current > end + 1) {
+        last.current = end;
+        if (view.current?.scrollTo) view.current.scrollTo({ y: end, animated: false });
+        else view.current?.scrollToOffset?.({ offset: end, animated: false });
+      }
+    },
     onScroll: (e) => {
       const n = e.nativeEvent;
       const y = n.contentOffset.y;
@@ -416,7 +446,12 @@ export function PhotoPair({ photos, style, menu, gallery }: { photos: Photo[]; s
     <View style={[{ flexDirection: "row", gap: 4 }, style]}>
       {shown.map((p, i) => (
         <Pressable key={i} accessibilityRole="imagebutton" accessibilityLabel={i === 0 ? "The rower's photo" : "The monitor's photo"} onPress={() => setOpen(i)} style={{ flex: 1, aspectRatio: shown.length === 1 ? 4 / 3 : 4 / 5, backgroundColor: C.pale, borderCurve: "continuous", borderRadius: 8, overflow: "hidden" }}>
-          <Image source={{ uri: p.full }} resizeMode="cover" style={{ width: "100%", height: "100%" }} />
+          {/* THE SMALL COPY FIRST (owner, 2026-11-26: "my row from yesterday
+              ... its main photo takes a second to load"): the thumb, most
+              often already in hand from the feed, at once, and the full
+              photo laid over it when it lands. */}
+          {p.thumb && p.thumb !== p.full ? <Image source={{ uri: p.thumb }} resizeMode="cover" style={{ position: "absolute", width: "100%", height: "100%" }} /> : null}
+          <Image source={{ uri: p.full }} resizeMode="cover" fadeDuration={0} style={{ width: "100%", height: "100%" }} />
         </Pressable>
       ))}
       {open !== null ? (
@@ -587,6 +622,20 @@ export function tapSide(ref: { current: { measure?: (cb: (x: number, y: number, 
 /* `chart` is the narrower of the two: set by a chart's own surface alone,
  * so a card that turns (Field.tsx Flip) leaves a scrub to the chart. */
 export const scrub = { on: false, chart: false };
+/* Spread on anything that moves sideways under a finger (a row of tiles, a
+ * wide chart, a table wider than the screen): a drag that starts there is
+ * its own, and neither the tabs nor the page under it move. */
+export const sideways = {
+  onTouchStart: () => {
+    scrub.on = true;
+  },
+  onTouchEnd: () => {
+    scrub.on = false;
+  },
+  onTouchCancel: () => {
+    scrub.on = false;
+  },
+};
 /* A DRAG ACROSS THE SCREEN DOES NOT ALSO SCROLL THE PAGE UP AND DOWN
  * (owner, 2026-11-22, of the profile's three tabs: "whenever I'm swiping
  * back and forth between them, I can still scroll up and down. We probably
@@ -657,6 +706,7 @@ export function PhotoViewer({ photos, stamps, start, onClose, onMenu, onAt, chil
         <ScrollView
           ref={list}
           horizontal
+          {...sideways}
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           contentOffset={{ x: start * w, y: 0 }}

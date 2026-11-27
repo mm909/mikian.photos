@@ -43,6 +43,17 @@ export type M2dReturn = {
   stretches: { label: string; first: string; last: string; partial: boolean }[];
   perStarted: number | null;
   perStartedStill: number | null;
+  /* KEPT INTO JANUARY (owner, 2026-11-26: "a metric is how many people
+   * rowed the next month, like starting in January, that rowed during M2D
+   * ... the amount we spent divided by that is how much we spent to get a
+   * user ... for the next month"): rowers of either class who logged a row
+   * in January, and the match divided by them. Null until Jan 1. */
+  january: { rowers: number; per: number | null; partial: boolean } | null;
+  /* THE APP DURING M2D (owner: "how often do these rowers use the app
+   * during the event"): of the window's rowers, how many opened the app on
+   * some day of it, and the days they did on average (RowAppSeen, which
+   * counts from Nov 26). */
+  appUse: { rowers: number; opened: number; avgDays: number | null };
 };
 
 const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
@@ -116,6 +127,25 @@ export async function m2dReturn(): Promise<M2dReturn> {
   }
 
   const cost = Math.round(totals.matched * 100) / 100;
+
+  const JAN_FIRST = `${Number(M2D_LAST.slice(0, 4)) + 1}-01-01`;
+  const JAN_LAST = `${Number(M2D_LAST.slice(0, 4)) + 1}-01-31`;
+  let january: M2dReturn["january"] = null;
+  if (today >= JAN_FIRST && cls.size) {
+    const jan = await db.rowEntry.groupBy({ by: ["participantId"], where: { challenge: CHALLENGE, day: { gte: JAN_FIRST, lte: JAN_LAST }, participantId: { in: [...cls.keys()] } } });
+    january = { rowers: jan.length, per: jan.length ? Math.round((cost / jan.length) * 100) / 100 : null, partial: today <= JAN_LAST };
+  }
+
+  let appUse: M2dReturn["appUse"] = { rowers: cls.size, opened: 0, avgDays: null };
+  if (cls.size) {
+    const parts = await db.rowParticipant.findMany({ where: { id: { in: [...cls.keys()] } }, select: { userId: true } });
+    const seen = await db.rowAppSeen.findMany({ where: { userId: { in: parts.map((x) => x.userId) }, day: { gte: M2D_FIRST, lte: M2D_LAST } }, select: { userId: true, day: true } });
+    const daysOf = new Map<string, Set<string>>();
+    for (const x of seen) (daysOf.get(x.userId) ?? daysOf.set(x.userId, new Set()).get(x.userId)!).add(x.day);
+    const opened = daysOf.size;
+    const total = [...daysOf.values()].reduce((a, d) => a + d.size, 0);
+    appUse = { rowers: cls.size, opened, avgDays: opened ? Math.round((total / opened) * 10) / 10 : null };
+  }
   const over = today > M2D_LAST;
   return {
     window: { first: M2D_FIRST, last: M2D_LAST, over },
@@ -127,5 +157,7 @@ export async function m2dReturn(): Promise<M2dReturn> {
     stretches: st,
     perStarted: c.started.rowers ? Math.round((cost / c.started.rowers) * 100) / 100 : null,
     perStartedStill: over && c.started.last30 ? Math.round((cost / c.started.last30) * 100) / 100 : null,
+    january,
+    appUse,
   };
 }
