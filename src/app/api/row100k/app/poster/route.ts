@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { forcedBlackout } from "@/lib/blackoutRules";
 import { nowMs } from "@/lib/row100k";
-import { editionOf, monthName, monthOf, monthsThrough, parsePeriod } from "@/lib/rowPeriod";
+import { monthOf, monthsThrough, parsePeriod } from "@/lib/rowPeriod";
 import { rateLimit } from "@/lib/rateLimit";
 import { resolveViewer } from "@/lib/row100kViewer";
 import { communityPosterData, rowerPosterData } from "@/app/row100k/poster/data";
@@ -59,20 +59,24 @@ export async function GET(req: Request) {
       /* The ROWTEMBER sheet's chip wears the month's own name when it has
        * one (rowPeriod.ts EDITIONS: ROWVEMBER in November), ROWTEMBER
        * otherwise. */
+      /* ALL TIME FIRST, MONTHS BY THEIR NAMES (owner, 2026-11-26: "I think
+       * that the all time should be the first option, and let's stick with
+       * the September, November notation for Rowvember, Rowtember"). */
       const now = monthOf(at);
-      const periods = [...monthsThrough(at).map((m) => ({ key: m.key, label: `${monthName(m)} ${m.year}` })).reverse(), { key: "all", label: "All time" }];
+      const plain = (key: string) => new Date(`${key}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+      const periods = [{ key: "all", label: "All time" }, ...monthsThrough(at).map((m) => ({ key: m.key, label: `${plain(m.key)} ${m.year}` })).reverse()];
       return NextResponse.json(
         {
           ok: true,
           me: mineNum,
-          community: (editionOf(now) ?? "Rowtember").toUpperCase(),
+          community: plain(now.key).toUpperCase(),
           subjects: [
             ...(mineNum ? [{ key: "rower", label: "You" }] : []),
-            { key: "rowtember", label: (editionOf(now) ?? "Rowtember").toUpperCase() },
+            { key: "rowtember", label: plain(now.key).toUpperCase() },
             { key: "m2d", label: "M2D" },
           ],
           periods,
-          current: now.key,
+          current: "all",
           colors: colors.map((c) => ({ key: c.key, label: c.label, swatch: c.swatch, ground: c.ground })),
           formats: APP_FORMAT_KEYS.map((k) => ({ key: k, label: FORMATS[k].label, kind: FORMATS[k].kind, w: FORMATS[k].w, h: FORMATS[k].h })),
         },

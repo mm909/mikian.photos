@@ -52,10 +52,12 @@ export async function posterColors(): Promise<PosterColor[]> {
   const settings = await siteSettings();
   const site = accentOn(sitePaletteOf(settings.palette), "paper").accent;
   const paper = paletteOf("cream", site).paper;
+  /* BLACK SECOND, after the cream (owner, 2026-11-26: "Let's also put the
+   * black after the cream"). */
   return [
     { key: "cream", label: "Cream", stock: "cream", accent: site, swatch: site, ground: paper },
-    ...CUTS.filter((c) => c.hex.toLowerCase() !== site.toLowerCase()).map((c) => ({ key: c.key, label: c.label, stock: "cream" as const, accent: c.hex, swatch: c.hex, ground: paper })),
     { key: "bw", label: "Black", stock: "bw", swatch: "#ffffff", ground: paletteOf("bw").paper },
+    ...CUTS.filter((c) => c.hex.toLowerCase() !== site.toLowerCase()).map((c) => ({ key: c.key, label: c.label, stock: "cream" as const, accent: c.hex, swatch: c.hex, ground: paper })),
   ];
 }
 

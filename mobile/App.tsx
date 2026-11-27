@@ -806,6 +806,20 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
             onTab={(t) => {
               setMenu(false);
               setAway(false);
+              /* THE PAGE SLIDES BACK (owner, 2026-11-26: "when I'm on the
+                 profile and then I go to the poster screen and then I click
+                 the profile icon again, then it snaps to the profile page
+                 instead of transitions ... It should know that, oh, we
+                 actually can just slide this thing back"): a press on the
+                 tab the pages are open over lets the pages under the top
+                 one go, and the top one slides away the way the arrow takes
+                 it. Another tab still goes at once. */
+              if (t === tab && stack.length && !logOn && leave.current) {
+                const out = leave.current;
+                if (stack.length > 1) setStack((s) => s.slice(-1));
+                requestAnimationFrame(() => out());
+                return;
+              }
               leave.current = null;
               setStack([]);
               if (logOn) setLog("hidden");
