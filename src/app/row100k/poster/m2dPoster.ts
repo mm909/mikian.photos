@@ -171,34 +171,23 @@ const windowGrid: Mod = (() => {
 })();
 
 /* THE THREE CHARITIES (owner, 2026-11-25: "Project Inclusion, Shine a
- * Light, and Candlelighters"): each one's dollars, ROWTEMBER's part and
- * the pledges as the rowers split them, with a bar of its share of the
- * three. Concept2's own money goes where each rower picked in their
- * Logbook, which we cannot see, so it is not split here. */
+ * Light, and Candlelighters"), BY NAME ALONE (owner, 2026-11-26: "On the
+ * posters, I don't want it to say how much each charity is getting. I
+ * don't want to show the breakdown"): no dollars, no share, no bar. */
 const charities = mod("charities", 80, (ctx, box, d, paint) => {
   const { tk, c } = paint;
-  let y = paint.eyebrow(ctx, box.x, box.y, box.w, "The charities", "ROWTEMBER + pledges", "Las Vegas");
-  const sum = d.charities.reduce((a, ch) => a + ch.dollars, 0);
-  /* Tighter on a phone frame, where the square has the number, the strip
-   * and these three and nothing else. */
+  let y = paint.eyebrow(ctx, box.x, box.y, box.w, "The charities", "Las Vegas");
   const phone = isPhone(paint);
   const size = tk.row * (phone ? 1 : 1.1);
   const nf = paint.font("archivoBold", size);
-  const vf = paint.font("monoBold", size);
   const m = paint.metricsOf(ctx, nf, size);
-  const barH = Math.max(tk.hair * 2, tk.row * (phone ? 0.32 : 0.5));
   d.charities.forEach((ch, i) => {
-    if (i > 0) y += tk.row * (phone ? 0.55 : 0.9);
-    const share = sum > 0 ? ch.dollars / sum : 1 / Math.max(1, d.charities.length);
-    const value = `${usd(ch.dollars)} · ${Math.round(share * 100)}%`;
-    const vw = paint.measure(ctx, value, vf, 0.04 * size);
-    const name = paint.ellipsize(ctx, ch.name.toUpperCase(), box.w - vw - size, nf, 0.02 * size);
+    if (i > 0) y += tk.row * (phone ? 0.45 : 0.7);
+    const name = paint.ellipsize(ctx, ch.name.toUpperCase(), box.w, nf, 0.02 * size);
     paint.drawText(ctx, name, box.x, y + m.asc, nf, c.ink, 0.02 * size);
-    paint.drawRight(ctx, value, box.x + box.w, y + m.asc, vf, c.water, 0.04 * size);
-    y += m.lh + tk.row * (phone ? 0.2 : 0.35);
-    paint.rule(ctx, box.x, y, box.w, barH, c.waterBand);
-    if (share > 0) paint.rule(ctx, box.x, y, Math.max(barH, box.w * share), barH, c.water);
-    y += barH;
+    y += m.lh;
+    paint.rule(ctx, box.x, y + tk.row * 0.3, box.w, tk.hair, c.line);
+    y += tk.row * 0.3 + tk.hair;
   });
   return y - box.y;
 });
