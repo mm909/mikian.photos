@@ -684,7 +684,7 @@ function Line({ r, place, onPress }: { r: M2dRow; place: number | null; onPress:
  * if they're not opted in, how do you opt in?"). On the rower's own page:
  * the steps until they are in, then their dollars. On somebody else's:
  * their line of the board. */
-export function M2dPanel({ num, own }: { num: number; own: boolean }) {
+export function M2dPanel({ num, own, onFaq }: { num: number; own: boolean; onFaq?: () => void }) {
   const { data: v, error, reload } = useM2d();
   const inOut = useIn(v ?? null, reload);
   if (!v) return <Waiting error={error} onRetry={reload} />;
@@ -726,20 +726,17 @@ export function M2dPanel({ num, own }: { num: number; own: boolean }) {
             ))}
             <TotalItem d={usd(c2 + ours + theirs.reduce((a, g) => a + g.d, 0))} />
           </View>
-          {own && isIn ? (
-            <View style={{ marginTop: 22 }}>
-              <Text style={mono(10, true, C.ink, 0.12)}>Where it goes</Text>
-              <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.ink, marginTop: 6 }}>
-                <Text style={{ fontFamily: F.bold }}>Concept2&apos;s</Text> goes to the charity you picked in your Concept2 Logbook.
-              </Text>
-              <Text style={{ fontFamily: F.sans, fontSize: 14, lineHeight: 20, color: C.ink, marginTop: 4 }}>
-                <Text style={{ fontFamily: F.bold }}>{by}&apos;s{theirs.length ? " and the pledges" : ""}</Text> go to the charity you pick here.
-              </Text>
-            </View>
-          ) : null}
         </>
       )}
       {own && v.me?.in && matchOn ? <Split v={v} busy={inOut.busy} onSave={(s) => inOut.say(true, undefined, s)} /> : null}
+      {/* WHERE IT GOES IS THE FAQ'S (owner, 2026-11-26: "Put the where it
+          goes ... below the split of your charities actually maybe we just
+          link to the faqs for it"). */}
+      {own && onFaq ? (
+        <Pressable accessibilityRole="link" hitSlop={8} onPress={onFaq} style={{ alignSelf: "flex-start", marginTop: 16 }}>
+          <Text style={[mono(10, true, C.accent, 0.12), { textDecorationLine: "underline" }]}>Where it goes · M2D FAQ ↗</Text>
+        </Pressable>
+      ) : null}
       {/* Registering and Concept2 at the foot (owner, 2026-11-25). */}
       {own && v.me && !v.me.in && !v.window.over ? (
         <Steps v={v} busy={inOut.busy} pick={inOut.pick} onPick={inOut.onPick} onIn={() => inOut.say(true, inOut.pick && inOut.pick !== EVEN ? inOut.pick : undefined)} />

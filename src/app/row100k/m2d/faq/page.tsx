@@ -11,8 +11,8 @@ import { m2dCss } from "../m2dCss";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "M2D: how it adds up — Rowtember",
-  description: "How the M2D dollars are worked out: Concept2's part, ROWTEMBER's part, and where each goes.",
+  title: "M2D FAQ — Rowtember",
+  description: "How the M2D dollars add up, how to log a row for M2D, and the questions people ask.",
 };
 
 /* THE M2D FAQ (owner, 2026-11-25: tapping CONCEPT2 or ROWTEMBER in the
@@ -38,7 +38,7 @@ export default async function M2dFaqPage() {
       <main className="bd m2 m2-faq">
         <div className="wrap front">
           <h1 className="bd-date">
-            <b>M2D · How it adds up</b>
+            <b>M2D FAQ</b>
             <span>
               <Link href="/m2d">Back to M2D</Link>
             </span>
@@ -49,12 +49,26 @@ export default async function M2dFaqPage() {
             </p>
           ) : (
             <>
+              {/* THE M2D FAQ (owner, 2026-11-26: "this page should be a M2D FAQ
+                  and a section of that is the how it adds up"; "change the
+                  Rowtember site as well"): HOW IT ADDS UP, HOW DO I LOG A ROW,
+                  QUESTIONS, as the app's. */}
+              <h2 className="m2-sec">How it adds up</h2>
               <h2 id="concept2">
                 Concept2 <i>{usd(v.totals.raised)}</i>
               </h2>
               <p>
-                Thank you, Concept2. Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ for each of the first 100 kilometers, which is $2, and 4¢ for every kilometer after that. 150K is $4, 200K is $6, 300K is $10. It goes to the charity the rower picks in their Concept2 Logbook.
+                Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ a kilometer for the first 100,
+                then 4¢ a kilometer after that. It goes to the charity the rower picks in their Concept2 Logbook.
               </p>
+              <dl className="sum">
+                {([[100_000, 2], [150_000, 4], [200_000, 6], [300_000, 10]] as const).map(([m, d]) => (
+                  <div key={m}>
+                    <dt>{num(m)} m</dt>
+                    <dd>{usd(d)}</dd>
+                  </div>
+                ))}
+              </dl>
               <p>
                 Our Concept2 figure adds that up for every registered Rowtember rower past 100K, from the rows they log on ROW:{" "}
                 {v.totals.past100k} {v.totals.past100k === 1 ? "rower" : "rowers"} so far, {usd(v.totals.raised)}. Concept2 counts the
@@ -65,8 +79,7 @@ export default async function M2dFaqPage() {
                 {v.match.by} <i>{usd(v.totals.matched)}</i>
               </h2>
               <p>
-                {v.match.by} matches Concept2: {cents(v.rate)} for every kilometer a registered rower logs on ROW, from the first meter. There is no
-                minimum.
+                {v.match.by} matches Concept2: {cents(v.rate)} for every kilometer a registered rower logs on ROW, from the first meter.
               </p>
               <dl className="sum">
                 <div>
@@ -84,10 +97,7 @@ export default async function M2dFaqPage() {
                   <dd>{usd(v.totals.matched)}</dd>
                 </div>
               </dl>
-              <p>
-                Each rower&apos;s part goes to the charity they picked, or across the three by the shares they set on their profile in
-                the ROW app:
-              </p>
+              <p>Where it goes, so far:</p>
               <dl className="sum">
                 {v.charities.map((c) => (
                   <div key={c.key}>
@@ -110,6 +120,11 @@ export default async function M2dFaqPage() {
                   </div>
                 ) : null}
               </dl>
+              <p>
+                <Link href="/m2d" className="m2-btn">
+                  Pick my charity
+                </Link>
+              </p>
 
               {/* WHAT A ROW RAISES (owner, 2026-11-25: the 50K to 300K lines
                   moved here from the M2D page, so the board comes sooner). */}
@@ -127,24 +142,49 @@ export default async function M2dFaqPage() {
                 ))}
               </dl>
 
-              {/* HOW TO LOG (owner, 2026-11-25: "say I just finished 5K. What do
-                  I do for my log to count ... for the Concept2 challenge ... For our
-                  challenge, it's just going to be log the meters"): two 1, 2, 3s. */}
+              {/* HOW TO LOG (owner, 2026-11-26: "we don't want to have them
+                  connect to the rower with their phone and submit that way we
+                  instead want to show them how to log on the concept 2 site ...
+                  We want users to use our app to connect the ergs"). */}
               <h2 id="log">How do I log a row?</h2>
-              <h3>For Concept2</h3>
+              <p>Log every row in both places: on ROW for the board and the match, and in your Concept2 Logbook for Concept2&apos;s part.</p>
+              <h3>1. On ROW</h3>
               <ol className="m2-steps">
                 <li>
                   <span className="k">1</span>
                   <div>
-                    <b>Row with ErgData</b>
-                    <p>Open ErgData (free, iPhone and Android) and connect it to the monitor by Bluetooth before you start. Row your 5K.</p>
+                    <b>Connect ROW to the monitor</b>
+                    <p>Tap the + at the top of the ROW app and connect to the monitor by Bluetooth before you start.</p>
                   </div>
                 </li>
                 <li>
                   <span className="k">2</span>
                   <div>
-                    <b>Let it sync</b>
-                    <p>When you finish, ErgData sends the row to your Concept2 Logbook on its own. No phone? Type it in at log.concept2.com: Add Workout, then the meters, time and date.</p>
+                    <b>Row</b>
+                    <p>The row logs itself, with the full telemetry. Save it, and it counts for M2D right away.</p>
+                  </div>
+                </li>
+              </ol>
+              <h3>2. On Concept2</h3>
+              <ol className="m2-steps">
+                <li>
+                  <span className="k">1</span>
+                  <div>
+                    <b>Open log.concept2.com</b>
+                    <p>
+                      Sign in to your{" "}
+                      <a href="https://log.concept2.com" target="_blank" rel="noopener noreferrer">
+                        Concept2 Logbook ↗
+                      </a>
+                      .
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span className="k">2</span>
+                  <div>
+                    <b>Add Workout</b>
+                    <p>Type the same row in: the meters, the time and the date. Save.</p>
                   </div>
                 </li>
                 <li>
@@ -155,38 +195,13 @@ export default async function M2dFaqPage() {
                   </div>
                 </li>
               </ol>
-              <h3>For ROWTEMBER</h3>
-              <ol className="m2-steps">
-                <li>
-                  <span className="k">1</span>
-                  <div>
-                    <b>Tap Log a row</b>
-                    <p>The + at the top of the ROW app, or Log a row on rowtember.com.</p>
-                  </div>
-                </li>
-                <li>
-                  <span className="k">2</span>
-                  <div>
-                    <b>Enter it, or row it live</b>
-                    <p>Type your meters and time (a photo if you like). Or connect to the monitor by Bluetooth in the app and the row logs itself, with the full telemetry.</p>
-                  </div>
-                </li>
-                <li>
-                  <span className="k">3</span>
-                  <div>
-                    <b>Save</b>
-                    <p>It counts for M2D right away, from your first meter, on the board and in your dollars.</p>
-                  </div>
-                </li>
-              </ol>
-              <p className="m2-note">One app at a time: the monitor talks to one app by Bluetooth. Row live with ROW and add the row to your Concept2 Logbook by hand after; row with ErgData and log it on ROW after. Sending ROW rows to Concept2 on their own is coming.</p>
 
               <h2>Questions</h2>
               <h3>When is it?</h3>
               <p>Thursday, Nov 26 to Thursday, Dec 24. Concept2 takes meters into the Logbook until Jan 4.</p>
               <h3>How do I register?</h3>
               <p>
-                Make a free Concept2 Logbook, pick a charity there, and get your meters into it (ErgData does that). Then tell us: press
+                Make a free Concept2 Logbook, pick a charity there, and add your rows there at log.concept2.com. Then tell us: press
                 I&apos;m registered on <Link href="/m2d">the M2D page</Link> and pick the charity {v.match.by}&apos;s part goes to.
               </p>
               <h3>How do I change my charity?</h3>

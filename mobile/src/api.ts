@@ -129,6 +129,7 @@ export type Notice = { avatar?: string | null; id: string; kind: "follow" | "req
 export type SocialSettings = { isPrivate: boolean; notifyOff: string[]; kinds: string[]; notifyOn?: string[]; optIn?: string[]; avatar?: string | null; bio?: string; heightCm?: number | null; weightKg?: number | null; birthday?: string | null };
 /* The two questions behind the stats (api/row100k/app/stories). */
 export type Stories = {
+  weekly?: { weeks: { start: string; rowers: number; live: boolean }[]; avg4: number; prev4: number | null; goal: number };
   rowers: { today: number; todayDay: string; weeks: number[]; days: { day: string; rowers: number }[]; months: { key: string; label: string; year: string; rowers: number; rows: number; meters: number }[]; everyone: number };
   when: { hours: number[]; weekdays: number[]; rows: number };
   /* Three more (2026-11-21): who makes the 100K, how far a row is, how

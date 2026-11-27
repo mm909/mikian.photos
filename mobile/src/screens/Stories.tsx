@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import Svg, { Circle, Line, Path, Text as SvgText } from "react-native-svg";
 import { api, type Stories as Base } from "../api";
-import { Columns } from "../charts";
+import { Columns, ScrubColumns } from "../charts";
 import { Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import { Bar, Waiting, useLoad } from "../ui";
@@ -40,9 +40,10 @@ type Slower = { bands: { rows: number; median: number }[]; cells: { b: number; p
 type Often = { days: number[]; weeks: number; median: number; mean: number; rowers: number; spans: number };
 type Stories = Base & { slower?: Slower; often?: Often };
 
-export type StoryId = "rowers" | "when" | "club" | "length" | "fivek" | "slower" | "often";
+export type StoryId = "rowers" | "weekly" | "when" | "club" | "length" | "fivek" | "slower" | "often";
 const STORIES: { id: StoryId; q: string; sub: string }[] = [
   { id: "rowers", q: "How many people are rowing?", sub: "Today, this week, and each month so far" },
+  { id: "weekly", q: "How many row each week?", sub: "Weekly rowers, and the average of the last four weeks" },
   { id: "club", q: "How many make the 100K?", sub: "Each month, and how many rows it took them" },
   { id: "when", q: "When do people row?", sub: "The hour of the day, and the day of the week" },
   { id: "length", q: "How far is a typical row?", sub: "Every row by its length, a thousand meters at a time" },
@@ -73,6 +74,8 @@ export function StoriesScreen({ onStory }: { onStory: (id: StoryId) => void }) {
 const hourWord = (h: number) => (h === 0 ? "12 AM" : h === 12 ? "noon" : h < 12 ? `${h} AM` : `${h - 12} PM`);
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const short = (day: string) => `${Number(day.slice(5, 7))}/${Number(day.slice(8))}`;
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dayLong = (day: string) => `${MON[Number(day.slice(5, 7)) - 1]} ${Number(day.slice(8))}`;
 
 export function StoryScreen({ id }: { id: StoryId }) {
   const { data, error, reload } = useLoad(() => api<Stories>(PATH), [], PATH);
@@ -81,7 +84,7 @@ export function StoryScreen({ id }: { id: StoryId }) {
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 }}>
       <Text style={{ fontFamily: F.black, fontSize: 28, lineHeight: 32, color: C.ink }}>{story.q}</Text>
-      {id === "rowers" ? <Rowers r={data.rowers} /> : id === "club" && data.club ? <Club c={data.club} /> : id === "length" && data.length ? <Length l={data.length} /> : id === "fivek" && data.fivek ? <FiveK f={data.fivek} /> : id === "slower" && data.slower ? <SlowerStory s={data.slower} /> : id === "often" && data.often ? <OftenStory o={data.often} /> : id === "when" ? <When w={data.when} /> : <Words>This answer is not here yet. Pull the stats down to refresh and open it again.</Words>}
+      {id === "rowers" ? <Rowers r={data.rowers} /> : id === "weekly" && data.weekly ? <Weekly w={data.weekly} /> : id === "club" && data.club ? <Club c={data.club} /> : id === "length" && data.length ? <Length l={data.length} /> : id === "fivek" && data.fivek ? <FiveK f={data.fivek} /> : id === "slower" && data.slower ? <SlowerStory s={data.slower} /> : id === "often" && data.often ? <OftenStory o={data.often} /> : id === "when" ? <When w={data.when} /> : <Words>This answer is not here yet. Pull the stats down to refresh and open it again.</Words>}
     </ScrollView>
   );
 }
@@ -136,7 +139,7 @@ function Length({ l }: { l: NonNullable<Stories["length"]> }) {
       <Eye left="Rows by length" right="A column a thousand meters" />
       <Columns values={l.bins} accent={peak} height={110} />
       <Under labels={["0", "3K", "6K", "9K", "12K+"]} />
-      <Words>One column is a thousand meters of length: the first is every row under 1,000 m, the last is every row of 12,000 m or more. The blue one is the commonest.</Words>
+      <Words>One column is a thousand meters of length: the first is every row under 1,000 m, the last is every row of 12,000 m or more. The tallest column, in blue, is the length rowed most often.</Words>
     </>
   );
 }
@@ -286,7 +289,7 @@ function OftenStory({ o }: { o: Often }) {
           </Text>
         ))}
       </View>
-      <Words>A week is Monday to Sunday, and a rower is counted in it once they have logged one row in it: a week off is not in here. One column is how many of those weeks had that many days with a row. The blue one is the commonest. The week still being rowed is left out.</Words>
+      <Words>A week is Monday to Sunday, and a rower is counted in it once they have logged one row in it: a week off is not in here. One column is how many of those weeks had that many days with a row. The tallest column, in blue, is the most usual week. The week still being rowed is left out.</Words>
     </>
   );
 }
@@ -330,9 +333,18 @@ function Rowers({ r }: { r: Stories["rowers"] }) {
       </Answer>
 
       <Eye left="Each day, the last four weeks" right={`${r.today} so far today`} />
-      <Columns values={r.days.map((d) => d.rowers)} accent={r.days.length - 1} height={110} />
+      <ScrubColumns
+        values={r.days.map((d) => d.rowers)}
+        accent={r.days.length - 1}
+        height={110}
+        say={(i) => {
+          if (i === null) return "Hold a column to read it";
+          const d = r.days[i];
+          return `${i === r.days.length - 1 ? "Today" : dayLong(d.day)} · ${d.rowers} ${d.rowers === 1 ? "rower" : "rowers"}`;
+        }}
+      />
       <Under labels={[short(r.days[0].day), short(r.days[9].day), short(r.days[18].day), "Today"]} />
-      <Words>One column is one day: how many different rowers logged at least one row on it. Today is the blue one, and it is still filling.</Words>
+      <Words>One column is one day: how many different rowers logged at least one row on it. Today is the last one, in blue, and it is still filling.</Words>
 
       <Eye left="Each month" right={`${fmtInt(r.everyone)} rowers in all`} />
       {r.months.map((m) => (
@@ -352,6 +364,42 @@ function Rowers({ r }: { r: Stories["rowers"] }) {
         </View>
       ))}
       <Words>A rower counts for a month once they have logged one row in it, however many more they log.</Words>
+    </>
+  );
+}
+
+/* HOW MANY ROW EACH WEEK (owner, 2026-11-26: "Avg weekly rowers, 4 week
+ * avg"): the average of the last four whole weeks as the big figure, then
+ * every week as a column a finger can read. */
+function Weekly({ w }: { w: NonNullable<Stories["weekly"]> }) {
+  const whole = w.weeks.filter((x) => !x.live);
+  const live = w.weeks.find((x) => x.live);
+  const last4 = whole.slice(-4);
+  const trend = w.prev4 === null ? "" : w.avg4 === w.prev4 ? ` That is level with the four weeks before (${w.prev4}).` : ` That is ${w.avg4 > w.prev4 ? "up" : "down"} from ${w.prev4} in the four weeks before.`;
+  if (!w.weeks.length) return <Words>Nobody has logged a row yet.</Words>;
+  return (
+    <>
+      <Answer value={String(w.avg4)} unit="rowers a week, the last four weeks">
+        On average, that many different rowers logged at least one row each week over the last four whole weeks{last4.length ? ` (${last4.map((x) => x.rowers).join(", ")})` : ""}.{trend}
+      </Answer>
+
+      <Eye left="The goal" right={`${w.goal} a week`} />
+      <Bar value={Math.min(w.avg4, w.goal)} goal={w.goal} height={10} />
+      <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 8 }]}>{w.avg4 >= w.goal ? "Made it" : `${fmtInt(Math.ceil(w.goal - w.avg4))} more a week to go`}</Text>
+
+      <Eye left="Each week" right={live ? `${live.rowers} so far this week` : ""} />
+      <ScrubColumns
+        values={w.weeks.map((x) => x.rowers)}
+        accent={w.weeks.length - 1}
+        height={110}
+        say={(i) => {
+          if (i === null) return "Hold a column to read it";
+          const x = w.weeks[i];
+          return `${x.live ? "This week" : `Week of ${dayLong(x.start)}`} · ${x.rowers} ${x.rowers === 1 ? "rower" : "rowers"}`;
+        }}
+      />
+      <Under labels={[short(w.weeks[0].start), short(w.weeks[Math.floor((w.weeks.length - 1) / 2)].start), "This week"]} />
+      <Words>A week is Monday to Sunday. A rower counts once in a week if they logged at least one row in it, however many more they log. This week is the last column, in blue, and it is still filling, so the average leaves it out.</Words>
     </>
   );
 }

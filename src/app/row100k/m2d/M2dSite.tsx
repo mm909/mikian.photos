@@ -407,7 +407,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
         <div className="bd-strip">
           <span className="t">M2D board · {t.rowers} rowing</span>
           <Link className="bd-ctl" href="/m2d/faq">
-            How it adds up
+            M2D FAQ
           </Link>
         </div>
         <div className="bd-table" role="table" aria-label="The M2D board">

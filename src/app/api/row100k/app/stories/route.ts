@@ -199,9 +199,30 @@ export async function GET() {
     for (const d of rowerWeeks.values()) dayCounts[Math.min(7, d.size) - 1]++;
     const perWeek = [...rowerWeeks.values()].map((d) => d.size);
 
+    /* WEEKLY ROWERS (owner, 2026-11-26: "I also want a faq for Avg weekly
+     * rowers, 4 week avg"; his North Star is 100 average weekly users over
+     * four weeks): every week, Monday to Sunday, the different rowers who
+     * logged at least one row in it, oldest first, the week being rowed
+     * last; and the average of the last four whole weeks. */
+    const weekSets = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const wk = mondayOf(r.day);
+      let s = weekSets.get(wk);
+      if (!s) weekSets.set(wk, (s = new Set()));
+      s.add(r.participantId);
+    }
+    const firstWeek = [...weekSets.keys()].sort()[0] ?? thisWeek;
+    const weekly: { start: string; rowers: number; live: boolean }[] = [];
+    for (let wk = firstWeek; wk <= thisWeek; wk = addDays(wk, 7)) weekly.push({ start: wk, rowers: weekSets.get(wk)?.size ?? 0, live: wk === thisWeek });
+    const whole = weekly.filter((w) => !w.live);
+    const avgOf = (ws: { rowers: number }[]) => (ws.length ? Math.round((ws.reduce((a, w) => a + w.rowers, 0) / ws.length) * 10) / 10 : 0);
+    const last4 = whole.slice(-4);
+    const prev4 = whole.slice(-8, -4);
+
     return yes({
       slower: { bands, cells, paceFrom: LO, paceTo: HI, paceStep: PACE_STEP, rows: timed.length, short: group(timed.filter((r) => r.m < 3000).map((r) => r.s)), long: group(timed.filter((r) => r.m >= 9000).map((r) => r.s)) },
       often: { days: dayCounts, weeks: perWeek.length, median: mid(perWeek), mean: perWeek.length ? Math.round((perWeek.reduce((a, b) => a + b, 0) / perWeek.length) * 10) / 10 : 0, rowers: new Set([...rowerWeeks.keys()].map((k) => k.split("|")[1])).size, spans: new Set([...rowerWeeks.keys()].map((k) => k.split("|")[0])).size },
+      weekly: { weeks: weekly, avg4: avgOf(last4), prev4: prev4.length === 4 ? avgOf(prev4) : null, goal: 100 },
       rowers: { today: on(today), todayDay: today, weeks: [week(0), week(1), week(2)], days, months, everyone: new Set(rows.map((r) => r.participantId)).size },
       when: { hours, weekdays, rows: rows.length },
       club: { months: club, everMade: everMade.size, goal: GOAL },

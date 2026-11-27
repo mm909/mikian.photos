@@ -158,10 +158,12 @@ export function ProfileScreen({
   onEdit,
   onSettings,
   onLocker,
+  onM2dFaq,
 }: {
   num?: number;
   /* The arcade tab's CHANGE THE LOOK: the locker. */
   onLocker?: () => void;
+  onM2dFaq?: () => void;
   /* EDIT PROFILE, pressed on the rower's own page: the account's settings. */
   onEdit?: () => void;
   /* A page of the settings, for the bell's question (2026-11-23). */
@@ -336,7 +338,7 @@ export function ProfileScreen({
     ) : sub === "ratings" ? (
       <Ratings p={p} onLocker={onLocker} />
     ) : sub === "m2d" ? (
-      <M2dPanel num={p.rower.rowerNumber} own={p.isMe} />
+      <M2dPanel num={p.rower.rowerNumber} own={p.isMe} onFaq={onM2dFaq} />
     ) : (
           <>
           {/* WHICH MONTH, and that month's figures, here and not in the

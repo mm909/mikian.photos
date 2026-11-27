@@ -962,6 +962,49 @@ export function HourGrid({ grid, start = 3, dayLabels = true }: { grid: number[]
 }
 
 /* Columns: one value a slot, the tallest named. */
+/* COLUMNS A FINGER CAN READ (owner, 2026-11-26: "let's make the graph
+ * scrubable"): a finger on the columns lights the one under it and says
+ * what it is above the chart; lifted, the line goes back to `rest`. */
+export function ScrubColumns({ values, height = 70, accent, say }: { values: number[]; height?: number; accent?: number; say: (i: number | null) => string }) {
+  const [at, setAt] = useState<number | null>(null);
+  const w = useRef(0);
+  const n = values.length;
+  const pick = (x: number) => {
+    if (!(w.current > 0) || !n) return;
+    setAt(Math.max(0, Math.min(n - 1, Math.floor((x / w.current) * n))));
+  };
+  const touch = useTouch({
+    live: () => true,
+    down: (t) => pick(t.x),
+    move: (t) => pick(t.x),
+    up: (t) => {
+      if (!t.mouse) setAt(null);
+    },
+    cancel: () => setAt(null),
+  });
+  const max = Math.max(1, ...values);
+  const lit = at ?? accent;
+  return (
+    <View>
+      <Text style={{ fontFamily: F.monoBold, fontSize: 12, color: at === null ? C.gray : C.accent, marginBottom: 8, fontVariant: ["tabular-nums"] }}>{say(at)}</Text>
+      <View {...touch.pan} collapsable={false}>
+        <View style={{ height, flexDirection: "row", alignItems: "flex-end", gap: 2, borderBottomWidth: 2, borderColor: C.ink }}>
+          {values.map((v, i) => (
+            <View key={i} style={{ flex: 1, height: `${Math.max(v ? 3 : 0, (v / max) * 100)}%`, backgroundColor: i === lit ? C.accent : C.ink }} />
+          ))}
+        </View>
+        <View
+          {...touch.surface}
+          onLayout={(e) => {
+            w.current = e.nativeEvent.layout.width;
+          }}
+          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
+        />
+      </View>
+    </View>
+  );
+}
+
 export function Columns({ values, height = 70, accent }: { values: number[]; height?: number; accent?: number }) {
   const max = Math.max(1, ...values);
   return (

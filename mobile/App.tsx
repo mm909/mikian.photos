@@ -465,7 +465,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : t === "stats" ? (
       <StatsScreen onRower={openRower} onRow={openRow} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} />
     ) : (
-      <ProfileScreen key={stamp} onLocker={() => push({ kind: "locker" })} onPlus={onPlus} onEdit={() => push({ kind: "settings", page: "account" })} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
+      <ProfileScreen key={stamp} onLocker={() => push({ kind: "locker" })} onM2dFaq={() => push({ kind: "m2dfaq" })} onPlus={onPlus} onEdit={() => push({ kind: "settings", page: "account" })} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     );
 
   /* A ROW LOGGED lands on its own page, with what the totals were a moment
@@ -550,7 +550,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
 
   const screen = (o: Over): ReactNode =>
     o.kind === "rower" ? (
-      <ProfileScreen num={o.num} onPlus={onPlus} onRow={openRow} onPeople={openPeople} onSettings={(page) => push({ kind: "settings", page })} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
+      <ProfileScreen num={o.num} onM2dFaq={() => push({ kind: "m2dfaq" })} onPlus={onPlus} onRow={openRow} onPeople={openPeople} onSettings={(page) => push({ kind: "settings", page })} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     ) : o.kind === "people" ? (
       <PeopleScreen list={o.list} num={o.num} onRower={openRower} />
     ) : o.kind === "bests" ? (
