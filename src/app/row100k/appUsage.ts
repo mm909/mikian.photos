@@ -26,8 +26,17 @@ export type UsagePerson = {
   days: number;
   opens: number;
 };
+/* AGAINST FOUR WEEKS (owner, 2026-11-26: "You can include things like
+ * likes and comments on rows as well as part of the usage stats. And I
+ * probably want to compare most of these numbers to a 4-week period, like a
+ * 4-week average"). Each figure today against the average day of the 28
+ * before it, and the last 7 days against the average week of the 28 before
+ * those. A figure counted only since some day (the app's opens, from Nov
+ * 26) is averaged over the days it has; with none yet, no average. */
+export type Versus = { key: string; label: string; today: number; avgDay: number | null; week: number; avgWeek: number | null };
 export type AppUsage = {
   today: string;
+  versus: Versus[];
   since: string | null;
   accounts: number;
   byPlatform: { ios: number; android: number; web: number };
@@ -105,6 +114,74 @@ export async function appUsage(): Promise<AppUsage> {
   }
   const t = days[days.length - 1];
 
+  /* THE FOUR-WEEK COMPARISONS. Days are Pacific. */
+  const from = addDays(today, -34);
+  const fromAt = new Date(Date.parse(`${from}T00:00:00-08:00`));
+  const [likes, comments, logged] = await Promise.all([
+    db.rowLike.findMany({ where: { challenge: CHALLENGE, createdAt: { gte: fromAt } }, select: { createdAt: true, participantId: true } }),
+    db.rowComment.findMany({ where: { challenge: CHALLENGE, deletedAt: null, createdAt: { gte: fromAt } }, select: { createdAt: true, participantId: true } }),
+    db.rowEntry.findMany({ where: { challenge: CHALLENGE, createdAt: { gte: fromAt } }, select: { createdAt: true, participantId: true } }),
+  ]);
+  type Ev = { day: string; who: string; n: number };
+  const ev = (xs: { createdAt: Date; participantId: string }[]): Ev[] => xs.map((x) => ({ day: pacificDay(x.createdAt.getTime()), who: x.participantId, n: 1 }));
+  const seenEv: Ev[] = seen.filter((s) => s.day >= from).map((s) => ({ day: s.day, who: s.userId, n: s.opens }));
+  const weekStart = addDays(today, -6);
+  const priorDay0 = addDays(today, -28);
+  const priorWeek0 = addDays(today, -34);
+  const within = (d: string, a: string, b: string) => d >= a && d <= b;
+  const tracked = (since: string | null, a: string, b: string) => {
+    if (!since) return 0;
+    const s = since > a ? since : a;
+    return s > b ? 0 : Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${s}T12:00:00Z`)) / 86_400_000) + 1;
+  };
+  const one = (key: string, label: string, xs: Ev[], how: "count" | "people", since: string | null): Versus => {
+    const sum = (a: string, b: string) => {
+      const inside = xs.filter((x) => within(x.day, a, b));
+      return how === "people" ? new Set(inside.map((x) => x.who)).size : inside.reduce((m, x) => m + x.n, 0);
+    };
+    /* Distinct people a day, averaged: each day counted on its own. */
+    const perDay = (a: string, b: string) => {
+      let total = 0;
+      for (let d = a; d <= b; d = addDays(d, 1)) total += sum(d, d);
+      return total;
+    };
+    const dayN = tracked(since, priorDay0, addDays(today, -1));
+    const weekDays = tracked(since, priorWeek0, addDays(today, -7));
+    const weekTotal = how === "people" ? (() => {
+      /* Distinct people in each of the four weeks, then their mean. */
+      let tot = 0;
+      let n = 0;
+      for (let w = 0; w < 4; w++) {
+        const b = addDays(today, -7 - 7 * w);
+        const a = addDays(b, -6);
+        const days = tracked(since, a, b);
+        /* Only whole weeks: people do not add up by the day. */
+        if (days < 7) continue;
+        tot += sum(a, b);
+        n++;
+      }
+      return n ? tot / n : null;
+    })() : weekDays ? (sum(priorWeek0, addDays(today, -7)) / weekDays) * 7 : null;
+    const r1 = (v: number | null) => (v == null ? null : Math.round(v * 10) / 10);
+    return {
+      key,
+      label,
+      today: sum(today, today),
+      avgDay: dayN ? r1(perDay(addDays(today, -dayN), addDays(today, -1)) / dayN) : null,
+      week: sum(weekStart, today),
+      avgWeek: r1(weekTotal),
+    };
+  };
+  const appSince = seen.length ? seen.map((s) => s.day).sort()[0] : null;
+  const versus: Versus[] = [
+    one("users", "Rowers in the app", seenEv, "people", appSince),
+    one("opens", "Times opened", seenEv, "count", appSince),
+    one("rows", "Rows logged", ev(logged), "count", "2000-01-01"),
+    one("rowers", "Rowers who logged", ev(logged), "people", "2000-01-01"),
+    one("likes", "Likes", ev(likes), "count", "2000-01-01"),
+    one("comments", "Comments", ev(comments), "count", "2000-01-01"),
+  ];
+
   /* An Android tester is on the app when the account with their email has
    * an Android phone in either record. */
   const androidIds = new Set([...by.entries()].filter(([, p]) => p.platforms.has("android")).map(([id]) => id));
@@ -117,6 +194,7 @@ export async function appUsage(): Promise<AppUsage> {
   const seenDays = seen.map((s) => s.day).sort();
   return {
     today,
+    versus,
     since: seenDays[0] ?? null,
     accounts: by.size,
     byPlatform,

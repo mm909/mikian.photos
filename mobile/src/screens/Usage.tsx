@@ -13,8 +13,10 @@ import { Waiting, useLoad } from "../ui";
  * people we have and if they've ... downloaded the app"). The owner's
  * alone, in settings. The figures are the site's (row100k/appUsage.ts). */
 type Person = { name: string; rowerNumber: number | null; platforms: string[]; firstDay: string; lastDay: string; days: number; opens: number };
+type Versus = { key: string; label: string; today: number; avgDay: number | null; week: number; avgWeek: number | null };
 type Usage = {
   today: string;
+  versus?: Versus[];
   since: string | null;
   accounts: number;
   byPlatform: { ios: number; android: number; web: number };
@@ -48,6 +50,18 @@ export function AppUsage() {
     </View>
   );
   const a = d.android;
+  /* A figure, its average beside it, and how far off, up in blue. */
+  const vs = (k: string, now: number, avg: number | null) => {
+    const off = avg != null && avg > 0 ? Math.round((now / avg - 1) * 100) : null;
+    return (
+      <View key={k} style={{ flexDirection: "row", alignItems: "baseline", columnGap: 10, paddingVertical: 8, borderBottomWidth: 1, borderColor: C.line }}>
+        <Text style={{ flex: 1, fontFamily: F.sans, fontSize: 14, color: C.ink }}>{k}</Text>
+        <Text style={{ width: 52, textAlign: "right", fontFamily: F.monoBold, fontSize: 14, color: C.ink, fontVariant: ["tabular-nums"] }}>{fmtInt(now)}</Text>
+        <Text style={{ width: 52, textAlign: "right", fontFamily: F.mono, fontSize: 12, color: C.gray, fontVariant: ["tabular-nums"] }}>{avg == null ? "—" : avg >= 10 ? fmtInt(avg) : avg.toFixed(1)}</Text>
+        <Text style={{ width: 52, textAlign: "right", fontFamily: F.monoBold, fontSize: 12, color: off == null ? C.gray : off >= 0 ? C.accent : C.ink, fontVariant: ["tabular-nums"] }}>{off == null ? "" : `${off >= 0 ? "+" : ""}${off}%`}</Text>
+      </View>
+    );
+  };
   return (
     <View>
       <Text style={[mono(10, true, C.ink, 0.12), { marginTop: 8 }]}>Accounts on the app</Text>
@@ -56,9 +70,26 @@ export function AppUsage() {
         {`${d.byPlatform.ios} iPhone · ${d.byPlatform.android} Android${d.byPlatform.web ? ` · ${d.byPlatform.web} web` : ""}. Signed in on the app. A download nobody signed in on is only in Apple's and Google's consoles.`}
       </Text>
 
-      {head("Today", short(d.today))}
-      {row("Rowers who opened the app", fmtInt(d.todayUsers))}
-      {row("Times it was opened", fmtInt(d.todayOpens), "Each time it comes to the front, a minute apart at least.")}
+      {/* AGAINST FOUR WEEKS (owner, 2026-11-26: "include things like likes
+          and comments on rows ... compare most of these numbers to a ...
+          4-week average"). */}
+      {d.versus ? (
+        <>
+          {head("Today", "vs a 4-week average day")}
+          {d.versus.map((v) => vs(v.label, v.today, v.avgDay))}
+          {head("Last 7 days", "vs a 4-week average week")}
+          {d.versus.map((v) => vs(v.label, v.week, v.avgWeek))}
+          <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 8, lineHeight: 15 }]}>
+            {`The app's opens are counted from ${d.since ? short(d.since) : "today"}, so their average is over the days there are. Rows, likes and comments go back as far as they need.`}
+          </Text>
+        </>
+      ) : (
+        <>
+          {head("Today", short(d.today))}
+          {row("Rowers who opened the app", fmtInt(d.todayUsers))}
+          {row("Times it was opened", fmtInt(d.todayOpens), "Each time it comes to the front, a minute apart at least.")}
+        </>
+      )}
 
       {head("The last 14 days", d.since ? `Counted from ${short(d.since)}` : "Counts from today")}
       <View style={{ marginTop: 12 }}>

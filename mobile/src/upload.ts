@@ -126,11 +126,17 @@ async function send(r: Ready, onBytes?: (sent: number) => void): Promise<string>
   await put(signed.url, r.main, onBytes);
   if (r.thumb) {
     const thumb = r.thumb;
-    try {
-      const t = await api<{ url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: thumb.size, thumbFor: signed.key } });
-      await put(t.url, thumb, onBytes ? (n) => onBytes(r.main.size + n) : undefined);
-    } catch {
-      /* A row without a thumb shows its full photo. */
+    /* TWICE BEFORE GIVING UP (owner, 2026-11-26, of a row whose photo was
+     * slow to show: "why did it not get made?"): the small copy's upload
+     * had failed once, on a phone's connection, and nothing tried again. */
+    for (let tries = 0; tries < 2; tries++) {
+      try {
+        const t = await api<{ url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: thumb.size, thumbFor: signed.key } });
+        await put(t.url, thumb, onBytes ? (n) => onBytes(r.main.size + n) : undefined);
+        break;
+      } catch {
+        /* A row without a thumb shows its full photo. */
+      }
     }
   }
   onBytes?.(bytesOf(r));
