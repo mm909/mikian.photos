@@ -1813,6 +1813,23 @@ model RowAppSeen {
   @@index([day])
 }
 
+/// THE LIVE ERG VIEW'S PANELS, LOOKED AT (owner, 2026-11-26: "which panel
+/// users are spending their time on"): seconds on screen, one line per
+/// account, Pacific day and panel ("race", "pace", "figures", ...), added to
+/// (api/row100k/app/panels). Additive; a new table.
+model RowPanelTime {
+  id        String   @id @default(cuid())
+  userId    String
+  day       String
+  panel     String
+  seconds   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, day, panel])
+  @@index([day])
+}
+
 /// LIKES AND COMMENTS on a logged row (owner, 2026-11-22: "I've officially
 /// bit the bullet. I think we want like, comment, share on the posts").
 /// Named by RowEntry.id and RowParticipant.id, no FKs, like the rest of the

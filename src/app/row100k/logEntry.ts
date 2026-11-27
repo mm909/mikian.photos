@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
 import { digitCount } from "@/lib/blackoutRules";
 import { sendOwnerNotification } from "@/lib/email";
-import { notifyRowLogged } from "@/lib/rowNotify";
+import { notifyRowLogged, ownerWasPushed } from "@/lib/rowNotify";
 import { rateLimit } from "@/lib/rateLimit";
 import { CHALLENGE, MAX_ENTRIES_PER_DAY, MAX_ENTRIES_TOTAL, daysElapsed, defaultRowTitle, type EntryInput } from "@/lib/row100k";
 import { monthFromKey, type Month } from "@/lib/rowPeriod";
@@ -89,6 +89,15 @@ export async function saveRow(participant: SaveParticipant, input: EntryInput, p
   });
   revalidateTag("row100k-boards");
 
+  /* The rower's followers first (lib/rowNotify.ts), so the owner's email
+   * below knows whether his phone was already told. Awaited, and it cannot
+   * throw. */
+  const told = await notifyRowLogged({ id: participant.id, displayName: participant.displayName }, { id: entry.id, day: entry.day, meters: entry.meters, seconds: entry.seconds });
+  /* PUSH, NOT EMAIL (owner, 2026-11-26: "if I'm getting a notification when
+   * someone rows, I don't need that notification through email"). The
+   * milestone note is not pushed, so it still emails. */
+  const pushedOwner = await ownerWasPushed(told);
+
   /* Heads-up to the owner on every logged row (owner call, launch day), and
    * a second note when the row crossed a milestone (owner, 2026-09-16). The
    * wording lives in rowMail.ts. Awaited so serverless can't kill it
@@ -152,7 +161,7 @@ export async function saveRow(participant: SaveParticipant, input: EntryInput, p
       }
     }
     const note = rowLoggedMail(logged, censor);
-    await sendOwnerNotification(note.subject, note.text, undefined, notifyTo);
+    if (!pushedOwner) await sendOwnerNotification(note.subject, note.text, undefined, notifyTo);
 
     // The milestone note: censored JUST FOR THE ELITE (owner, 2026-09-16,
     // second telling: "make emails censored just for the elite"). A rower
@@ -169,10 +178,6 @@ export async function saveRow(participant: SaveParticipant, input: EntryInput, p
   } catch (err) {
     console.error("row100k: row-logged notification failed", err);
   }
-
-  /* The rower's followers (lib/rowNotify.ts). Awaited for the same reason
-   * as the mail, and it cannot throw. */
-  await notifyRowLogged({ id: participant.id, displayName: participant.displayName }, { id: entry.id, day: entry.day, meters: entry.meters, seconds: entry.seconds });
 
   return { ok: true, id: entry.id, title: value.title };
 }

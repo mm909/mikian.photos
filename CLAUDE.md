@@ -37,7 +37,7 @@ A sign-up or entry route (Longhorn LMS, the Hyrox board, race day) calls `sendOw
 
 Owner, 2026-11-26: "anything that I get a notification for, like a push notification for, I no longer need an email for."
 
-Where the owner gets a push on his phone (`notifyOwner` in `src/lib/rowNotify.ts`, which returns whether it went), he gets no email for the same thing. The email is sent only when the push could not go out, so nothing is lost. Today that is the M2D sign-up (`src/app/row100k/m2d.ts`) and the M2D pledge (`src/app/row100k/m2dPledgeActions.ts`); every other sign-up still emails.
+Where the owner gets a push on his phone (`notifyOwner` in `src/lib/rowNotify.ts`, which returns whether it went), he gets no email for the same thing. The email is sent only when the push could not go out, so nothing is lost. Today that is the M2D sign-up (`src/app/row100k/m2d.ts`), the M2D pledge (`src/app/row100k/m2dPledgeActions.ts`), a new rower joining (`api/row100k/join`, pushed to him since 2026-11-26: "I want to get that as a push notification instead") and a logged row whenever his phone was pushed it (`logEntry.ts`, `ownerWasPushed`). The milestone note and the other sign-ups (Longhorn LMS, Hyrox, race day) still email.
 
 ## No address on a sticker
 

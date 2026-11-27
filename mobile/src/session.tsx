@@ -4,6 +4,21 @@ import { STAMP } from "./splash";
 import * as WebBrowser from "expo-web-browser";
 import { API, api, forgetReads, loadToken, setToken, viewAs, type Me } from "./api";
 import { buzz } from "./buzz";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+/* The phone's own id, made once and kept: counts a phone that never signs in. */
+const DEVICE_KEY = "row.device";
+async function deviceId(): Promise<string> {
+  try {
+    const had = await AsyncStorage.getItem(DEVICE_KEY);
+    if (had) return had;
+    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+    await AsyncStorage.setItem(DEVICE_KEY, id);
+    return id;
+  } catch {
+    return "";
+  }
+}
 
 /* WHO IS HOLDING THE PHONE. One read of /api/row100k/app/me when the app
  * opens and after anything that changes it (a sign-in, a join, a logged
@@ -61,22 +76,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    * app"): once signed in, and each time the app comes back to the front,
    * the site counts a day of use (api/row100k/app/seen). Nothing waits on
    * it and nothing is said if it fails. */
+  /* EVERY PHONE (owner, 2026-11-26: "Let's make sure we know about all
+   * phones"): signed in or not, counted by the phone's own id when there
+   * is no account. Not while the owner views as a rower: that is him. */
   const signedIn = me.signedIn;
   const lastSeen = useRef(0);
   useEffect(() => {
-    if (!signedIn) return;
+    if (!ready) return;
     const seen = () => {
       const now = Date.now();
-      if (now - lastSeen.current < 60_000) return;
+      if (now - lastSeen.current < 60_000 || viewAs.rower) return;
       lastSeen.current = now;
-      api("/api/row100k/app/seen", { body: { platform: Platform.OS, version: STAMP } }).catch(() => null);
+      void deviceId().then((device) => api("/api/row100k/app/seen", { body: { platform: Platform.OS, version: STAMP, device } }).catch(() => null));
     };
     seen();
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") seen();
     });
     return () => sub.remove();
-  }, [signedIn]);
+  }, [signedIn, ready]);
 
   const take = useCallback(
     async (body: Record<string, string>) => {

@@ -7,6 +7,7 @@ import type { DemoCtl, Erg } from "../erg/useErg";
 import type { TelemetryDoc } from "../pm5/session";
 import { arcadeFor } from "../arcade/gate";
 import { useSession } from "../session";
+import { panelOff, panelOn } from "../panelTime";
 import { mono } from "../site";
 import { ApiError, api } from "../api";
 import { autoOf, onAuto, sendPiece, type Saved } from "../autolog";
@@ -634,6 +635,14 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
   const order: PageKey[] = raceFirst
     ? ["race", ...(prodOn ? (["show"] as const) : []), ...(upOn ? (["up"] as const) : []), "pace", "figures", "chart", "splits", "end"]
     : ["pace", ...(prodOn ? (["show"] as const) : []), "race", "figures", "chart", "splits", "end"];
+  /* THE PANEL LOOKED AT (owner, 2026-11-26: "which panel users are
+   * spending their time on"), while a monitor is up (panelTime.ts). */
+  const panelKey = erg.phase === "live" ? (order[page] ?? null) : null;
+  useEffect(() => {
+    if (panelKey) panelOn(panelKey);
+    else panelOff();
+  }, [panelKey]);
+  useEffect(() => () => panelOff(), []);
   const prodPage = order.indexOf("show");
   const upPage = order.indexOf("up");
   const racePage = order.indexOf("race");

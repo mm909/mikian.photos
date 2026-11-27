@@ -21,6 +21,9 @@ type Usage = {
   accounts: number;
   byPlatform: { ios: number; android: number; web: number; phone?: number };
   meterShare?: { today: number | null; week: number | null; prior4: number | null };
+  recorded?: { week: number | null; weekRows: number; prior4: number | null; prior4Rows: number };
+  panels?: { panel: string; minutes: number; rowers: number }[];
+  signedOut?: number;
   todayUsers: number;
   todayOpens: number;
   days: { day: string; users: number; opens: number }[];
@@ -29,6 +32,8 @@ type Usage = {
 };
 const PATH = "/api/row100k/app/usage";
 const short = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+/* The live erg view's panels, by the names the top bar gives them. */
+const PANEL: Record<string, string> = { race: "Race", show: "Arcade", up: "Up next", pace: "Pace", figures: "Figures", chart: "Chart", splits: "Splits", end: "The end" };
 const PLAT: Record<string, string> = { ios: "iPhone", android: "Android", web: "Web", phone: "Phone, kind not known yet" };
 
 export function AppUsage() {
@@ -88,6 +93,27 @@ export function AppUsage() {
               {row("The 4 weeks before", d.meterShare.prior4 == null ? "—" : `${d.meterShare.prior4}%`, "Before Nov 26 a row is the app's when it has a recording or a caption; a typed one counts as the site's.")}
             </>
           ) : null}
+          {/* OFF A MONITOR OR TYPED IN (owner, 2026-11-26: "how many rows
+              have telemetry data versus are just logged manually"). */}
+          {d.recorded ? (
+            <>
+              {head("Rows with a recording", "off a monitor, not typed")}
+              {row("Last 7 days", d.recorded.week == null ? "—" : `${d.recorded.week}%`, `${d.recorded.weekRows} rows logged`)}
+              {row("The 4 weeks before", d.recorded.prior4 == null ? "—" : `${d.recorded.prior4}%`, `${d.recorded.prior4Rows} rows logged`)}
+            </>
+          ) : null}
+          {/* THE LIVE ERG VIEW (owner: "which panel users are spending their
+              time on"). */}
+          {d.panels ? (
+            <>
+              {head("The live erg view", "minutes, last 28 days")}
+              {d.panels.length ? (
+                d.panels.map((p) => row(PANEL[p.panel] ?? p.panel, `${p.minutes} min`, `${p.rowers} ${p.rowers === 1 ? "rower" : "rowers"}`))
+              ) : (
+                <Text style={[mono(10, false, C.gray, 0.08), { paddingVertical: 8 }]}>Counts from this update: nobody else has rowed with the app open since.</Text>
+              )}
+            </>
+          ) : null}
           {head("Last 7 days", "vs a 4-week average week")}
           {d.versus.map((v) => vs(v.label, v.week, v.avgWeek))}
           <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 8, lineHeight: 15 }]}>
@@ -96,7 +122,8 @@ export function AppUsage() {
         </>
       ) : (
         <>
-          {head("Today", short(d.today))}
+          {d.signedOut ? row("Phones not signed in", fmtInt(d.signedOut), "Opened the app and never signed in, counted from this update.") : null}
+      {head("Today", short(d.today))}
           {row("Rowers who opened the app", fmtInt(d.todayUsers))}
           {row("Times it was opened", fmtInt(d.todayOpens), "Each time it comes to the front, a minute apart at least.")}
         </>

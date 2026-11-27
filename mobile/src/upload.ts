@@ -123,13 +123,27 @@ const bytesOf = (r: Ready) => r.main.size + (r.thumb?.size ?? 0);
  * together. */
 async function send(r: Ready, onBytes?: (sent: number) => void): Promise<string> {
   const signed = await api<{ key: string; url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: r.main.size } });
-  await put(signed.url, r.main, onBytes);
+  /* The photo itself, three tries before the form says it did not go
+   * (owner, 2026-11-26: "definitely retry it if we fail to upload"). The
+   * signed address lasts ten minutes, long enough for all three. */
+  for (let tries = 0; ; tries++) {
+    try {
+      await put(signed.url, r.main, onBytes);
+      break;
+    } catch (err) {
+      if (tries >= 2) throw err;
+      await new Promise((res) => setTimeout(res, 800 * (tries + 1)));
+    }
+  }
   if (r.thumb) {
     const thumb = r.thumb;
     /* TWICE BEFORE GIVING UP (owner, 2026-11-26, of a row whose photo was
      * slow to show: "why did it not get made?"): the small copy's upload
      * had failed once, on a phone's connection, and nothing tried again. */
-    for (let tries = 0; tries < 2; tries++) {
+    for (let tries = 0; tries < 3; tries++) {
+      /* A breath between tries, longer each time (2026-11-26: "definitely
+       * retry it if we fail to upload"). */
+      if (tries > 0) await new Promise((r) => setTimeout(r, 800 * tries));
       try {
         const t = await api<{ url: string }>("/api/row100k/photos/sign", { body: { contentType: "image/jpeg", contentLength: thumb.size, thumbFor: signed.key } });
         await put(t.url, thumb, onBytes ? (n) => onBytes(r.main.size + n) : undefined);

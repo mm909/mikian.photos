@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { sendOwnerNotification } from "@/lib/email";
+import { notifyOwner } from "@/lib/rowNotify";
 import { joinNote } from "@/app/row100k/joinMail";
 import { parseJoinExtras } from "@/app/row100k/join/fields";
 import { JOIN_PAGE_LIVE } from "@/app/row100k/join/live";
@@ -269,8 +270,15 @@ export async function POST(req: Request) {
           accountName: actor.name ?? "",
           accountEmail: actor.email,
         });
-        const sent = await sendOwnerNotification(note.subject, note.text, actor.email);
-        if (!sent.ok) console.error("row100k: signup email failed", sent.error);
+        /* A SIGN-UP IS A PUSH (owner, 2026-11-26: "I want to be notified
+         * anytime someone signs up ... I want to get that as a push
+         * notification instead. But if I get it as a push notification, I
+         * do not need it as an email"): the email only when the push could
+         * not go. */
+        if (!(await notifyOwner(note.subject, { kind: "signup", rower: String(created.rowerNumber) }))) {
+          const sent = await sendOwnerNotification(note.subject, note.text, actor.email);
+          if (!sent.ok) console.error("row100k: signup email failed", sent.error);
+        }
       }
 
       return NextResponse.json({

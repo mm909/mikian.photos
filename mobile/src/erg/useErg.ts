@@ -41,6 +41,7 @@ const KEEP_EVERY_MS = 15_000;
  * sent: one stray word from it as a piece starts must not log anything, and
  * its closing figures (the summary) land a moment after the word. */
 const END_HOLD_MS = 1500;
+const SUMMARY_WAIT_MS = 8000;
 /* How often what is kept is gone through for pieces that are over. */
 const SWEEP_EVERY_MS = 45_000;
 
@@ -151,6 +152,13 @@ export function useErg(): Erg {
    * itself. A demo row is "logged" on the phone and goes nowhere. */
   const endTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const demoSaved = (l: Live): AutoState => ({ state: "saved", rowId: "demo", day: new Date(Date.now() - 7 * 3600_000).toISOString().slice(0, 10), meters: Math.floor(l.meters), seconds: Math.max(1, Math.round(l.elapsedS)), title: "", recorded: false });
+  /* WAIT FOR THE MONITOR'S SUMMARY (owner, 2026-11-26: "if we stop getting
+   * the end of workout summary, check to see if that's something we're
+   * doing"): since a row began logging itself the moment it ends (Nov 24),
+   * it went before the monitor's end-of-workout summary came in, a moment
+   * after the piece ends, and every recording since was saved without it.
+   * The row now waits for the summary, up to SUMMARY_WAIT_MS more. */
+  const endedAt = useRef(0);
   const finished = (id: string | null) => {
     const l = model.get();
     if (!l.ended) return;
@@ -159,6 +167,11 @@ export function useErg(): Erg {
       return;
     }
     if (!id || piece.current?.id !== id) return;
+    if (!model.hasSummary() && Date.now() - endedAt.current < SUMMARY_WAIT_MS) {
+      if (endTimer.current) clearTimeout(endTimer.current);
+      endTimer.current = setTimeout(() => finished(id), 500);
+      return;
+    }
     keep();
     if (l.meters >= PENDING_MIN_M && l.strokes >= 8 && logsItself({ meters: Math.floor(l.meters), full: isFull(l) })) void sendPiece(id);
   };
@@ -202,6 +215,7 @@ export function useErg(): Erg {
       if (l.ended && !wasOver) {
         const id = piece.current?.id ?? null;
         if (endTimer.current) clearTimeout(endTimer.current);
+        endedAt.current = Date.now();
         endTimer.current = setTimeout(() => finished(id), END_HOLD_MS);
       }
       /* A new piece on the monitor starts the splits and the trail again. */

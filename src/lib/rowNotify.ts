@@ -171,9 +171,14 @@ export async function clearRequest(recipientId: string, actorId: string): Promis
  * No metres in the PASSED line: the line leads to the board. PASSED is not
  * sent at all while a lights-out window is open, since who passed whom is
  * exactly what the window hides. */
-export async function notifyRowLogged(rower: { id: string; displayName: string }, entry: { id: string; day: string; meters: number; seconds?: number }): Promise<void> {
-  if (await fromDeveloper(rower.id)) return;
-  await notifyRowed(rower, entry);
+export async function notifyRowLogged(rower: { id: string; displayName: string }, entry: { id: string; day: string; meters: number; seconds?: number }): Promise<string[]> {
+  if (await fromDeveloper(rower.id)) return [];
+  const told = await notifyRowed(rower, entry);
+  await notifyFollowers(rower, entry);
+  return told;
+}
+
+async function notifyFollowers(rower: { id: string; displayName: string }, entry: { id: string; day: string; meters: number; seconds?: number }): Promise<void> {
   try {
     const follows = await db.rowFollow.findMany({ where: { challenge: CHALLENGE, followeeId: rower.id, status: "accepted", notify: true }, select: { followerId: true } });
     if (follows.length === 0) return;
@@ -264,7 +269,7 @@ export async function numbersHidden(): Promise<boolean> {
   return b.active || (b.hideLow ?? 0) > 0;
 }
 
-async function notifyRowed(rower: { id: string; displayName: string }, entry: { id: string; meters: number; seconds?: number }): Promise<void> {
+async function notifyRowed(rower: { id: string; displayName: string }, entry: { id: string; meters: number; seconds?: number }): Promise<string[]> {
   const entryId = entry.id;
   try {
     const [follows, opted, priv, blocked, muters] = await Promise.all([
@@ -284,12 +289,34 @@ async function notifyRowed(rower: { id: string; displayName: string }, entry: { 
     to.delete(rower.id);
     for (const id of blocked) to.delete(id);
     for (const m of muters) to.delete(m.muterId);
-    if (to.size === 0) return;
+    if (to.size === 0) return [];
     const ids = [...to];
     await db.rowNotification.createMany({ data: ids.map((participantId) => ({ challenge: CHALLENGE, participantId, kind: "rowed", actorId: rower.id, entryId })) });
     const words = (await numbersHidden()) ? "logged a row." : rowedWords(entry.meters, entry.seconds ?? 0);
     await push(ids.map((participantId) => ({ participantId, title: "ROW", body: `${rower.displayName} ${words}`, data: { kind: "rowed", row: entryId } })));
+    return ids;
   } catch (err) {
     console.error("row notify: failed to tell who asked about a row", err);
+    return [];
+  }
+}
+
+/* PUSH, NOT EMAIL, FOR A ROW (owner, 2026-11-26: "if I'm getting a
+ * notification when someone rows, I don't need that notification through
+ * email"): true when one of the owner's own rowers was among those pushed
+ * the row (notifyRowed) and has a phone to push to. */
+export async function ownerWasPushed(participantIds: string[]): Promise<boolean> {
+  if (participantIds.length === 0 || process.env.NODE_ENV !== "production") return false;
+  try {
+    const accounts = await db.photographer.findMany({ where: { email: { in: [...new Set([ownerEmail(), ...OWNER_ALWAYS_EMAILS])] } }, select: { id: true, email: true } });
+    const mine = accounts.filter((a) => a.email && isOwnerEmail(a.email)).map((a) => a.id);
+    if (mine.length === 0) return false;
+    const [parts, tokens] = await Promise.all([
+      db.rowParticipant.findMany({ where: { challenge: CHALLENGE, userId: { in: mine } }, select: { id: true } }),
+      db.rowPushToken.count({ where: { userId: { in: mine } } }),
+    ]);
+    return tokens > 0 && parts.some((p) => participantIds.includes(p.id));
+  } catch {
+    return false;
   }
 }

@@ -45,6 +45,15 @@ export type AppUsage = {
   byPlatform: { ios: number; android: number; web: number; phone: number };
   /* The share of the meters logged that were logged on the app. */
   meterShare: { today: number | null; week: number | null; prior4: number | null };
+  /* ROWS OFF A MONITOR (owner, 2026-11-26: "how many rows have telemetry
+   * data versus are just logged manually"): of all rows logged, the share
+   * with a recording, the last 7 days and the 4 weeks before. */
+  recorded: { week: number | null; weekRows: number; prior4: number | null; prior4Rows: number };
+  /* THE LIVE ERG VIEW (owner: "which panel users are spending their time
+   * on"): minutes on each panel over the last 28 days, and the rowers. */
+  panels: { panel: string; minutes: number; rowers: number }[];
+  /* Phones that opened the app and have not signed in. */
+  signedOut: number;
   todayUsers: number;
   todayOpens: number;
   days: { day: string; users: number; opens: number }[];
@@ -69,7 +78,9 @@ export async function appUsage(): Promise<AppUsage> {
     db.rowPushToken.findMany({ select: { userId: true, platform: true, createdAt: true, updatedAt: true } }),
     androidTesters(),
   ]);
-  const seen = seenAll.filter((s) => !notMe.has(s.userId));
+  /* A phone not signed in is "device:<id>" (app/seen): counted apart. */
+  const signedOut = new Set(seenAll.filter((s) => s.userId.startsWith("device:")).map((s) => s.userId)).size;
+  const seen = seenAll.filter((s) => !notMe.has(s.userId) && !s.userId.startsWith("device:"));
   const push = pushAll.filter((t) => !notMe.has(t.userId));
   type P = { platforms: Set<string>; first: string; last: string; days: Set<string>; opens: number };
   const by = new Map<string, P>();
@@ -278,10 +289,28 @@ export async function appUsage(): Promise<AppUsage> {
   });
   const seenDays = seen.map((s) => s.day).sort();
   const meterShare = { today: shareOf(today, today), week: shareOf(weekStart, today), prior4: shareOf(priorWeek0, addDays(today, -7)) };
+  const recShare = (a: string, b: string) => {
+    const inside = allLogged.filter((r) => within(pacificDay(r.createdAt.getTime()), a, b));
+    return { n: inside.length, pct: inside.length ? Math.round((inside.filter((r) => recorded.has(r.id)).length / inside.length) * 100) : null };
+  };
+  const rw = recShare(weekStart, today);
+  const rp = recShare(priorWeek0, addDays(today, -7));
+  const panelRows = (await db.rowPanelTime.findMany({ where: { day: { gte: addDays(today, -27) } }, select: { userId: true, panel: true, seconds: true } })).filter((p) => !notMe.has(p.userId));
+  const pm = new Map<string, { s: number; who: Set<string> }>();
+  for (const p of panelRows) {
+    const e = pm.get(p.panel) ?? { s: 0, who: new Set<string>() };
+    e.s += p.seconds;
+    e.who.add(p.userId);
+    pm.set(p.panel, e);
+  }
+  const panels = [...pm.entries()].map(([panel, e]) => ({ panel, minutes: Math.round(e.s / 6) / 10, rowers: e.who.size })).sort((a, b) => b.minutes - a.minutes);
   return {
     today,
     versus,
     meterShare,
+    recorded: { week: rw.pct, weekRows: rw.n, prior4: rp.pct, prior4Rows: rp.n },
+    panels,
+    signedOut,
     since: seenDays[0] ?? null,
     accounts: by.size,
     byPlatform,

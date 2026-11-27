@@ -243,7 +243,10 @@ export function createLive(onNewPiece?: (was: Live, doc: TelemetryDoc | undefine
   /* The piece so far as a saved document, small enough to store. */
   const toDoc = (deviceName: string, simulated: boolean): TelemetryDoc => {
     const model: TelemetryModel = {
-      device: { name: deviceName, serial: "", simulated, model: null, firmware: null, hardware: null },
+      /* THE MONITOR'S SERIAL (owner, 2026-11-26: "Let's save the monitor's
+       * serial number if we have it"): a PM5 calls itself "PM5 530724321
+       * Row", and the number is its serial. */
+      device: { name: deviceName, serial: deviceName.match(/(\d{6,12})/)?.[1] ?? "", simulated, model: null, firmware: null, hardware: null },
       general: gen,
       a1: la1,
       a2: la2,
@@ -261,6 +264,8 @@ export function createLive(onNewPiece?: (was: Live, doc: TelemetryDoc | undefine
 
   return {
     get: (): Live => live,
+    /* The monitor's own end-of-workout summary has come in. */
+    hasSummary: (): boolean => sum !== null,
     reset() {
       wipe();
       prevState = null;

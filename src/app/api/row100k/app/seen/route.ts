@@ -13,15 +13,21 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store, max-age=0" };
 
+/* EVERY PHONE (owner, 2026-11-26: "Let's make sure we know about all
+ * phones"): a phone that has not signed in is counted by the id it keeps
+ * for itself, as "device:<id>". */
+const DEVICE = /^[a-z0-9]{8,40}$/;
+
 export async function POST(req: Request) {
   const viewer = await resolveViewer();
-  if (!viewer.actor) return NextResponse.json({ ok: true, counted: false }, { headers: NO_STORE });
+  const body = (await req.json().catch(() => null)) as { platform?: unknown; version?: unknown; device?: unknown } | null;
+  const device = typeof body?.device === "string" && DEVICE.test(body.device) ? body.device : null;
+  if (!viewer.actor && !device) return NextResponse.json({ ok: true, counted: false }, { headers: NO_STORE });
   try {
-    const body = (await req.json().catch(() => null)) as { platform?: unknown; version?: unknown } | null;
     const platform = body?.platform === "android" ? "android" : body?.platform === "web" ? "web" : "ios";
     const version = typeof body?.version === "string" ? body.version.slice(0, 40) : "";
     const day = pacificDay(nowMs());
-    const userId = viewer.actor.photographerId;
+    const userId = viewer.actor ? viewer.actor.photographerId : `device:${device}`;
     await db.rowAppSeen.upsert({
       where: { userId_day_platform: { userId, day, platform } },
       create: { userId, day, platform, version },
