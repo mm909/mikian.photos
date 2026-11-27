@@ -590,7 +590,7 @@ export function M2dScreen({ onRower, onScrollDir, onShareables }: { onRower: (n:
   const [faq, setFaq] = useState<"concept2" | "rowtember" | "all" | null>(null);
   const [joining, setJoining] = useState(false);
   if (!v) return <Waiting error={error} onRetry={reload} />;
-  if (faq) return <M2dFaq v={v} focus={faq} onBack={() => setFaq(null)} onScrollDir={onScrollDir} />;
+  if (faq) return <M2dFaq v={v} focus={faq} onBack={() => setFaq(null)} onScrollDir={onScrollDir} onCharity={v.me ? () => onRower(v.me!.rowerNumber) : undefined} />;
   const w = v.window;
   let place = 0;
   return (
@@ -645,7 +645,7 @@ export function M2dScreen({ onRower, onScrollDir, onShareables }: { onRower: (n:
           </Pressable>
         ) : null}
         <Pressable accessibilityRole="link" hitSlop={8} onPress={() => setFaq("all")}>
-          <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>How it adds up</Text>
+          <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>M2D FAQ</Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -788,13 +788,16 @@ export function M2dSharePage({ onScrollDir }: { onScrollDir?: (down: boolean) =>
   );
 }
 
-export function M2dFaqPage({ onScrollDir }: { onScrollDir?: (down: boolean) => void }) {
+export function M2dFaqPage({ onScrollDir, onRower }: { onScrollDir?: (down: boolean) => void; onRower?: (n: number) => void }) {
   const { data: v, error, reload } = useM2d();
   if (!v) return <Waiting error={error} onRetry={reload} />;
-  return <M2dFaq v={v} focus="all" onScrollDir={onScrollDir} />;
+  return <M2dFaq v={v} focus="all" onScrollDir={onScrollDir} onCharity={v.me && onRower ? () => onRower(v.me!.rowerNumber) : undefined} />;
 }
 
-export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "concept2" | "rowtember" | "all"; onBack?: () => void; onScrollDir?: (down: boolean) => void }) {
+/* THE M2D FAQ (owner, 2026-11-26: "this page should be a M2D FAQ and a
+ * section of that is the how it adds up"): HOW IT ADDS UP, HOW DO I LOG A
+ * ROW, QUESTIONS. */
+export function M2dFaq({ v, focus, onBack, onScrollDir, onCharity }: { v: M2dView; focus: "concept2" | "rowtember" | "all"; onBack?: () => void; onScrollDir?: (down: boolean) => void; onCharity?: () => void }) {
   const dir = useScrollDir(onScrollDir);
   const t = v.totals;
   const by = v.match?.by ?? "ROWTEMBER";
@@ -832,6 +835,9 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
     </View>
   );
   void y;
+  const section = (h: string) => (
+    <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, textTransform: "uppercase", marginTop: 30, paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>{h}</Text>
+  );
   return (
     <ScrollView ref={ref as never} {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132, paddingHorizontal: 20 }}>
       {onBack ? (
@@ -839,32 +845,54 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
           <Text style={mono(11, true, C.ink, 0.12)}>‹ M2D</Text>
         </Pressable>
       ) : null}
-      <Text style={{ fontFamily: F.black, fontSize: 30, lineHeight: 34, color: C.ink, textTransform: "uppercase" }}>How it adds up</Text>
+      <Text style={{ fontFamily: F.black, fontSize: 30, lineHeight: 34, color: C.ink, textTransform: "uppercase" }}>M2D FAQ</Text>
+      {section("How it adds up")}
 
       {head("concept2", "Concept2", t.raised)}
-      {para("Thank you, Concept2. Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ for each of the first 100 kilometers, which is $2, and 4¢ for every kilometer after that. 150K is $4, 200K is $6, 300K is $10. It goes to the charity the rower picks in their Concept2 Logbook.")}
+      {para("Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ a kilometer for the first 100, then 4¢ a kilometer after that. It goes to the charity the rower picks in their Concept2 Logbook.")}
+      {/* A TABLE, NOT A SENTENCE (owner, 2026-11-26: "When showing the list
+          of meters and dollars prob better in a table"). */}
+      <View style={{ marginTop: 10, borderTopWidth: 2, borderColor: C.ink }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderBottomWidth: 1, borderColor: C.ink }}>
+          <Text style={mono(10, true, C.ink, 0.12)}>Meters</Text>
+          <Text style={mono(10, true, C.ink, 0.12)}>From Concept2</Text>
+        </View>
+        {([[100_000, 2], [150_000, 4], [200_000, 6], [300_000, 10]] as const).map(([m, d]) => row(`${fmtInt(m)} m`, usd(d)))}
+      </View>
       {para(`Our figure adds that up for every registered Rowtember rower past 100K, from the rows logged on ROW: ${t.past100k} ${t.past100k === 1 ? "rower" : "rowers"} so far, ${usd(t.raised)}. Concept2 counts the meters in each Logbook, so its own number can differ.`)}
 
       {head("rowtember", by, t.matched ?? 0)}
-      {para(`${by} matches Concept2: ${centsWord(rate)} for every kilometer a registered rower logs on ROW, from the first meter. There is no minimum.`)}
+      {para(`${by} matches Concept2: ${centsWord(rate)} for every kilometer a registered rower logs on ROW, from the first meter.`)}
       <View style={{ marginTop: 10, borderTopWidth: 2, borderColor: C.ink }}>
         {row("Meters by registered rowers", `${fmtInt(t.inMeters ?? 0)} m`)}
         {row(`Kilometers × ${centsWord(rate)}`, `${fmtInt((t.inMeters ?? 0) / 1000)} km`)}
         {row(by, usd(t.matched ?? 0))}
       </View>
-      {para("Each rower's part goes to the charity they picked, or across the three by the shares they set on their profile:")}
+      {/* WHERE IT GOES, SHORT (owner, 2026-11-26: "this can mostly be
+          replaced by less text or even just a button that takes them to
+          where they can select their charity"). */}
+      {para("Where it goes, so far:")}
       <View style={{ marginTop: 6, borderTopWidth: 2, borderColor: C.ink }}>
         {(v.charities ?? []).map((c) => row(c.full, usd(t.split?.[c.key] ?? 0)))}
         {(t.unpicked ?? 0) > 0 ? row("No charity picked yet", usd(t.unpicked ?? 0)) : null}
       </View>
+      {onCharity ? (
+        <View style={{ marginTop: 14 }}>
+          <Ctl label="Pick my charity" onPress={onCharity} />
+        </View>
+      ) : null}
 
-      {/* HOW TO LOG (owner, 2026-11-25): Concept2's 1, 2, 3, then ours. The
-          site's twin is /m2d/faq#log. */}
-      <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, textTransform: "uppercase", marginTop: 30 }}>How do I log a row?</Text>
+      {/* HOW TO LOG (owner, 2026-11-26: "we don't want to have them connect
+          to the rower with their phone and submit that way we instead want to
+          show them how to log on the concept 2 site ... We want users to use
+          our app to connect the ergs"): ROW on the monitor, then the same row
+          typed into log.concept2.com. Both places. */}
+      {section("How do I log a row?")}
+      {para("Log every row in both places: on ROW for the board and the match, and in your Concept2 Logbook for Concept2's part.")}
       {(
         [
-          ["For Concept2", [["Row with ErgData", "Open ErgData (free, iPhone and Android) and connect it to the monitor by Bluetooth before you start. Row your 5K."], ["Let it sync", "When you finish, ErgData sends the row to your Concept2 Logbook on its own. No phone? Type it in at log.concept2.com: Add Workout, then the meters, time and date."], ["Check it counted", "Open the Holiday Challenge in your Logbook: your meters toward 100K are there. Meters can go in until Jan 4."]]],
-          [`For ${by}`, [["Tap Log a row", "The + at the top of the ROW app, or Log a row on rowtember.com."], ["Enter it, or row it live", "Type your meters and time (a photo if you like). Or connect to the monitor by Bluetooth in the app and the row logs itself, with the full telemetry."], ["Save", "It counts for M2D right away, from your first meter, on the board and in your dollars."]]],
+          ["1. On ROW", [["Connect ROW to the monitor", "Tap the + at the top of the ROW app and connect to the monitor by Bluetooth before you start."], ["Row", "The row logs itself, with the full telemetry. Save it, and it counts for M2D right away."]]],
+          ["2. On Concept2", [["Open log.concept2.com", "Sign in to your Concept2 Logbook."], ["Add Workout", "Type the same row in: the meters, the time and the date. Save."], ["Check it counted", "Open the Holiday Challenge in your Logbook: your meters toward 100K are there. Meters can go in until Jan 4."]]],
         ] as [string, [string, string][]][]
       ).map(([who, steps]) => (
         <View key={who} style={{ marginTop: 16 }}>
@@ -880,10 +908,9 @@ export function M2dFaq({ v, focus, onBack, onScrollDir }: { v: M2dView; focus: "
           ))}
         </View>
       ))}
-      <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 14, lineHeight: 15 }]}>One app at a time: the monitor talks to one app by Bluetooth. Row live with ROW and add the row to your Concept2 Logbook by hand after; row with ErgData and log it on ROW after. Sending ROW rows to Concept2 on their own is coming."</Text>
-      <Text style={{ fontFamily: F.black, fontSize: 22, color: C.ink, textTransform: "uppercase", marginTop: 30 }}>Questions</Text>
+      {section("Questions")}
       {q("When is it?", "Thursday, Nov 26 to Thursday, Dec 24. Concept2 takes meters into the Logbook until Jan 4.")}
-      {q("How do I register?", `Make a free Concept2 Logbook, pick a charity there, and get your meters into it (ErgData does that). Then press Opt in to M2D on the M2D tab, pick where ${by}'s part goes, and press I'm registered.`)}
+      {q("How do I register?", `Make a free Concept2 Logbook, pick a charity there, and add your rows there at log.concept2.com. Then press Opt in to M2D on the M2D tab, pick where ${by}'s part goes, and press I'm registered.`)}
       {q("How do I change my charity?", "On your profile, under M2D, until Dec 24. You can split it across the three there too.")}
       {q("What counts?", `For ${by}: rows logged on ROW from Nov 26 to Dec 24 by registered rowers. For Concept2: the meters in your Concept2 Logbook.`)}
       {q("Is there a limit?", `${by} matches up to $1,000.`)}

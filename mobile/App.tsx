@@ -564,7 +564,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : o.kind === "locker" ? (
       <LockerScreen />
     ) : o.kind === "m2dfaq" ? (
-      <M2dFaqPage onScrollDir={setAway} />
+      <M2dFaqPage onScrollDir={setAway} onRower={openRower} />
     ) : o.kind === "m2dshare" ? (
       <M2dSharePage onScrollDir={setAway} />
     ) : o.kind === "wiki" ? (
@@ -693,7 +693,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
               ) : tab === "board" && m2dOn ? (
                 /* On M2D, how it adds up (owner, 2026-11-25: "it should be a
                    little question mark thing"). */
-                <Pressable accessibilityRole="button" accessibilityLabel="How M2D adds up" onPress={() => push({ kind: "m2dfaq" })} hitSlop={8} style={press}>
+                <Pressable accessibilityRole="button" accessibilityLabel="M2D FAQ" onPress={() => push({ kind: "m2dfaq" })} hitSlop={8} style={press}>
                   <QuestionIcon />
                 </Pressable>
               ) : me.me ? (
