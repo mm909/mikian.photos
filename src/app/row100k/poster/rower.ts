@@ -42,6 +42,7 @@ import type {
   RowerBest,
   RowerPoster,
 } from "./types";
+import { calendarBudget } from "./calendar";
 import { drawFooter } from "./charts";
 /* `PAL` is no longer imported: it is the STOCK's palette now and it comes
  * off the paint helper, so each drawing below opens with
@@ -453,9 +454,15 @@ strip.measure = measureByDraw(strip.draw);
 
 /* R4. The calendar under "THE MONTH / METERS PER DAY": the full five-row
  * grid on the wall, the elapsed weeks on a phone. Masked:
- * "DAYS ROWED · METERS HIDDEN" and dots. The month never grows past its
- * cell cap, so a grown row leaves the remainder as paper. */
-function monthOpts(paint: PosterPaint, d: RowerPoster) {
+ * "DAYS ROWED · METERS HIDDEN" and dots. A grid held under its cell cap
+ * stands left with the calendar's own figures on its right (calendar.ts).
+ *
+ * ALL TIME IS THE MONTHS (owner, 2026-11-26: "this is what the calendar
+ * looks like when I'm sharing the whole view ... we obviously just need to
+ * fix the format ... I don't like how it clips"): the span is cut into a
+ * labelled grid per month, as many across as gives the biggest cell in
+ * the box, and the eyebrow says THE MONTHS. */
+function monthOpts(paint: PosterPaint, d: RowerPoster, w: number) {
   const key = paint.format.key;
   return {
     full: paint.format.family === "printL",
@@ -463,6 +470,8 @@ function monthOpts(paint: PosterPaint, d: RowerPoster) {
     days: d.asOf.days,
     firstDow: d.asOf.firstDow,
     firstDay: d.asOf.firstDay,
+    split: d.asOf.kind === "all",
+    budget: calendarBudget(paint, w),
     // The post asks for 50, not the 56 it used to: six units of cell buys
     // the FOURTH best line back mid-month (owner, 2026-09-10: "on the
     // bests, we can include things like longest row, biggest day"), and
@@ -473,37 +482,29 @@ function monthOpts(paint: PosterPaint, d: RowerPoster) {
   };
 }
 
+const monthEyebrow = (d: RowerPoster): [string, string, string | undefined] => {
+  const masked = d.month.meters === null;
+  return [
+    d.asOf.kind === "all" ? "THE MONTHS" : "THE MONTH",
+    masked ? "DAYS ROWED · METERS HIDDEN" : "METERS PER DAY",
+    masked ? "DAYS ROWED" : undefined,
+  ];
+};
+
 const month: Mod = {
   id: "month",
   minH: 80,
   measure(ctx, box, d, _fonts, paint) {
-    const masked = d.month.meters === null;
-    const eye = eyebrowHeight(
-      ctx,
-      paint,
-      box.w,
-      "THE MONTH",
-      masked ? "DAYS ROWED · METERS HIDDEN" : "METERS PER DAY",
-      masked ? "DAYS ROWED" : undefined,
-    );
-    return eye + monthLayout(paint.tk, box.w, d.asOf.dayNumber, monthOpts(paint, d)).h;
+    const eye = eyebrowHeight(ctx, paint, box.w, ...monthEyebrow(d));
+    return eye + monthLayout(paint.tk, box.w, d.asOf.dayNumber, monthOpts(paint, d, box.w)).h;
   },
   draw(ctx, box, d, _fonts, paint) {
-    const masked = d.month.meters === null;
-    const y = paint.eyebrow(
-      ctx,
-      box.x,
-      box.y,
-      box.w,
-      "THE MONTH",
-      masked ? "DAYS ROWED · METERS HIDDEN" : "METERS PER DAY",
-      masked ? "DAYS ROWED" : undefined,
-    );
+    const y = paint.eyebrow(ctx, box.x, box.y, box.w, ...monthEyebrow(d));
     // The engine's box is the budget (a grown phone row, or a plan that
     // spent its chart step); the grid fits its cell to it.
     const maxH = box.h >= 1e6 ? undefined : box.y + box.h - y;
     const h = drawMonth(ctx, paint, box.x, y, box.w, d.month, d.asOf.dayNumber, {
-      ...monthOpts(paint, d),
+      ...monthOpts(paint, d, box.w),
       maxH,
     });
     return y + h - box.y;

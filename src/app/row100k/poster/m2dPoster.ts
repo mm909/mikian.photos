@@ -131,42 +131,29 @@ const PHONE_CELL = 40;
 /* On a phone frame the grid is the weeks so far, as the ROWTEMBER phone
  * month is (community.ts `month`); the wall sheets draw all 29 days. */
 const windowGrid: Mod = (() => {
-  const shownOf = (d: M2dPoster, paint: PosterPaint) => (isPhone(paint) ? Math.max(1, Math.min(d.asOf.days, d.asOf.dayNumber)) : d.asOf.days);
-  const rowsOf = (d: M2dPoster, paint: PosterPaint) => Math.ceil((shownOf(d, paint) + d.asOf.firstDow) / 7);
-  const head = (ctx: Ctx, paint: PosterPaint, w: number) =>
-    silently(ctx, () => paint.eyebrow(ctx, 0, 0, w, "X", "X")) + paint.tk.small * 1.9;
-  const wideCell = (paint: PosterPaint, w: number) => (w - paint.tk.small * 0.7 * 6) / 7;
+  /* Measured as the drawing itself, run silently (owner, 2026-11-26: the
+   * calendars never clip and never sit in the middle of paper): charts.ts
+   * drawMonth lays the grid out through calendar.ts, fits it to the box
+   * with square cells, and puts the window's own figures on the right of a
+   * grid narrower than the box. The 29 days stay one grid: the window is
+   * one challenge, not two months. */
+  const opts = (d: M2dPoster, paint: PosterPaint, cellCap?: number) => ({
+    eyebrow: { left: "Nov 26 – Dec 24", right: "Meters per day", short: "Meters" },
+    meters: d.byDay,
+    dayNumber: Math.max(1, d.asOf.dayNumber),
+    days: d.asOf.days,
+    firstDow: d.asOf.firstDow,
+    firstDay: d.asOf.firstDay,
+    full: !isPhone(paint),
+    buckets: "quartile" as const,
+    cellCap,
+  });
   return {
     id: "window",
     minH: 80,
-    measure: (ctx, box, d, _fonts, paint) => {
-      const gap = paint.tk.small * 0.7;
-      const wide = wideCell(paint, box.w);
-      const cell = isPhone(paint) ? Math.min(wide, PHONE_CELL) : wide;
-      const rows = rowsOf(d, paint);
-      return head(ctx, paint, box.w) + rows * cell + (rows - 1) * gap;
-    },
-    draw: (ctx, box, d, _fonts, paint) => {
-      const tk = paint.tk;
-      const gap = tk.small * 0.7;
-      const rows = rowsOf(d, paint);
-      let cell = wideCell(paint, box.w);
-      if (Number.isFinite(box.h) && box.h > 0) {
-        const fit = (box.h - head(ctx, paint, box.w) - (rows - 1) * gap) / rows;
-        cell = Math.max(tk.small * 1.5, Math.min(cell, fit));
-      }
-      return drawMonth(ctx, paint, box, {
-        eyebrow: { left: "Nov 26 – Dec 24", right: "Meters per day", short: "Meters" },
-        meters: d.byDay,
-        dayNumber: Math.max(1, d.asOf.dayNumber),
-        days: d.asOf.days,
-        firstDow: d.asOf.firstDow,
-        firstDay: d.asOf.firstDay,
-        full: !isPhone(paint),
-        buckets: "quartile",
-        cellCap: cell,
-      });
-    },
+    measure: (ctx, box, d, _fonts, paint) =>
+      silently(ctx, () => drawMonth(ctx, paint, { ...box, h: Number.POSITIVE_INFINITY }, opts(d, paint, isPhone(paint) ? PHONE_CELL : undefined))),
+    draw: (ctx, box, d, _fonts, paint) => drawMonth(ctx, paint, box, opts(d, paint)),
   };
 })();
 

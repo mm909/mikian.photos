@@ -61,6 +61,7 @@ import {
 /* NO COLOUR NAMES HERE — see charts.ts; the two run colours below come off
  * `paint.c` so both stocks draw one masthead. */
 import { FIRST_DOW } from "./paint";
+import { calendarBudget } from "./calendar";
 import type {
   CommunityPoster,
   PosterBox,
@@ -214,48 +215,38 @@ const curve = chart(
  * a fit:"cap" slot the engine has cut gets a shorter cell, never an
  * overflow. */
 const PHONE_CELL = 34;
+/* ALL TIME AS ITS MONTHS, NEVER PAST THE FOOTER (owner, 2026-11-26: "this
+ * is what the calendar looks like when I'm sharing the whole view ... I
+ * don't like how it clips"). The module no longer works out its own rows
+ * and cells: charts.ts drawMonth lays the grid out through calendar.ts —
+ * one grid for a month, a labelled grid per month for all time — and the
+ * measure is that same drawing run silently, so the two cannot disagree.
+ * A phone measures at its floor cell (and a split calendar at its
+ * budget); draw() fits the grid to the box it is handed, square cells,
+ * never taller, and a grid left narrower than the box takes the
+ * calendar's figures on its right. */
 const monthModule = (id: string, full: boolean): Mod => {
-  const rowsOf = (d: CommunityPoster) =>
-    Math.ceil(((full ? d.asOf.days : Math.max(1, Math.min(d.asOf.days, d.asOf.dayNumber))) + d.asOf.firstDow) / 7);
-  /* The eyebrow plus the S M T W T F S row — measured off paint.eyebrow
-   * itself, never guessed, because drawMonth lays the grid under it. */
-  const head = (ctx: Ctx, paint: PosterPaint, w: number) =>
-    silently(ctx, () => paint.eyebrow(ctx, 0, 0, w, "X", "X")) + paint.tk.small * 1.9;
-  const wideCell = (paint: PosterPaint, w: number) => (w - paint.tk.small * 0.7 * 6) / 7;
+  const opts = (d: CommunityPoster, paint: PosterPaint, w: number, cellCap?: number) => ({
+    eyebrow: { left: d.asOf.kind === "all" ? "THE MONTHS" : "THE MONTH", right: "METERS PER DAY" },
+    meters: d.byDay,
+    dayNumber: d.asOf.dayNumber,
+    days: d.asOf.days,
+    firstDow: d.asOf.firstDow,
+    firstDay: d.asOf.firstDay,
+    full,
+    buckets: "quartile" as const,
+    cellCap,
+    split: d.asOf.kind === "all",
+    budget: calendarBudget(paint, w),
+  });
   return {
     id,
     minH: 80,
-    measure: (ctx, box, d, _fonts, paint) => {
-      const gap = paint.tk.small * 0.7;
-      const wide = wideCell(paint, box.w);
-      const cell = isPhone(paint) ? Math.min(wide, PHONE_CELL) : wide;
-      const rows = rowsOf(d);
-      return head(ctx, paint, box.w) + rows * cell + (rows - 1) * gap;
-    },
-    draw: (ctx, box, d, _fonts, paint) => {
-      const tk = paint.tk;
-      const gap = tk.small * 0.7;
-      const rows = rowsOf(d);
-      const wide = wideCell(paint, box.w);
-      let cell = wide;
-      if (Number.isFinite(box.h) && box.h > 0) {
-        // No epsilon here: a cell a hair over its share draws a grid a hair
-        // taller than the box, which the engine logs as a module overflow.
-        const fit = (box.h - head(ctx, paint, box.w) - (rows - 1) * gap) / rows;
-        cell = Math.max(tk.small * 1.5, Math.min(wide, fit));
-      }
-      return drawMonth(ctx, paint, box, {
-        eyebrow: { left: "THE MONTH", right: "METERS PER DAY" },
-        meters: d.byDay,
-        dayNumber: d.asOf.dayNumber,
-        days: d.asOf.days,
-        firstDow: d.asOf.firstDow,
-        firstDay: d.asOf.firstDay,
-        full,
-        buckets: "quartile",
-        cellCap: cell,
-      });
-    },
+    measure: (ctx, box, d, _fonts, paint) =>
+      silently(ctx, () =>
+        drawMonth(ctx, paint, { ...box, h: Number.POSITIVE_INFINITY }, opts(d, paint, box.w, isPhone(paint) ? PHONE_CELL : undefined)),
+      ),
+    draw: (ctx, box, d, _fonts, paint) => drawMonth(ctx, paint, box, opts(d, paint, box.w)),
   };
 };
 const month = monthModule("month", false);

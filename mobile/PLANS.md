@@ -23,6 +23,18 @@ Written down 2026-11-24, 12:40 AM, from the owner's voice note. Nothing below is
 
 Testing the app and giving UX notes all day is work too. That happens anyway, so it is not on this list.
 
+**Friday, Nov 27** (from his voice note, Nov 26 at midnight: "tell me what is the metric for a good day tomorrow")
+
+**A good day is one number: people other than him using the ROW app.** Tonight it is 1 (Abe). A good Friday ends at **4 or more**, counted on Settings → Analytics → App usage, with the **12th Android tester** signed up (11 of 12 tonight). Everything below is in that order because it moves that number.
+
+- [ ] **Row, run, stretch.** The knee.
+- [ ] **The row reel**, straight after the row, on the rower: "Hi, my name is Mikian ... 5K number N ... see you tomorrow." End on "it's on the App Store, link in bio."
+- [ ] **The M2D reel**: what was raised so far (the M2D poster or the count-up reel), and "every meter you log on ROW, we match."
+- [ ] **The Android reel**: "I need one more Android rower to test ROW, link in bio." One ask, nothing else in it.
+- [ ] **Send the donation page to 3 people** by name (a gym, a friend with a business, family). The goal is one pledge.
+- [ ] **Concept2 Logbook**: once their test keys are in, connect on the phone and send one row to the test Logbook end to end.
+- Then app work. Not before the reels are out.
+
 ## The daily job (the marketing plan)
 
 - **Every day:** row about 5K at 1:59, then make a reel right after.

@@ -36,6 +36,7 @@
  * names them in no plan, so putting one back is one line there. */
 
 import { fmtMeters, fmtRowerNumber } from "@/lib/row100k";
+import { calendarFigures, calendarGrid, calendarStripH, drawCalendarFrame, drawCalendarSide } from "./calendar";
 import { domAt, spanTicks, tickLabel } from "./span";
 /* NO COLOUR NAMES HERE — that is the point. Every colour comes off
  * `paint.c` (SPEC.md §4, THE BLACK STOCK), so one drawing serves both
@@ -472,8 +473,7 @@ export type MonthOpts = {
   dayNumber: number;
   /* THE TIME FRAME (span.ts): how many cells the grid has, the weekday of
    * the first one, and the first day itself — the number printed in a cell
-   * is that date's own day of the month, so all time reads as the months
-   * laid end to end. */
+   * is that date's own day of the month. */
   days: number;
   firstDow: number;
   firstDay: string;
@@ -483,43 +483,54 @@ export type MonthOpts = {
   /* Community: quartiles of the elapsed days (SPEC.md §14.1); rower: the
    * site's fixed 2,500 / 5,000 / 10,000 (Heatmap.tsx). */
   buckets: "quartile" | [number, number, number];
-  /* A cap on the cell's HEIGHT. A cell is square whenever the box is deep
-   * enough for that (every print sheet, and a phone frame mid-month); when
-   * the plan can only give the grid a short box — a FINAL five-row month on
-   * a 4:5 post — the cell keeps its full column width and loses height
-   * instead, because a 7 × 5 grid of squares in a 40 %-empty box reads as a
-   * mistake and a wall-calendar rectangle does not. */
+  /* The most a cell may be. The cell is always square (owner, 2026-11-26:
+   * "the squares ... get a little rectangle-y"), the smaller of its share
+   * of the width, this cap and its share of the box's height. */
   cellCap?: number;
+  /* ALL TIME AS ITS MONTHS (owner, 2026-11-26: "this is what the calendar
+   * looks like when I'm sharing the whole view ... I don't like how it
+   * clips"): cut the span into a labelled grid per month (calendar.ts). */
+  split?: boolean;
+  /* The height a split calendar asks for when measured with no box
+   * (calendar.ts calendarBudget). */
+  budget?: number;
+  /* Whose figures stand beside a narrow grid; community by default. */
+  figures?: "rower" | "community";
 };
 
 /* Seven columns S M T W T F S, Sep 1 under T. Rowed days are ramp cells
  * with the day number top-left and the k-label bottom-centre; rest days a
- * dashed outline; future days paper. Left-aligned when the cell is capped. */
+ * dashed outline; future days paper. The cell is square and the grid
+ * never draws taller than its box. All time is a grid per month; a grid
+ * narrower than the box stands left with the calendar's own figures on
+ * its right (owner, 2026-11-26: "I don't like how there's so much white
+ * space on the left and the right ... the month could be on the left and
+ * there could be another stat on the right"), and is centred only when
+ * there is no room for them (calendar.ts). */
 export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: MonthOpts): number {
   const C = paint.c;
   const { tk } = paint;
-  let y = paint.eyebrow(ctx, box.x, box.y, box.w, o.eyebrow.left, o.eyebrow.right, o.eyebrow.short);
-  const gap = tk.small * 0.7;
-  // The cell is as wide as its share of the box, always — the grid fills
-  // its column. Its HEIGHT is the same number unless the caller capped it
-  // (see MonthOpts.cellCap).
-  /* SQUARE CELLS (owner, 2026-11-26: "sometimes the squares on the poster
-   * get a little rectangle-y. They're not very square-like"): a capped
-   * height used to leave the cell as wide as its share of the box. The
-   * cell is now the smaller of the two both ways, and a grid narrower than
-   * the box stands in its middle. */
-  const cell = Math.min(o.cellCap ?? Number.POSITIVE_INFINITY, (box.w - gap * 6) / 7);
-  const cellW = cell;
-  const cellH = cell;
-  const x0 = box.x + (box.w - (7 * cell + 6 * gap)) / 2;
-  const dow = paint.font("mono", tk.axis);
-  DOW_LETTERS.forEach((d, i) =>
-    paint.drawCentered(ctx, d, x0 + i * (cellW + gap) + cellW / 2, y + tk.small, dow, C.gray, 0.1 * tk.small),
-  );
-  y += tk.small * 1.9;
+  const y = paint.eyebrow(ctx, box.x, box.y, box.w, o.eyebrow.left, o.eyebrow.right, o.eyebrow.short);
   const dayN = Math.max(1, Math.min(o.days, o.dayNumber));
   const shown = o.full ? o.days : dayN;
-  const rows = Math.ceil((shown + o.firstDow) / 7);
+  const bounded = Number.isFinite(box.h) && box.h > 0;
+  const g = calendarGrid(tk, {
+    x: box.x,
+    y,
+    w: box.w,
+    shown,
+    firstDay: o.firstDay,
+    firstDow: o.firstDow,
+    split: o.split === true,
+    cellCap: o.cellCap,
+    maxH: bounded ? box.y + box.h - y : o.split ? o.budget : undefined,
+    align: "center",
+    side: true,
+  });
+  const cell = g.cell;
+  const cellW = cell;
+  const cellH = cell;
+  drawCalendarFrame(ctx, paint, g, DOW_LETTERS, tk.axis);
   let th: [number, number, number];
   if (o.buckets === "quartile") {
     const sorted = (o.meters ?? [])
@@ -541,9 +552,7 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
   const showLabel = labelSize >= tk.small * 0.8;
   const showNum = cell >= tk.axis * 1.8;
   for (let i = 0; i < shown; i++) {
-    const idx = i + o.firstDow;
-    const x = x0 + (idx % 7) * (cellW + gap);
-    const cy = y + Math.floor(idx / 7) * (cellH + gap);
+    const { x, y: cy } = g.at(i);
     const dom = String(domAt(o.firstDay, i));
     if (i >= dayN) {
       // The days still to come. On the small grid the design left them as
@@ -613,7 +622,26 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
     if (showNum) paint.drawText(ctx, dom, x + cellW * 0.1, cy + tk.axis * 1.15, numFont, ink);
     if (showLabel) paint.drawCentered(ctx, kLabel(m), x + cellW / 2, cy + cellH - cellH * 0.16, labelFont, ink);
   }
-  return y + rows * cellH + (rows - 1) * gap - box.y;
+  const figs = calendarFigures(o.figures ?? "community", o.meters, o.rowed ?? null, o.firstDay, o.firstDow, dayN, g.blocks.length > 1);
+  if (g.side) drawCalendarSide(ctx, paint, g.side, figs);
+  let used = g.h;
+  if (!g.side && bounded) {
+    // THE PAPER UNDER A CALENDAR BOUND BY ITS WIDTH (owner, 2026-11-26:
+    // "I don't want it to be super empty" / no white space around the
+    // calendar): the months three across on a post leave a band of paper
+    // between the last row and the next rule; the figures take it, across.
+    const air = tk.small * 1.2;
+    const room = box.y + box.h - (y + g.h) - air;
+    if (room >= calendarStripH(paint)) {
+      const fy = y + g.h + air;
+      const fh = drawCalendarSide(ctx, paint, { x: box.x, y: fy, w: box.w, h: room }, figs);
+      if (fh > 0) {
+        paint.rule(ctx, box.x, fy - air / 2, box.w, tk.hair, C.line);
+        used = g.h + air + fh;
+      }
+    }
+  }
+  return y + used - box.y;
 }
 
 /* ======================================================== C7 boards */

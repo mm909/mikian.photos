@@ -18,6 +18,7 @@
 
 /* NO COLOUR NAMES HERE — see charts.ts. Geometry and formatting only. */
 import { DOW_LETTERS, FIRST_DOW, kLabel } from "./paint";
+import { calendarFigures, calendarGrid, calendarStripH, drawCalendarFrame, drawCalendarSide, type CalGrid } from "./calendar";
 import { domAt } from "./span";
 import type { PosterBox, PosterPaint, PosterTokens, RowerLogRow } from "./types";
 
@@ -64,23 +65,17 @@ export type MonthOpts = {
   days: number;
   firstDow: number;
   firstDay: string;
-  /* The story caps a cell at 44, the post at 56. */
+  /* All time: the span cut into a grid per month (calendar.ts). */
+  split?: boolean;
+  /* The story caps a cell at 44, the post at 50. */
   cellCap?: number;
   /* The height the grid must live in (the box the engine handed the
    * module, eyebrow already taken); the cell shrinks to it. Absent when
    * measuring. */
   maxH?: number;
-};
-
-export type MonthLayout = {
-  cell: number;
-  gap: number;
-  rows: number;
-  days: number;
-  axisH: number;
-  h: number;
-  /* The grid's own width; less than the measure when the cell is capped. */
-  gridW: number;
+  /* What a calendar cut into months asks for when measuring
+   * (calendar.ts calendarBudget). */
+  budget?: number;
 };
 
 /* The cell the calendar draws at this width: the measure's share, the
@@ -97,33 +92,37 @@ function cellFor(tk: PosterTokens, w: number, opts: MonthOpts): number {
 }
 
 /* The grid the calendar will draw at this width — the height is what the
- * module's measure() reports (eyebrow excluded). */
-export function monthLayout(tk: PosterTokens, w: number, dayNumber: number, opts: MonthOpts): MonthLayout {
-  const gap = tk.small * 0.7;
-  const days = opts.full ? opts.days : Math.min(opts.days, Math.max(1, dayNumber));
-  const rows = Math.ceil((days + opts.firstDow) / 7);
-  const axisH = tk.small * 1.9;
-  let cell = cellFor(tk, w, opts);
-  if (opts.maxH !== undefined) {
-    // Drawn into a budget: the box the engine composed is the truth. The
-    // cap governs what the month ASKS for (so the bests get their lines);
-    // once the row is grown past that — the bests gone, the room the
-    // month's — the grid fills the measure rather than sit beside paper.
-    // Never taller than the box; never under 60 % of the cap (a guard,
-    // the engine agreed the height).
-    const byWidth = (w - 6 * gap) / 7;
-    const fit = (opts.maxH - axisH - (rows - 1) * gap) / rows;
-    cell = Math.max(Math.min(byWidth, fit), (opts.cellCap ?? byWidth) * 0.6);
-  }
-  return {
-    cell,
-    gap,
-    rows,
-    days,
-    axisH,
-    h: axisH + rows * cell + (rows - 1) * gap,
-    gridW: cell * 7 + gap * 6,
-  };
+ * module's measure() reports (eyebrow excluded). calendar.ts lays it out:
+ * one grid for a month, a grid per month for all time. */
+export function monthLayout(
+  tk: PosterTokens,
+  w: number,
+  dayNumber: number,
+  opts: MonthOpts,
+  at: { x: number; y: number; align: "center" | "left" } = { x: 0, y: 0, align: "left" },
+): CalGrid {
+  const shown = opts.full ? opts.days : Math.min(opts.days, Math.max(1, dayNumber));
+  // Drawn into a budget: the box the engine composed is the truth. The
+  // cap governs what the month ASKS for (so the bests get their lines);
+  // once the row is grown past that — the bests gone, the room the
+  // month's — the grid fills the measure rather than sit beside paper.
+  // NEVER TALLER THAN THE BOX (owner, 2026-11-26: "obviously I don't like
+  // how it clips"): the old floor of 60 % of the cap is gone, because a
+  // floor is exactly how a grid ends up drawn past the footer.
+  const drawn = opts.maxH !== undefined;
+  return calendarGrid(tk, {
+    x: at.x,
+    y: at.y,
+    w,
+    shown,
+    firstDay: opts.firstDay,
+    firstDow: opts.firstDow,
+    split: opts.split === true,
+    cellCap: drawn ? undefined : cellFor(tk, w, opts),
+    maxH: drawn ? opts.maxH : opts.split ? opts.budget : undefined,
+    align: at.align,
+    side: true,
+  });
 }
 
 /* Seven columns S M T W T F S, Sep 1 under the T. Future days are paper
@@ -131,9 +130,12 @@ export function monthLayout(tk: PosterTokens, w: number, dayNumber: number, opts
  * the day number top-left and the k-label bottom-centre — white only on
  * the top bucket (theme.ts .hm-num). Masked: rowed days are ink-outlined
  * with a centred dot and the day number; no ramp, no label, because a
- * rowed day is public and its meters are not. A grid narrower than the
- * measure (a capped phone cell) is centred under its eyebrow. Returns
- * the height. */
+ * rowed day is public and its meters are not. All time is a small grid
+ * per month, labelled; a grid narrower than the measure stands left with
+ * the calendar's figures on its right (calendar.ts — owner, 2026-11-26:
+ * "the month could be on the left and there could be another stat on the
+ * right"), or, with no room for them, centred on the phone. Returns the
+ * height. */
 export function drawMonth(
   ctx: Ctx,
   paint: PosterPaint,
@@ -146,37 +148,32 @@ export function drawMonth(
 ): number {
   const PAL = paint.c;
   const tk = paint.tk;
-  const L = monthLayout(tk, w, dayNumber, opts);
-  const { cell, gap } = L;
   // A grid narrower than its measure is CENTRED on the phone, where the
   // month is the sheet and sits under a centred stack of its own, and
   // LEFT-aligned on paper, where it is one column under a left-aligned
   // eyebrow — a shrunken 16x20 grid floating in the middle of its column
-  // read as a mistake (verify, 2026-09-10).
-  const x0 =
-    paint.format.family === "phone" ? x + Math.max(0, (w - L.gridW) / 2) : x;
-  const axisFont = paint.font("mono", tk.small);
-  DOW_LETTERS.forEach((d, i) =>
-    paint.drawCentered(
-      ctx,
-      d,
-      x0 + i * (cell + gap) + cell / 2,
-      y + tk.small,
-      axisFont,
-      PAL.gray,
-      0.1 * tk.small,
-    ),
-  );
-  const top = y + L.axisH;
+  // read as a mistake (verify, 2026-09-10). Either gives way to the
+  // figures column when there is room for one.
+  const g = monthLayout(tk, w, dayNumber, opts, {
+    x,
+    y,
+    align: paint.format.family === "phone" ? "center" : "left",
+  });
+  const { cell } = g;
+  drawCalendarFrame(ctx, paint, g, DOW_LETTERS);
   const numSize = Math.min(tk.axis, cell * 0.26);
   const numFont = paint.font("mono", numSize);
   const labelSize = cell * 0.28;
   const labelFont = paint.font("monoBold", labelSize);
-  for (let i = 0; i < L.days; i++) {
-    const idx = i + opts.firstDow;
+  // A small cell (a month among four on a story) drops the k-label before
+  // it prints too small to read, and the day number before the cell is
+  // all ink — charts.ts drawMonth's rule (owner, 2026-11-26).
+  const showLabel = labelSize >= tk.small * 0.8;
+  const showNum = cell >= tk.axis * 1.8;
+  const shown = opts.full ? opts.days : Math.min(opts.days, Math.max(1, dayNumber));
+  for (let i = 0; i < shown; i++) {
     const dom = String(domAt(opts.firstDay, i));
-    const cx = x0 + (idx % 7) * (cell + gap);
-    const cy = top + Math.floor(idx / 7) * (cell + gap);
+    const { x: cx, y: cy } = g.at(i);
     // A day after the as-of day is paper: the month is not over yet.
     if (i >= dayNumber) continue;
     const m = month.meters ? (month.meters[i] ?? 0) : 0;
@@ -201,14 +198,8 @@ export function drawMonth(
       ctx.arc(cx + cell / 2, cy + cell / 2, cell * 0.12, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-      paint.drawText(
-        ctx,
-        dom,
-        cx + cell * 0.12,
-        cy + cell * 0.12 + numSize * 0.8,
-        numFont,
-        PAL.ink,
-      );
+      if (showNum)
+        paint.drawText(ctx, dom, cx + cell * 0.12, cy + cell * 0.12 + numSize * 0.8, numFont, PAL.ink);
       continue;
     }
     const b = m < ROWER_BUCKETS[0] ? 0 : m < ROWER_BUCKETS[1] ? 1 : m < ROWER_BUCKETS[2] ? 2 : 3;
@@ -229,10 +220,27 @@ export function drawMonth(
       ctx.restore();
     }
     const fg = step.on;
-    paint.drawText(ctx, dom, cx + cell * 0.12, cy + cell * 0.12 + numSize * 0.8, numFont, fg);
-    paint.drawCentered(ctx, kLabel(m), cx + cell / 2, cy + cell - cell * 0.14, labelFont, fg);
+    if (showNum) paint.drawText(ctx, dom, cx + cell * 0.12, cy + cell * 0.12 + numSize * 0.8, numFont, fg);
+    if (showLabel) paint.drawCentered(ctx, kLabel(m), cx + cell / 2, cy + cell - cell * 0.14, labelFont, fg);
   }
-  return L.h;
+  const dayN = Math.min(shown, Math.max(1, dayNumber));
+  const figs = calendarFigures("rower", month.meters, month.rowed, opts.firstDay, opts.firstDow, dayN, g.blocks.length > 1);
+  if (g.side) drawCalendarSide(ctx, paint, g.side, figs);
+  if (!g.side && opts.maxH !== undefined) {
+    // THE PAPER UNDER A CALENDAR BOUND BY ITS WIDTH (owner, 2026-11-26,
+    // no white space around the calendar): the figures take it, across.
+    const air = tk.small * 1.2;
+    const room = opts.maxH - g.h - air;
+    if (room >= calendarStripH(paint)) {
+      const fy = y + g.h + air;
+      const fh = drawCalendarSide(ctx, paint, { x, y: fy, w, h: room }, figs);
+      if (fh > 0) {
+        paint.rule(ctx, x, fy - air / 2, w, tk.hair, PAL.line);
+        return g.h + air + fh;
+      }
+    }
+  }
+  return g.h;
 }
 
 /* ================================================================== pace */
