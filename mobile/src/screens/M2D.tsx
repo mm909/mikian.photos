@@ -552,17 +552,11 @@ function Split({ v, busy, onSave }: { v: M2dView; busy: boolean; onSave: (s: Rec
  * whatever we had, like a total ... We had a good, like, a receipts up
  * there"). The total big and blue, labelled RAISED ($0.00 and STARTS NOV 26
  * before the window); the goal; CONCEPT2 and ROWTEMBER, each opening the
- * math (M2dFaq), ROWTEMBER's charities under it. */
+ * math (M2dFaq). */
 function Raised({ v, onFaq }: { v: M2dView; onFaq: (k: "concept2" | "rowtember") => void }) {
   const t = v.totals;
   const total = totalOf(v);
   const by = v.match?.by ?? "ROWTEMBER";
-  const sub = (k: string, d: number) => (
-    <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingVertical: 5, paddingLeft: 14 }}>
-      <Text style={{ fontFamily: F.sans, fontSize: 13, color: C.gray }}>{k}</Text>
-      <Text style={{ fontFamily: F.mono, fontSize: 13, color: C.gray, fontVariant: ["tabular-nums"] }}>{usd(d)}</Text>
-    </View>
-  );
   return (
     <View style={{ marginTop: 22 }}>
       <Text accessibilityLabel={`${usd(total)} raised`} style={{ fontFamily: F.black, fontSize: 64, lineHeight: 70, color: C.accent, fontVariant: ["tabular-nums"] }}>
@@ -580,8 +574,9 @@ function Raised({ v, onFaq }: { v: M2dView; onFaq: (k: "concept2" | "rowtember")
         {giversOf(v).map((g) => (
           <Item key={g.name} who={g.name} rate={`${centsWord(g.cents ?? 0)}/km pledged, up to ${usd(g.cap ?? 0)}`} d={usd(g.dollars)} />
         ))}
-        {(v.charities ?? []).map((c) => sub(c.name, t.split?.[c.key] ?? 0))}
-        {(t.unpicked ?? 0) > 0 ? sub("No charity picked yet", t.unpicked ?? 0) : null}
+        {/* NO BREAKDOWN BY CHARITY HERE (owner, 2026-11-27, after the M2D
+            poster lost it: "[re]move the breakdown per charity on the M2D
+            page as well"). The split stays in the FAQ's ROWTEMBER math. */}
         <TotalItem d={usd(total)} />
       </View>
     </View>
