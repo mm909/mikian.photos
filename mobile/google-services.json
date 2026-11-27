@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "31044214839",
+    "project_id": "row-rowtember",
+    "storage_bucket": "row-rowtember.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:31044214839:android:e52a39e3b9463e38a99fb2",
+        "android_client_info": {
+          "package_name": "com.rowtember.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVf-Hcbfuj02MEIrQ4aeGIcBj7r5AZ-t4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
