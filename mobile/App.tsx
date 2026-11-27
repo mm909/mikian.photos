@@ -93,7 +93,7 @@ const TABS: { id: Tab; label: string; Icon: ComponentType<{ color?: string; size
 
 
 type Over = { k: number } & (
-  | { kind: "rower"; num: number }
+  | { kind: "rower"; num: number; sub?: "m2d" }
   | { kind: "row"; id: string; fresh?: Fresh; doc?: TelemetryDoc; talk?: boolean; fake?: Faked }
   | { kind: "news" }
   | { kind: "settings"; page?: SettingsPage }
@@ -106,7 +106,7 @@ type Over = { k: number } & (
   | { kind: "demo"; doc: TelemetryDoc; meters: number }
   | { kind: "wiki"; id?: string }
   | { kind: "locker" }
-  | { kind: "m2dfaq" }
+  | { kind: "m2dfaq"; focus?: "concept2" | "rowtember" | "all" }
   | { kind: "m2dshare" }
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
@@ -262,7 +262,14 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   const logOn = log === "shown";
   const top = logOn ? undefined : stack[stack.length - 1];
   const over = logOn || top !== undefined;
+  /* ONE PAGE A PRESS (owner, 2026-11-26: "If I spam click on m2d exposure
+   * it opens a row"): a second press while a page is still sliding in is
+   * let go, and the tabs under an open page take no touch (below). */
+  const pushedAt = useRef(0);
   const push = (o: Push) => {
+    const now = Date.now();
+    if (now - pushedAt.current < 400) return;
+    pushedAt.current = now;
     setMenu(false);
     setStack((s) => [...s, { ...o, k: nextKey++ } as Over]);
   };
@@ -464,7 +471,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       <SearchScreen text={find} onRower={openRower} onScrollDir={setAway} />
     ) : t === "board" ? (
       m2dOn ? (
-        <M2dScreen key={stamp} onRower={openRower} onScrollDir={setAway} onShareables={() => push({ kind: "m2dshare" })} />
+        <M2dScreen key={stamp} onRower={openRower} onScrollDir={setAway} onShareables={() => push({ kind: "m2dshare" })} onFaqPage={(focus) => push({ kind: "m2dfaq", focus })} />
       ) : (
         <BoardScreen key={stamp} look={boardLook} onRower={openRower} onScrollDir={setAway} />
       )
@@ -556,7 +563,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
 
   const screen = (o: Over): ReactNode =>
     o.kind === "rower" ? (
-      <ProfileScreen num={o.num} onM2dFaq={() => push({ kind: "m2dfaq" })} onPlus={onPlus} onRow={openRow} onPeople={openPeople} onSettings={(page) => push({ kind: "settings", page })} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
+      <ProfileScreen num={o.num} startSub={o.sub} onM2dFaq={() => push({ kind: "m2dfaq" })} onPlus={onPlus} onRow={openRow} onPeople={openPeople} onSettings={(page) => push({ kind: "settings", page })} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     ) : o.kind === "people" ? (
       <PeopleScreen list={o.list} num={o.num} onRower={openRower} />
     ) : o.kind === "bests" ? (
@@ -570,7 +577,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : o.kind === "locker" ? (
       <LockerScreen />
     ) : o.kind === "m2dfaq" ? (
-      <M2dFaqPage onScrollDir={setAway} onRower={openRower} />
+      <M2dFaqPage focus={o.focus} onScrollDir={setAway} onCharity={mine != null ? () => push({ kind: "rower", num: mine, sub: "m2d" }) : undefined} />
     ) : o.kind === "m2dshare" ? (
       <M2dSharePage onScrollDir={setAway} />
     ) : o.kind === "wiki" ? (
@@ -717,6 +724,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
               over it. */}
           <View
             style={{ flex: 1 }}
+            pointerEvents={over ? "none" : "auto"}
             {...swipe.panHandlers}
           >
             {TABS.map((t, i) =>

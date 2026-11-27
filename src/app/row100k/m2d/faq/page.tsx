@@ -61,14 +61,6 @@ export default async function M2dFaqPage() {
                 Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ a kilometer for the first 100,
                 then 4¢ a kilometer after that. It goes to the charity the rower picks in their Concept2 Logbook.
               </p>
-              <dl className="sum">
-                {([[100_000, 2], [150_000, 4], [200_000, 6], [300_000, 10]] as const).map(([m, d]) => (
-                  <div key={m}>
-                    <dt>{num(m)} m</dt>
-                    <dd>{usd(d)}</dd>
-                  </div>
-                ))}
-              </dl>
               <p>
                 Our Concept2 figure adds that up for every registered Rowtember rower past 100K, from the rows they log on ROW:{" "}
                 {v.totals.past100k} {v.totals.past100k === 1 ? "rower" : "rowers"} so far, {usd(v.totals.raised)}. Concept2 counts the
@@ -128,19 +120,48 @@ export default async function M2dFaqPage() {
 
               {/* WHAT A ROW RAISES (owner, 2026-11-25: the 50K to 300K lines
                   moved here from the M2D page, so the board comes sooner). */}
-              <h2 id="ladder">What a kilometer is worth</h2>
-              <p>
-                Concept2 and {v.match.by} together, for one registered rower: {cents(v.perKm ?? v.rate)} a kilometer under 100K,{" "}
-                {cents((v.perKm ?? v.rate) + 4)} a kilometer past it.
-              </p>
-              <dl className="sum">
-                {[50_000, 100_000, 150_000, 200_000, 300_000].map((m) => (
-                  <div key={m}>
-                    <dt>Row {num(m / 1000)}K</dt>
-                    <dd>{usd((m < 100_000 ? 0 : 2 + 0.04 * (m / 1000 - 100)) + ((m / 1000) * (v.perKm ?? v.rate)) / 100)}</dd>
-                  </div>
-                ))}
-              </dl>
+              {/* WHAT YOUR METERS ARE WORTH, A TABLE (owner, 2026-11-26: "should
+                  have a concept 2 Col, a ROW col, and a total. And then
+                  something for the special donations if there are any"). */}
+              <h2 id="ladder">What your meters are worth</h2>
+              {(() => {
+                const pledge = Math.max(0, (v.perKm ?? v.rate) - v.rate);
+                const cols: [string, (m: number) => number][] = [
+                  ["Concept2", (m) => (m < 100_000 ? 0 : 2 + 0.04 * (m / 1000 - 100))],
+                  [v.match.by, (m) => ((m / 1000) * v.rate) / 100],
+                  ...(pledge > 0 ? ([["Pledges", (m: number) => ((m / 1000) * pledge) / 100]] as [string, (m: number) => number][]) : []),
+                ];
+                return (
+                  <>
+                    <table className="m2-worth-t">
+                      <thead>
+                        <tr>
+                          <th>You row</th>
+                          {cols.map(([k]) => (
+                            <th key={k}>{k}</th>
+                          ))}
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[10_000, 50_000, 100_000, 150_000, 200_000, 300_000].map((m) => (
+                          <tr key={m}>
+                            <td>{num(m / 1000)}K</td>
+                            {cols.map(([k, d]) => (
+                              <td key={k}>{usd(d(m))}</td>
+                            ))}
+                            <td className="t">{usd(cols.reduce((a, [, d]) => a + d(m), 0))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p>
+                      A kilometer is {cents(v.perKm ?? v.rate)} under 100K and {cents((v.perKm ?? v.rate) + 4)} past it. Concept2&apos;s part starts at
+                      100K.{pledge > 0 ? " Each pledge stops at its cap." : ""}
+                    </p>
+                  </>
+                );
+              })()}
 
               {/* HOW TO LOG (owner, 2026-11-26: "we don't want to have them
                   connect to the rower with their phone and submit that way we
@@ -162,6 +183,13 @@ export default async function M2dFaqPage() {
                   <div>
                     <b>Row</b>
                     <p>The row logs itself, with the full telemetry. Save it, and it counts for M2D right away.</p>
+                  </div>
+                </li>
+                <li>
+                  <span className="k">3</span>
+                  <div>
+                    <b>Not connected? Type it in</b>
+                    <p>Tap the + (or Log a row here) and enter your meters and time instead, with a photo of the monitor if you like. A typed row counts for M2D the same.</p>
                   </div>
                 </li>
               </ol>
@@ -214,7 +242,10 @@ export default async function M2dFaqPage() {
                 Logbook.
               </p>
               <h3>Is there a limit?</h3>
-              <p>{v.match.by} matches up to ${M2D_CAP.toLocaleString("en-US")}.</p>
+              <p>
+                Concept2 sets none: every rower past 100K earns its donation, at 4¢ a kilometer for every kilometer after 100. Meters go into the
+                Logbook until 11:59 pm GMT on Jan 4. {v.match.by} matches up to ${M2D_CAP.toLocaleString("en-US")}.
+              </p>
               <h3>Can I add to it?</h3>
               <p>
                 Yes: <Link href="/m2d/give">add cents to every kilometer</Link>.

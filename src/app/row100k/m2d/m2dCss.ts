@@ -122,6 +122,11 @@ export const m2dCss = `
 .row100k .m2-faq .sum div{display:flex;justify-content:space-between;gap:16px;padding:9px 0 8px;border-bottom:1px solid var(--line);font-size:15px}
 .row100k .m2-faq .sum dd{font-family:var(--row-mono),monospace;font-weight:700;color:var(--water)}
 .row100k .m2-faq h3{margin-top:22px;font-size:17px;font-weight:700;color:var(--ink)}
+.row100k .m2-faq .m2-worth-t{margin-top:14px;width:100%;max-width:640px;border-collapse:collapse;border-top:2px solid var(--ink);font-size:15px}
+.row100k .m2-faq .m2-worth-t th{padding:8px 0 7px;border-bottom:1px solid var(--ink);font-family:var(--row-mono),monospace;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;text-align:right;color:var(--ink)}
+.row100k .m2-faq .m2-worth-t td{padding:9px 0 8px;border-bottom:1px solid var(--line);font-family:var(--row-mono),monospace;text-align:right;color:var(--ink)}
+.row100k .m2-faq .m2-worth-t th:first-child,.row100k .m2-faq .m2-worth-t td:first-child{text-align:left;font-family:inherit;font-weight:700}
+.row100k .m2-faq .m2-worth-t td.t{font-weight:700;color:var(--water)}
 .row100k .m2-faq h2.m2-sec{padding-bottom:8px;border-bottom:2px solid var(--ink)}
 .row100k .m2-faq .m2-btn{display:inline-block;padding:10px 16px;background:var(--water);color:#fff;font-family:var(--row-archivo-black),sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:.03em;text-decoration:none}
 .row100k .m2-in{width:7em;margin-left:6px;padding:6px 8px;border:1px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink);font-family:var(--row-mono),monospace;font-size:15px}

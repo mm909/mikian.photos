@@ -160,7 +160,10 @@ export function ProfileScreen({
   onSettings,
   onLocker,
   onM2dFaq,
+  startSub,
 }: {
+  /* The column to open on (PICK MY CHARITY opens the M2D one). */
+  startSub?: "rows" | "stats" | "m2d" | "ratings";
   num?: number;
   /* The arcade tab's CHANGE THE LOOK: the locker. */
   onLocker?: () => void;
@@ -275,6 +278,10 @@ export function ProfileScreen({
     },
     [pos],
   );
+  useEffect(() => {
+    if (startSub && subsRef.current.includes(startSub)) pickTab(startSub);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const swipe = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => {

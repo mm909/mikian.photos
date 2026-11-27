@@ -143,25 +143,45 @@ function TotalItem({ d, label = "Total" }: { d: string; label?: string }) {
  * ... I am giving 3 cents per 1K. Concept2 is giving 2 cents per 1K and
  * then 4 cents"). Each giver a line in cents a kilometer, and the sum,
  * under and past 100K. */
+/* WHAT YOUR METERS ARE WORTH, A TABLE (owner, 2026-11-26: "The table for
+ * how much your meters is worth should have a concept 2 Col, a ROW col, and
+ * a total. And then something for the special donations if there are any").
+ * One rower's meters down the side; Concept2's part (nothing until 100K,
+ * 2¢ a km for the first 100 then 4¢), ROWTEMBER's, the pledges (a column
+ * only while there are any, each at its own rate until its cap), and the
+ * sum. */
+const WORTH_AT = [10_000, 50_000, 100_000, 150_000, 200_000, 300_000];
+const c2For = (m: number) => (m < 100_000 ? 0 : 2 + 0.04 * (m / 1000 - 100));
 function PerKm({ v }: { v: M2dView }) {
-  const all = perKmOf(v);
-  /* Only the sums (owner, 2026-11-25: "we actually don't need the rows for
-   * Concept2 and ROWTEMBER. I only care about the under 100K, after 100K");
-   * the givers and their rates are on the receipt above. */
-  const sum = (k: string, note: string, c: number) => (
-    <View key={k} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", columnGap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line }}>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: F.black, fontSize: 15, color: C.ink, textTransform: "uppercase" }}>{k}</Text>
-        <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 3 }]}>{note}</Text>
-      </View>
-      <Text style={{ fontFamily: F.black, fontSize: 17, color: C.accent, fontVariant: ["tabular-nums"] }}>{centsWord(c)} / km</Text>
-    </View>
+  const rate = rateOf(v);
+  const by = v.match?.by ?? "ROWTEMBER";
+  const pledge = Math.max(0, perKmOf(v) - rate);
+  const cols: { k: string; d: (m: number) => number }[] = [
+    { k: "Concept2", d: c2For },
+    { k: by, d: (m) => ((m / 1000) * rate) / 100 },
+    ...(pledge > 0 ? [{ k: "Pledges", d: (m: number) => ((m / 1000) * pledge) / 100 }] : []),
+  ];
+  const cell = (t: string, head: boolean, accent = false) => (
+    <Text style={[head ? mono(9.5, true, C.ink, 0.1) : { fontFamily: accent ? F.monoBold : F.mono, fontSize: 13, color: accent ? C.accent : C.ink, fontVariant: ["tabular-nums"] }, { flex: 1, textAlign: "right" }]}>{t}</Text>
   );
   return (
     <View style={{ marginTop: 34 }}>
-      <Text style={{ fontFamily: F.black, fontSize: 17, color: C.ink, textTransform: "uppercase", paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>What a kilometer is worth</Text>
-      {sum("Under 100K", "Until Concept2's donation begins at 100K", all)}
-      {sum("Past 100K", "Concept2's 4¢ on top", all + 4)}
+      <Text style={{ fontFamily: F.black, fontSize: 17, color: C.ink, textTransform: "uppercase", paddingBottom: 8, borderBottomWidth: 2, borderColor: C.ink }}>What your meters are worth</Text>
+      <View style={{ flexDirection: "row", paddingVertical: 8, borderBottomWidth: 1, borderColor: C.ink, columnGap: 8 }}>
+        <Text style={[mono(9.5, true, C.ink, 0.1), { flex: 1.1 }]}>You row</Text>
+        {cols.map((c) => cell(c.k, true))}
+        {cell("Total", true)}
+      </View>
+      {WORTH_AT.map((m) => (
+        <View key={m} style={{ flexDirection: "row", paddingVertical: 9, borderBottomWidth: 1, borderColor: C.line, columnGap: 8 }}>
+          <Text style={{ flex: 1.1, fontFamily: F.bold, fontSize: 14, color: C.ink }}>{fmtInt(m / 1000)}K</Text>
+          {cols.map((c) => cell(usd(c.d(m)), false))}
+          {cell(usd(cols.reduce((a, c) => a + c.d(m), 0)), false, true)}
+        </View>
+      ))}
+      <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 8, lineHeight: 15 }]}>
+        {`A kilometer is ${centsWord(perKmOf(v))} under 100K and ${centsWord(perKmOf(v) + 4)} past it. Concept2's part starts at 100K.${pledge > 0 ? " Each pledge stops at its cap." : ""}`}
+      </Text>
     </View>
   );
 }
@@ -573,15 +593,20 @@ function Raised({ v, onFaq }: { v: M2dView; onFaq: (k: "concept2" | "rowtember")
  * register ... all this shit should be gone. It's already done"); a rower
  * not yet in gets one small JOIN M2D, which opens the steps here. A tap on
  * CONCEPT2 or ROWTEMBER opens the math (M2dFaq) in place. */
-export function M2dScreen({ onRower, onScrollDir, onShareables }: { onRower: (n: number) => void; onScrollDir?: (down: boolean) => void; onShareables?: () => void }) {
+export function M2dScreen({ onRower, onScrollDir, onShareables, onFaqPage }: { onRower: (n: number) => void; onScrollDir?: (down: boolean) => void; onShareables?: () => void; onFaqPage?: (focus: "concept2" | "rowtember" | "all") => void }) {
   const dir = useScrollDir(onScrollDir);
   const { data: v, error, loading, reload } = useM2d();
   const inOut = useIn(v ?? null, reload);
-  const [faq, setFaq] = useState<"concept2" | "rowtember" | "all" | null>(null);
+  /* THE FAQ OPENS OVER THE TABS (owner, 2026-11-26: "If im on the faq
+   * page and click the m2d at the bottom it should go back to the first
+   * m2d Home Screen"): a page, so a press on the M2D tab clears it. */
+  const [faqIn, setFaqIn] = useState<"concept2" | "rowtember" | "all" | null>(null);
+  const faq = onFaqPage ? null : faqIn;
+  const setFaq = (k: "concept2" | "rowtember" | "all") => (onFaqPage ? onFaqPage(k) : setFaqIn(k));
   const [joining, setJoining] = useState(false);
   const { me } = useSession();
   if (!v) return <Waiting error={error} onRetry={reload} />;
-  if (faq) return <M2dFaq v={v} focus={faq} onBack={() => setFaq(null)} onScrollDir={onScrollDir} onCharity={v.me ? () => onRower(v.me!.rowerNumber) : undefined} />;
+  if (faq) return <M2dFaq v={v} focus={faq} onBack={() => setFaqIn(null)} onScrollDir={onScrollDir} onCharity={v.me ? () => onRower(v.me!.rowerNumber) : undefined} />;
   const w = v.window;
   let place = 0;
   return (
@@ -775,10 +800,10 @@ export function M2dSharePage({ onScrollDir }: { onScrollDir?: (down: boolean) =>
   );
 }
 
-export function M2dFaqPage({ onScrollDir, onRower }: { onScrollDir?: (down: boolean) => void; onRower?: (n: number) => void }) {
+export function M2dFaqPage({ onScrollDir, onCharity, focus = "all" }: { onScrollDir?: (down: boolean) => void; onCharity?: () => void; focus?: "concept2" | "rowtember" | "all" }) {
   const { data: v, error, reload } = useM2d();
   if (!v) return <Waiting error={error} onRetry={reload} />;
-  return <M2dFaq v={v} focus="all" onScrollDir={onScrollDir} onCharity={v.me && onRower ? () => onRower(v.me!.rowerNumber) : undefined} />;
+  return <M2dFaq v={v} focus={focus} onScrollDir={onScrollDir} onCharity={v.me && v.me.in ? onCharity : undefined} />;
 }
 
 /* THE M2D FAQ (owner, 2026-11-26: "this page should be a M2D FAQ and a
@@ -837,16 +862,7 @@ export function M2dFaq({ v, focus, onBack, onScrollDir, onCharity }: { v: M2dVie
       <PerKm v={v} />
 
       {head("concept2", "Concept2", t.raised)}
-      {para("Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ a kilometer for the first 100, then 4¢ a kilometer after that. It goes to the charity the rower picks in their Concept2 Logbook.")}
-      {/* A TABLE, NOT A SENTENCE (owner, 2026-11-26: "When showing the list
-          of meters and dollars prob better in a table"). */}
-      <View style={{ marginTop: 10, borderTopWidth: 2, borderColor: C.ink }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6, borderBottomWidth: 1, borderColor: C.ink }}>
-          <Text style={mono(10, true, C.ink, 0.12)}>Meters</Text>
-          <Text style={mono(10, true, C.ink, 0.12)}>From Concept2</Text>
-        </View>
-        {([[100_000, 2], [150_000, 4], [200_000, 6], [300_000, 10]] as const).map(([m, d]) => row(`${fmtInt(m)} m`, usd(d)))}
-      </View>
+      {para("Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ a kilometer for the first 100, then 4¢ a kilometer after that. It goes to the charity the rower picks in their Concept2 Logbook. The table above has it, kilometer by kilometer.")}
       {para(`Our figure adds that up for every registered Rowtember rower past 100K, from the rows logged on ROW: ${t.past100k} ${t.past100k === 1 ? "rower" : "rowers"} so far, ${usd(t.raised)}. Concept2 counts the meters in each Logbook, so its own number can differ.`)}
 
       {head("rowtember", by, t.matched ?? 0)}
@@ -877,9 +893,11 @@ export function M2dFaq({ v, focus, onBack, onScrollDir, onCharity }: { v: M2dVie
           typed into log.concept2.com. Both places. */}
       {section("How do I log a row?")}
       {para("Log every row in both places: on ROW for the board and the match, and in your Concept2 Logbook for Concept2's part.")}
+      {/* TYPED IN COUNTS TOO (owner, 2026-11-26: "make sure users know they
+          can manually log the row if they don't connect to the rower"). */}
       {(
         [
-          ["1. On ROW", [["Connect ROW to the monitor", "Tap the + at the top of the ROW app and connect to the monitor by Bluetooth before you start."], ["Row", "The row logs itself, with the full telemetry. Save it, and it counts for M2D right away."]]],
+          ["1. On ROW", [["Connect ROW to the monitor", "Tap the + at the top of the ROW app and connect to the monitor by Bluetooth before you start."], ["Row", "The row logs itself, with the full telemetry. Save it, and it counts for M2D right away."], ["Not connected? Type it in", "Tap the + and enter your meters and time instead, with a photo of the monitor if you like. A typed row counts for M2D the same."]]],
           ["2. On Concept2", [["Open log.concept2.com", "Sign in to your Concept2 Logbook."], ["Add Workout", "Type the same row in: the meters, the time and the date. Save."], ["Check it counted", "Open the Holiday Challenge in your Logbook: your meters toward 100K are there. Meters can go in until Jan 4."]]],
         ] as [string, [string, string][]][]
       ).map(([who, steps]) => (
@@ -896,12 +914,17 @@ export function M2dFaq({ v, focus, onBack, onScrollDir, onCharity }: { v: M2dVie
           ))}
         </View>
       ))}
+      {/* CONCEPT2'S OWN PAGE, from here (owner, 2026-11-26: "Add a link to
+          concepts 2 site on the how do I log a row"). */}
+      <View style={{ marginTop: 16, rowGap: 12 }}>
+        <Ctl label="Open log.concept2.com ↗" onPress={() => open("https://log.concept2.com")} />
+      </View>
       {section("Questions")}
       {q("When is it?", "Thursday, Nov 26 to Thursday, Dec 24. Concept2 takes meters into the Logbook until Jan 4.")}
       {q("How do I register?", `Make a free Concept2 Logbook, pick a charity there, and add your rows there at log.concept2.com. Then press Opt in to M2D on the M2D tab, pick where ${by}'s part goes, and press I'm registered.`)}
       {q("How do I change my charity?", "On your profile, under M2D, until Dec 24. You can split it across the three there too.")}
       {q("What counts?", `For ${by}: rows logged on ROW from Nov 26 to Dec 24 by registered rowers. For Concept2: the meters in your Concept2 Logbook.`)}
-      {q("Is there a limit?", `${by} matches up to $1,000.`)}
+      {q("Is there a limit?", `Concept2 sets none: every rower past 100K earns its donation, at 4¢ a kilometer for every kilometer after 100. Meters go into the Logbook until 11:59 pm GMT on Jan 4. ${by} matches up to $1,000.`)}
       {q("Does it cost me anything?", "No. It is free.")}
       <View style={{ marginTop: 18 }}>
         <Ctl label="The challenge at Concept2 ↗" onPress={() => open(v.link)} />
