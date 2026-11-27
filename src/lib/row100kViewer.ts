@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { db } from "@/lib/db";
 import { isDevAccount, resetIfNewDay } from "@/lib/devAccount";
 import { getEffectiveActor, type Actor } from "@/lib/permissions";
@@ -112,7 +112,18 @@ export async function resolveViewer(): Promise<Viewer> {
   try {
     const actor = await getEffectiveActor();
     if (!actor) return ANON_VIEWER;
-    const isAdmin = isRow100kAdmin(actor.email, actor.roles);
+    /* VIEWING AS A ROWER (owner, 2026-11-26: "I want to be able to view
+     * the app as a normal user ... it shows me the app as if I had the same
+     * account, but I was just a user instead of an admin"): the ROW app
+     * says so on every request, and the admin is not one for it. It can
+     * only take a power away, never give one. */
+    let asRower = false;
+    try {
+      asRower = headers().get("x-row-view") === "rower";
+    } catch {
+      asRower = false;
+    }
+    const isAdmin = !asRower && isRow100kAdmin(actor.email, actor.roles);
     /* THE DEVELOPER (lib/devAccount.ts): the first use on a new day puts
      * its copy of rower 001 back. */
     if (await isDevAccount(actor.photographerId)) {

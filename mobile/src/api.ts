@@ -74,15 +74,30 @@ export function warm(paths: string[]): void {
   for (const p of paths) api(p).catch(() => null);
 }
 
+/* VIEWING AS A ROWER (session.tsx): the owner's own account, read as a
+ * rower's, and nothing saved. Every request says so (the site drops the
+ * admin for it, and its middleware refuses a save), and a save is stopped
+ * here before it leaves. The count of the app's opens still goes. */
+export const viewAs = { rower: false };
+const SAVES_ALLOWED = ["/api/row100k/app/seen"];
+export const NOT_SAVED = "Viewing as a rower: nothing is saved.";
+/* What has been read, forgotten: the admin's answers are not a rower's. */
+export function forgetReads(): void {
+  seen.clear();
+}
+
 /* One request. Answers the parsed body of an { ok: true, ... } reply and
  * throws ApiError with the server's own sentence otherwise. */
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const method = init.method ?? (init.body === undefined ? "GET" : "POST");
+  if (viewAs.rower && method !== "GET" && !SAVES_ALLOWED.some((p) => path.startsWith(p))) throw new ApiError(NOT_SAVED, 403);
   const t = await loadToken();
   let res: Response;
   try {
     res = await fetch(`${API}${path}`, {
-      method: init.method ?? (init.body === undefined ? "GET" : "POST"),
-      headers: { ...(init.body === undefined ? {} : { "content-type": "application/json" }), ...(t ? { authorization: `Bearer ${t}` } : {}) },
+      method,
+      /* `x-row-client`: where a row was logged (the site's RowEntry.via). */
+      headers: { "x-row-client": "app", ...(viewAs.rower ? { "x-row-view": "rower" } : {}), ...(init.body === undefined ? {} : { "content-type": "application/json" }), ...(t ? { authorization: `Bearer ${t}` } : {}) },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
       credentials: SAME_ORIGIN ? "include" : "omit",
     });

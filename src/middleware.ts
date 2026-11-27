@@ -243,6 +243,14 @@ function devAppCors(req: NextRequest): NextResponse | null {
 export function middleware(req: NextRequest) {
   const cors = devAppCors(req);
   if (cors) return cors;
+  /* NOTHING IS SAVED WHILE VIEWING AS A ROWER (owner, 2026-11-26: "me
+   * interacting with any data needs to ... not make any permanent changes
+   * ... this account can't write any rows to a database"): the ROW app
+   * stops these itself (mobile/src/api.ts); this is the site's half. Only
+   * the count of the app's opens goes through. */
+  if (req.headers.get("x-row-view") === "rower" && req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS" && !req.nextUrl.pathname.endsWith("/api/row100k/app/seen")) {
+    return NextResponse.json({ ok: false, error: "Viewing as a rower: nothing is saved." }, { status: 403 });
+  }
   const moved = toRowtember(req) ?? stripPrefix(req);
   if (moved) return moved;
   const row = rowRewrite(req);

@@ -617,6 +617,11 @@ model RowEntry {
   /// seeded demo rows, may have fewer).
   photos        String[] @default([])
   createdAt     DateTime @default(now())
+  /// WHERE IT WAS LOGGED (owner, 2026-11-26: "a percentage of meters that
+  /// happen on the app versus online, like where they're submitted from"):
+  /// "app" from the ROW app, "web" from the site, "" for rows saved before
+  /// this was kept. Additive, with a default.
+  via           String   @default("")
 
   participant RowParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
 

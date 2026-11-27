@@ -35,7 +35,7 @@ export const GOAL_METERS = 100_000;
  * platform owner role qualifies, plus these accounts. Both are also site-wide
  * owner emails (see isOwnerEmail in permissions.ts); the explicit list here is
  * kept so challenge admin never depends on role hydration. */
-const ADMIN_EMAILS = ["mikian.photos@gmail.com", "mikianmusser@gmail.com"];
+export const ADMIN_EMAILS = ["mikian.photos@gmail.com", "mikianmusser@gmail.com"];
 
 export function isRow100kAdmin(email: string, roles: string[]): boolean {
   return roles.includes("owner") || ADMIN_EMAILS.includes(email.toLowerCase().trim());

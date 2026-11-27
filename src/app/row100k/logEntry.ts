@@ -1,4 +1,5 @@
 import { revalidateTag } from "next/cache";
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { activeBlackout } from "@/lib/blackout";
 import { digitCount } from "@/lib/blackoutRules";
@@ -76,8 +77,15 @@ export async function saveRow(participant: SaveParticipant, input: EntryInput, p
   // numbered by how many rows they'll have in the row's month.
   const value = input.title ? input : { ...input, title: defaultRowTitle(totalCount + 1, rowMonth) };
 
+  /* The ROW app says so on every request (mobile/src/api.ts). */
+  let via = "web";
+  try {
+    if (headers().get("x-row-client") === "app") via = "app";
+  } catch {
+    via = "";
+  }
   const entry = await db.rowEntry.create({
-    data: { challenge: CHALLENGE, participantId: participant.id, ...value, photos },
+    data: { challenge: CHALLENGE, participantId: participant.id, ...value, photos, via },
   });
   revalidateTag("row100k-boards");
 

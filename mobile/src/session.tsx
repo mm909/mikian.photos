@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { AppState, Platform } from "react-native";
 import { STAMP } from "./splash";
 import * as WebBrowser from "expo-web-browser";
-import { API, api, loadToken, setToken, type Me } from "./api";
+import { API, api, forgetReads, loadToken, setToken, viewAs, type Me } from "./api";
+import { buzz } from "./buzz";
 
 /* WHO IS HOLDING THE PHONE. One read of /api/row100k/app/me when the app
  * opens and after anything that changes it (a sign-in, a join, a logged
@@ -27,10 +28,15 @@ type Session = {
    * (the site's /api/row100k/app/session/handoff says how). */
   signInSite: () => Promise<void>;
   signOut: () => Promise<void>;
+  /* VIEWING AS A ROWER: the owner's own account with no admin, nothing
+   * saved. `canView`: the account really is an admin. */
+  asRower: boolean;
+  canView: boolean;
+  flipView: () => void;
 };
 
 const OUT: Me = { signedIn: false };
-const Ctx = createContext<Session>({ ready: false, me: OUT, refresh: async () => {}, signInDev: async () => {}, signInGoogle: async () => {}, signInApple: async () => {}, signInReview: async () => {}, signInSite: async () => {}, signOut: async () => {} });
+const Ctx = createContext<Session>({ ready: false, me: OUT, refresh: async () => {}, signInDev: async () => {}, signInGoogle: async () => {}, signInApple: async () => {}, signInReview: async () => {}, signInSite: async () => {}, signOut: async () => {}, asRower: false, canView: false, flipView: () => {} });
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me>(OUT);
@@ -93,13 +99,42 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
+  /* VIEWING AS A ROWER (owner, 2026-11-26: "if I double tap my profile icon
+   * on the bottom ... it just swaps my profile, kind of like Instagram ...
+   * and it shows me the app as if I had the same account, but I was just a
+   * user instead of an admin ... it needs to not make any permanent
+   * changes"). The app's answers are read again as a rower's (api.ts
+   * viewAs), and every save is stopped. Not kept: the app opens as the
+   * owner again. */
+  const [asRower, setAsRower] = useState(false);
+  const [canView, setCanView] = useState(false);
+  useEffect(() => {
+    if (!asRower) setCanView(!!me.isAdmin);
+    if (!me.signedIn) {
+      setCanView(false);
+      setAsRower(false);
+      viewAs.rower = false;
+    }
+  }, [me, asRower]);
+  const flipView = useCallback(() => {
+    if (!canView) return;
+    const next = !viewAs.rower;
+    viewAs.rower = next;
+    forgetReads();
+    setAsRower(next);
+    buzz.thud();
+    void refresh();
+  }, [canView, refresh]);
+
   const signOut = useCallback(async () => {
+    viewAs.rower = false;
+    setAsRower(false);
     await setToken(null);
     setMe(OUT);
     await refresh();
   }, [refresh]);
 
-  return <Ctx.Provider value={{ ready, me, refresh, signInDev: (email) => take({ devEmail: email }), signInGoogle: (idToken) => take({ idToken }), signInApple: (appleToken, name) => take({ appleToken, name }), signInReview: (reviewPass) => take({ reviewPass }), signInSite, signOut }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ready, me, refresh, signInDev: (email) => take({ devEmail: email }), signInGoogle: (idToken) => take({ idToken }), signInApple: (appleToken, name) => take({ appleToken, name }), signInReview: (reviewPass) => take({ reviewPass }), signInSite, signOut, asRower, canView, flipView }}>{children}</Ctx.Provider>;
 }
 
 export const useSession = () => useContext(Ctx);

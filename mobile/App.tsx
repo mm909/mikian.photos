@@ -164,7 +164,7 @@ function Root({ dark }: { dark: boolean }) {
 }
 
 function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<typeof useErg>; init: Nav; onNav: (n: Nav) => void }) {
-  const { refresh, me } = useSession();
+  const { refresh, me, asRower, flipView } = useSession();
   const win = useWindowDimensions();
   const [tab, setTab] = useState<Tab>(init.tab);
   const [stack, setStack] = useState<Over[]>(init.stack);
@@ -623,6 +623,15 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
           scrub.chart = false;
         }}
       >
+        {/* WHICH ONE YOU ARE (owner, 2026-11-26: "I don't want to get
+            confused between am I on the developer account, am I on the
+            just non-admin account"): while viewing as a rower, a strip
+            says so, and how to go back. */}
+        {asRower ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Viewing as a rower. Press to go back." onPress={flipView} style={{ backgroundColor: C.accent, paddingVertical: 5, alignItems: "center" }}>
+            <Text style={{ fontFamily: F.monoBold, fontSize: 10, letterSpacing: 1.6, color: "#FFFFFF" }}>VIEWING AS A ROWER · NOTHING IS SAVED · TAP TO GO BACK</Text>
+          </Pressable>
+        ) : null}
         {monitor ? null : (
           /* No rule under the bar (owner, 2026-11-22: "I don't need that
              line at the top"). It folds away with the feed. */
@@ -877,7 +886,8 @@ function TabBar({ tab, onTab, small, above }: { tab: Tab; onTab: (t: Tab) => voi
    * PAD - EDGE either side, and is EDGE from the bar's end at the ends. */
   const cell = (w - 2 * TAB_PAD) / TABS.length;
   const pill = cell + 2 * (TAB_PAD - TAB_EDGE);
-  const { me } = useSession();
+  const { me, asRower, canView, flipView } = useSession();
+  const faceTap = useRef(0);
   return (
     /* It floats over the page, which shows around and through it, and draws
        in while a screen is read downward. Made after Instagram's bar, which
@@ -904,9 +914,29 @@ function TabBar({ tab, onTab, small, above }: { tab: Tab; onTab: (t: Tab) => voi
           />
         ) : null}
         {TABS.map((t) => (
-          <Pressable key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: tab === t.id }} onPress={() => onTab(t.id)} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <Pressable
+            key={t.id}
+            accessibilityRole="tab"
+            accessibilityLabel={t.label}
+            accessibilityState={{ selected: tab === t.id }}
+            onPress={() => {
+              /* TWO TAPS ON YOUR FACE: viewing as a rower, or back (owner,
+                 2026-11-26; session.tsx flipView). The owner's alone. */
+              if (t.id === "profile" && canView) {
+                const now = Date.now();
+                if (now - faceTap.current < 350) {
+                  faceTap.current = 0;
+                  flipView();
+                  return;
+                }
+                faceTap.current = now;
+              }
+              onTab(t.id);
+            }}
+            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+          >
             {t.id === "profile" && me.me ? (
-              <View style={{ borderCurve: "continuous", borderRadius: 16, borderWidth: 2, borderColor: tab === t.id ? "#fff" : "transparent" }}>
+              <View style={{ borderCurve: "continuous", borderRadius: 16, borderWidth: 2, borderColor: asRower ? C.accentLight : tab === t.id ? "#fff" : "transparent" }}>
                 <Avatar uri={me.avatar} name={me.me.displayName} num={me.me.rowerNumber} size={28} />
               </View>
             ) : (

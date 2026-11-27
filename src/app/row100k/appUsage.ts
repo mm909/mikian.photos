@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { CHALLENGE, nowMs, pacificDay } from "@/lib/row100k";
+import { ADMIN_EMAILS, CHALLENGE, nowMs, pacificDay } from "@/lib/row100k";
+import { DEV_EMAIL } from "@/lib/devHide";
 import { androidTesters, testerCount } from "./android/testers";
 
 /* WHO USES THE APP (owner, 2026-11-26: "I need like a total number of
@@ -39,7 +40,11 @@ export type AppUsage = {
   versus: Versus[];
   since: string | null;
   accounts: number;
-  byPlatform: { ios: number; android: number; web: number };
+  /* `phone`: on the app by what they did there, the kind of phone not yet
+   * known (nothing in either record says it). */
+  byPlatform: { ios: number; android: number; web: number; phone: number };
+  /* The share of the meters logged that were logged on the app. */
+  meterShare: { today: number | null; week: number | null; prior4: number | null };
   todayUsers: number;
   todayOpens: number;
   days: { day: string; users: number; opens: number }[];
@@ -51,11 +56,21 @@ const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T12:00:00
 
 export async function appUsage(): Promise<AppUsage> {
   const today = pacificDay(nowMs());
-  const [seen, push, testers] = await Promise.all([
+  /* NONE OF THE OWNER'S OWN (owner, 2026-11-26: "this usage page should
+   * exclude any of my usage"): his accounts and the Developer sign-in are
+   * left out of every figure here. */
+  const ownAccounts = await db.photographer.findMany({ where: { email: { in: [...ADMIN_EMAILS, DEV_EMAIL] } }, select: { id: true } });
+  const notMe = new Set(ownAccounts.map((a) => a.id));
+  const notMePids = new Set(
+    (await db.rowParticipant.findMany({ where: { userId: { in: [...notMe] } }, select: { id: true } })).map((p) => p.id),
+  );
+  const [seenAll, pushAll, testers] = await Promise.all([
     db.rowAppSeen.findMany({ select: { userId: true, day: true, platform: true, opens: true } }),
     db.rowPushToken.findMany({ select: { userId: true, platform: true, createdAt: true, updatedAt: true } }),
     androidTesters(),
   ]);
+  const seen = seenAll.filter((s) => !notMe.has(s.userId));
+  const push = pushAll.filter((t) => !notMe.has(t.userId));
   type P = { platforms: Set<string>; first: string; last: string; days: Set<string>; opens: number };
   const by = new Map<string, P>();
   const get = (id: string) => {
@@ -79,6 +94,37 @@ export async function appUsage(): Promise<AppUsage> {
     if (s.day < p.first) p.first = s.day;
     if (s.day > p.last) p.last = s.day;
   }
+  /* WHAT ONLY THE APP DOES (owner, 2026-11-26: "How does the app usage
+   * only show me ... when we know that Abe has downloaded and used it
+   * because of the like and comment?"): a like, a comment, a follow, a
+   * recording off a monitor, a row logged on the app. Anyone who did one is
+   * on the app, the kind of phone unknown until it opens and is counted. */
+  const [likesAll, commentsAll, followsAll, recordings, appRows] = await Promise.all([
+    db.rowLike.findMany({ where: { challenge: CHALLENGE }, select: { participantId: true, createdAt: true } }),
+    db.rowComment.findMany({ where: { challenge: CHALLENGE }, select: { participantId: true, createdAt: true } }),
+    db.rowFollow.findMany({ select: { followerId: true, createdAt: true } }),
+    db.rowTelemetry.findMany({ where: { simulated: false, userId: { not: null } }, select: { userId: true, startedAt: true } }),
+    db.rowEntry.findMany({ where: { challenge: CHALLENGE, via: "app" }, select: { participantId: true, createdAt: true } }),
+  ]);
+  const acts: { pid?: string; uid?: string; at: Date }[] = [
+    ...likesAll.map((x) => ({ pid: x.participantId, at: x.createdAt })),
+    ...commentsAll.map((x) => ({ pid: x.participantId, at: x.createdAt })),
+    ...followsAll.map((x) => ({ pid: x.followerId, at: x.createdAt })),
+    ...appRows.map((x) => ({ pid: x.participantId, at: x.createdAt })),
+    ...recordings.map((x) => ({ uid: x.userId as string, at: x.startedAt })),
+  ];
+  const pidUser = new Map(
+    (await db.rowParticipant.findMany({ where: { id: { in: [...new Set(acts.map((a) => a.pid).filter((x): x is string => !!x))] } }, select: { id: true, userId: true } })).map((p) => [p.id, p.userId]),
+  );
+  for (const a of acts) {
+    const uid = a.uid ?? (a.pid ? pidUser.get(a.pid) : undefined);
+    if (!uid || notMe.has(uid)) continue;
+    const p = get(uid);
+    const d = pacificDay(a.at.getTime());
+    if (d < p.first) p.first = d;
+    if (d > p.last) p.last = d;
+  }
+  for (const p of by.values()) if (p.platforms.size === 0) p.platforms.add("phone");
   const ids = [...by.keys()];
   const [accounts, rowers] = await Promise.all([
     db.photographer.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }),
@@ -103,8 +149,8 @@ export async function appUsage(): Promise<AppUsage> {
     })
     .sort((a, b) => (a.lastDay === b.lastDay ? b.opens - a.opens : a.lastDay < b.lastDay ? 1 : -1));
 
-  const byPlatform = { ios: 0, android: 0, web: 0 };
-  for (const p of by.values()) for (const k of p.platforms) if (k === "ios" || k === "android" || k === "web") byPlatform[k]++;
+  const byPlatform = { ios: 0, android: 0, web: 0, phone: 0 };
+  for (const p of by.values()) for (const k of p.platforms) if (k === "ios" || k === "android" || k === "web" || k === "phone") byPlatform[k]++;
 
   const days: AppUsage["days"] = [];
   for (let i = 13; i >= 0; i--) {
@@ -117,11 +163,29 @@ export async function appUsage(): Promise<AppUsage> {
   /* THE FOUR-WEEK COMPARISONS. Days are Pacific. */
   const from = addDays(today, -34);
   const fromAt = new Date(Date.parse(`${from}T00:00:00-08:00`));
-  const [likes, comments, logged] = await Promise.all([
+  const [likesRaw, commentsRaw, loggedRaw] = await Promise.all([
     db.rowLike.findMany({ where: { challenge: CHALLENGE, createdAt: { gte: fromAt } }, select: { createdAt: true, participantId: true } }),
     db.rowComment.findMany({ where: { challenge: CHALLENGE, deletedAt: null, createdAt: { gte: fromAt } }, select: { createdAt: true, participantId: true } }),
-    db.rowEntry.findMany({ where: { challenge: CHALLENGE, createdAt: { gte: fromAt } }, select: { createdAt: true, participantId: true } }),
+    db.rowEntry.findMany({ where: { challenge: CHALLENGE, createdAt: { gte: fromAt } }, select: { id: true, createdAt: true, participantId: true, via: true, caption: true, meters: true } }),
   ]);
+  const likes = likesRaw.filter((x) => !notMePids.has(x.participantId));
+  const comments = commentsRaw.filter((x) => !notMePids.has(x.participantId));
+  const allLogged = loggedRaw.filter((x) => !notMePids.has(x.participantId));
+  /* ON THE APP, NOT THE SITE (owner, 2026-11-26: "this usage needs to be
+   * usage of ... the Row app, not Rowtember in general"). A row says where
+   * it was logged since Nov 26 (RowEntry.via); before that, a row with a
+   * recording off a monitor or a caption (both the app's alone) was the
+   * app's, and a plain typed one is counted as the site's. */
+  const recorded = new Set(
+    (await db.rowTelemetry.findMany({ where: { entryId: { in: allLogged.map((r) => r.id) } }, select: { entryId: true } })).map((t) => t.entryId as string),
+  );
+  const onApp = (r: (typeof allLogged)[number]) => r.via === "app" || (r.via === "" && (recorded.has(r.id) || !!r.caption));
+  const logged = allLogged.filter(onApp);
+  const shareOf = (a: string, b: string) => {
+    const inside = allLogged.filter((r) => within(pacificDay(r.createdAt.getTime()), a, b));
+    const all = inside.reduce((m, r) => m + r.meters, 0);
+    return all > 0 ? Math.round((inside.filter(onApp).reduce((m, r) => m + r.meters, 0) / all) * 100) : null;
+  };
   type Ev = { day: string; who: string; n: number };
   const ev = (xs: { createdAt: Date; participantId: string }[]): Ev[] => xs.map((x) => ({ day: pacificDay(x.createdAt.getTime()), who: x.participantId, n: 1 }));
   const seenEv: Ev[] = seen.filter((s) => s.day >= from).map((s) => ({ day: s.day, who: s.userId, n: s.opens }));
@@ -176,8 +240,8 @@ export async function appUsage(): Promise<AppUsage> {
   const versus: Versus[] = [
     one("users", "Rowers in the app", seenEv, "people", appSince),
     one("opens", "Times opened", seenEv, "count", appSince),
-    one("rows", "Rows logged", ev(logged), "count", "2000-01-01"),
-    one("rowers", "Rowers who logged", ev(logged), "people", "2000-01-01"),
+    one("rows", "Rows logged on the app", ev(logged), "count", "2000-01-01"),
+    one("rowers", "Rowers who logged on the app", ev(logged), "people", "2000-01-01"),
     one("likes", "Likes", ev(likes), "count", "2000-01-01"),
     one("comments", "Comments", ev(comments), "count", "2000-01-01"),
   ];
@@ -189,12 +253,17 @@ export async function appUsage(): Promise<AppUsage> {
   const idOf = new Map(testerAccounts.map((a) => [a.email.toLowerCase(), a.id]));
   const list = testers.map((x) => {
     const id = idOf.get(x.email.trim().toLowerCase());
-    return { name: x.name || x.email.split("@")[0], sent: !!x.sent, onApp: !!id && androidIds.has(id) };
+    /* On an Android by its record, or on the app by what they did there
+     * with no iPhone known: a closed tester's phone is an Android. */
+    const p = id ? by.get(id) : undefined;
+    return { name: x.name || x.email.split("@")[0], sent: !!x.sent, onApp: !!p && (p.platforms.has("android") || (p.platforms.has("phone") && !p.platforms.has("ios"))) };
   });
   const seenDays = seen.map((s) => s.day).sort();
+  const meterShare = { today: shareOf(today, today), week: shareOf(weekStart, today), prior4: shareOf(priorWeek0, addDays(today, -7)) };
   return {
     today,
     versus,
+    meterShare,
     since: seenDays[0] ?? null,
     accounts: by.size,
     byPlatform,

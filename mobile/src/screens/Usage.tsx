@@ -19,7 +19,8 @@ type Usage = {
   versus?: Versus[];
   since: string | null;
   accounts: number;
-  byPlatform: { ios: number; android: number; web: number };
+  byPlatform: { ios: number; android: number; web: number; phone?: number };
+  meterShare?: { today: number | null; week: number | null; prior4: number | null };
   todayUsers: number;
   todayOpens: number;
   days: { day: string; users: number; opens: number }[];
@@ -28,7 +29,7 @@ type Usage = {
 };
 const PATH = "/api/row100k/app/usage";
 const short = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-const PLAT: Record<string, string> = { ios: "iPhone", android: "Android", web: "Web" };
+const PLAT: Record<string, string> = { ios: "iPhone", android: "Android", web: "Web", phone: "Phone, kind not known yet" };
 
 export function AppUsage() {
   const { data, error, reload } = useLoad(() => api<Usage>(PATH), [], PATH);
@@ -67,7 +68,7 @@ export function AppUsage() {
       <Text style={[mono(10, true, C.ink, 0.12), { marginTop: 8 }]}>Accounts on the app</Text>
       <Text style={{ fontFamily: F.black, fontSize: 56, lineHeight: 62, color: C.accent, fontVariant: ["tabular-nums"], marginTop: 6 }}>{fmtInt(d.accounts)}</Text>
       <Text style={[mono(10, false, C.gray, 0.1), { marginTop: 4, lineHeight: 16 }]}>
-        {`${d.byPlatform.ios} iPhone · ${d.byPlatform.android} Android${d.byPlatform.web ? ` · ${d.byPlatform.web} web` : ""}. Signed in on the app. A download nobody signed in on is only in Apple's and Google's consoles.`}
+        {`${d.byPlatform.ios} iPhone · ${d.byPlatform.android} Android${d.byPlatform.phone ? ` · ${d.byPlatform.phone} not known yet` : ""}${d.byPlatform.web ? ` · ${d.byPlatform.web} web` : ""}. On the app by an open, a phone set for notifications, or something only the app does (a like, a comment, a follow, a recording, a row logged there). A download nobody signed in on is only in Apple's and Google's consoles.`}
       </Text>
 
       {/* AGAINST FOUR WEEKS (owner, 2026-11-26: "include things like likes
@@ -77,6 +78,16 @@ export function AppUsage() {
         <>
           {head("Today", "vs a 4-week average day")}
           {d.versus.map((v) => vs(v.label, v.today, v.avgDay))}
+          {/* WHERE THE METERS ARE LOGGED (owner, 2026-11-26: "a percentage of
+              meters that happen on the app versus online"). */}
+          {d.meterShare ? (
+            <>
+              {head("Meters logged on the app")}
+              {row("Today", d.meterShare.today == null ? "—" : `${d.meterShare.today}%`)}
+              {row("Last 7 days", d.meterShare.week == null ? "—" : `${d.meterShare.week}%`)}
+              {row("The 4 weeks before", d.meterShare.prior4 == null ? "—" : `${d.meterShare.prior4}%`, "Before Nov 26 a row is the app's when it has a recording or a caption; a typed one counts as the site's.")}
+            </>
+          ) : null}
           {head("Last 7 days", "vs a 4-week average week")}
           {d.versus.map((v) => vs(v.label, v.week, v.avgWeek))}
           <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 8, lineHeight: 15 }]}>
