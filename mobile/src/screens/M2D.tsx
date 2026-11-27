@@ -586,12 +586,21 @@ export function M2dScreen({ onRower, onScrollDir, onShareables }: { onRower: (n:
       <View style={{ paddingHorizontal: 20 }}>
         <Dateline left="Concept2 Holiday Challenge" right={windowWord(v)} days={w.days} day={w.day} />
         <Raised v={v} onFaq={setFaq} />
-        <PerKm v={v} />
+        {/* WHAT A KILOMETER IS WORTH LIVES IN THE FAQ (owner, 2026-11-26:
+            "What a kilo is worth might be better on the faqs"), reached by
+            the one M2D FAQ link under the board. */}
       </View>
 
       <View style={{ marginHorizontal: 20, marginTop: 36, paddingBottom: 9, borderBottomWidth: 1, borderColor: C.ink, flexDirection: "row", alignItems: "baseline" }}>
         <Text style={{ flex: 1, fontFamily: F.black, fontSize: 17, lineHeight: 18, color: C.ink, textTransform: "uppercase" }}>The board</Text>
-        {v.me ? <ShareBtn label="Share the total" only="m2d-day,m2d-all,m2d-mark" /> : <Text style={mono(10, false, C.gray, 0.1)}>Meters · $</Text>}
+        {/* ONE WAY TO SHARE (owner, 2026-11-26: "We already have 2 links for
+            shareable, could prob condense"): the board's head opens the
+            Shareables page. */}
+        {v.me && onShareables ? (
+          <Pressable accessibilityRole="link" accessibilityLabel="Shareables" hitSlop={10} onPress={onShareables} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+            <Text style={[mono(10, true, C.accent, 0.12), { textDecorationLine: "underline" }]}>Shareables ↗</Text>
+          </Pressable>
+        ) : <Text style={mono(10, false, C.gray, 0.1)}>Meters · $</Text>}
       </View>
       {!w.started ? (
         <Text style={[mono(11, false, C.gray), { paddingHorizontal: 20, paddingVertical: 14, lineHeight: 18 }]}>The board opens Nov 26. Every meter from then counts.</Text>
@@ -627,11 +636,6 @@ export function M2dScreen({ onRower, onScrollDir, onShareables }: { onRower: (n:
           we should also have this on a shareables page maybe, instead of
           just right here ... We should probably have a shareables link"). */}
       <View style={{ flexDirection: "row", columnGap: 18, marginHorizontal: 20, marginTop: 14 }}>
-        {v.me && onShareables ? (
-          <Pressable accessibilityRole="link" hitSlop={8} onPress={onShareables}>
-            <Text style={[mono(10, true, C.accent, 0.12), { textDecorationLine: "underline" }]}>Shareables ↗</Text>
-          </Pressable>
-        ) : null}
         <Pressable accessibilityRole="link" hitSlop={8} onPress={() => setFaq("all")}>
           <Text style={[mono(10, true, C.gray, 0.12), { textDecorationLine: "underline" }]}>M2D FAQ</Text>
         </Pressable>
@@ -832,6 +836,7 @@ export function M2dFaq({ v, focus, onBack, onScrollDir, onCharity }: { v: M2dVie
       ) : null}
       <Text style={{ fontFamily: F.black, fontSize: 30, lineHeight: 34, color: C.ink, textTransform: "uppercase" }}>M2D FAQ</Text>
       {section("How it adds up")}
+      <PerKm v={v} />
 
       {head("concept2", "Concept2", t.raised)}
       {para("Every rower who reaches 100,000 meters between Nov 26 and Dec 24 earns a donation from Concept2: 2¢ a kilometer for the first 100, then 4¢ a kilometer after that. It goes to the charity the rower picks in their Concept2 Logbook.")}

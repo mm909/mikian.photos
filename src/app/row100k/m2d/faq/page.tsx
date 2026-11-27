@@ -128,7 +128,7 @@ export default async function M2dFaqPage() {
 
               {/* WHAT A ROW RAISES (owner, 2026-11-25: the 50K to 300K lines
                   moved here from the M2D page, so the board comes sooner). */}
-              <h2 id="ladder">What your meters raise</h2>
+              <h2 id="ladder">What a kilometer is worth</h2>
               <p>
                 Concept2 and {v.match.by} together, for one registered rower: {cents(v.perKm ?? v.rate)} a kilometer under 100K,{" "}
                 {cents((v.perKm ?? v.rate) + 4)} a kilometer past it.

@@ -54,7 +54,6 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
   const [changing, setChanging] = useState(false);
   const [joining, setJoining] = useState(false);
   const { window: w, totals: t, charities, rate } = view;
-  const perKm = view.perKm ?? rate;
   const by = view.match.by;
 
   /* A pick made before signing in comes back with the visitor. */
@@ -309,14 +308,8 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
               ) : null}
             </div>
             <dl>
-            <div className="rate">
-              <dt>A kilometer under 100K</dt>
-              <dd>{cents(perKm)}</dd>
-            </div>
-            <div className="rate">
-              <dt>A kilometer past 100K</dt>
-              <dd>{cents(perKm + 4)}</dd>
-            </div>
+            {/* What a kilometer is worth is the FAQ's (owner, 2026-11-26),
+                reached by the M2D FAQ link at the board's head. */}
             {view.me && w.started ? (
               <div className="you">
                 <dt>You, {num(view.me.meters)} m so far</dt>
