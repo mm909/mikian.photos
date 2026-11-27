@@ -8,6 +8,7 @@ import { C, F, fmtInt } from "../theme";
 import { Blocks, Waiting, useLoad, useScrollDir } from "../ui";
 import { M2D_REELS } from "../stickers";
 import { Reels, StickerTiles, StickerViewer } from "./RowPage";
+import { Concept2Card } from "../concept2";
 
 /* M2D, METERS TO DOLLARS: the Concept2 Holiday Challenge, Nov 26 - Dec 24
  * (owner, 2026-11-25, with Concept2's post open: "Let's take over that
@@ -578,6 +579,7 @@ export function M2dScreen({ onRower, onScrollDir, onShareables }: { onRower: (n:
   const inOut = useIn(v ?? null, reload);
   const [faq, setFaq] = useState<"concept2" | "rowtember" | "all" | null>(null);
   const [joining, setJoining] = useState(false);
+  const { me } = useSession();
   if (!v) return <Waiting error={error} onRetry={reload} />;
   if (faq) return <M2dFaq v={v} focus={faq} onBack={() => setFaq(null)} onScrollDir={onScrollDir} onCharity={v.me ? () => onRower(v.me!.rowerNumber) : undefined} />;
   const w = v.window;
@@ -631,6 +633,10 @@ export function M2dScreen({ onRower, onScrollDir, onShareables }: { onRower: (n:
           )
         ) : null}
         {inOut.note ? <Text style={[mono(11, true, C.ink, 0.14), { marginTop: 10, lineHeight: 18 }]}>{inOut.note}</Text> : null}
+        {/* THE CONCEPT2 LOGBOOK, connected once and every row goes there by
+            itself (2026-11-26, ../concept2.tsx). In development: an admin
+            only until the owner says it goes live. */}
+        {me.isAdmin && v.me ? <Concept2Card /> : null}
       </View>
       {/* THE REELS AND STICKERS ON A PAGE OF THEIR OWN (owner, 2026-11-26:
           "when I scroll left and right, it actually just moves the tab ...

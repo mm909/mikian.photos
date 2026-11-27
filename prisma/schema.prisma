@@ -1904,3 +1904,50 @@ model M2dPledge {
   @@index([challenge, window, status])
   @@index([accountId])
 }
+
+/// A ROW account's link to its Concept2 Logbook (2026-11-26; owner, of every
+/// M2D row being logged twice: "is there a way for us to auto write to the
+/// log book?" then "Def do this."). mobile/CONCEPT2-LOGBOOK.md is the plan,
+/// src/lib/concept2.ts the code. One per account. The tokens are AES-256-GCM
+/// under CONCEPT2_TOKEN_KEY and never leave the server. Deleting the row is
+/// the rower's own Disconnect; the rows already in their Logbook stay there.
+/// Additive.
+model Concept2Link {
+  id           String    @id @default(cuid())
+  /// The ROW account (Photographer id).
+  userId       String    @unique
+  c2UserId     Int
+  c2Name       String    @default("")
+  /// The Concept2 server that issued the tokens (CONCEPT2_BASE then): a
+  /// test-server link is never sent to the live Logbook.
+  base         String
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  /// The phone's IANA zone, for the date a result carries.
+  timezone     String    @default("America/Los_Angeles")
+  /// "ok" | "revoked" (Concept2 refused the tokens: press Connect again).
+  status       String    @default("ok")
+  connectedAt  DateTime  @default(now())
+  lastPushAt   DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+/// One ROW row on its way to (or already in) the rower's Concept2 Logbook.
+/// `entryId` is unique: one Logbook result per ROW row, ever. Additive.
+model Concept2Push {
+  id         String   @id @default(cuid())
+  entryId    String   @unique
+  userId     String
+  /// "pending" | "sent" | "already-there" (the Logbook had it: typed in,
+  /// or ErgData) | "failed" (Concept2 refused it; the error says why).
+  state      String   @default("pending")
+  c2ResultId Int?
+  error      String   @default("")
+  tries      Int      @default(0)
+  nextAt     DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, state])
+}

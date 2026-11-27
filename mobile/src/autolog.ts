@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiError, api } from "./api";
 import { buzz } from "./buzz";
+import { syncConcept2 } from "./concept2";
 import { dropPending, loadPending, loadPendingDoc, markPending, pendingSettled, type Pending } from "./store";
 
 /* A ROW OFF THE MONITOR LOGS ITSELF (owner, 2026-11-23: "Strava does this
@@ -146,6 +147,9 @@ export function sendPiece(id: string): Promise<AutoState> {
       await dropPending(id);
       tries.delete(id);
       buzz.done();
+      /* On to the rower's Concept2 Logbook, when one is connected
+       * (concept2.tsx); quiet, and the site skips it if it is there. */
+      void syncConcept2();
       return set(id, { state: "saved", rowId: r.entryId, day: r.day, meters: r.meters, seconds: r.seconds, title: r.title, recorded: r.recorded });
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;

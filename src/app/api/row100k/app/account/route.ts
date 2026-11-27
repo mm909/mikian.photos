@@ -46,7 +46,7 @@ export async function DELETE(req: Request) {
       db.rowLike.deleteMany({ where: { participantId: id } }),
       db.rowComment.deleteMany({ where: { participantId: id } }),
       db.rowCommentLike.deleteMany({ where: { participantId: id } }),
-      ...(userId ? [db.rowTelemetry.deleteMany({ where: { userId } }), db.rowPushToken.deleteMany({ where: { userId } })] : []),
+      ...(userId ? [db.rowTelemetry.deleteMany({ where: { userId } }), db.rowPushToken.deleteMany({ where: { userId } }), db.concept2Link.deleteMany({ where: { userId } }), db.concept2Push.deleteMany({ where: { userId } })] : []),
     ]).catch((err) => console.error("row app: failed to clear what a deleted account left", err));
 
     revalidateTag("row100k-boards");

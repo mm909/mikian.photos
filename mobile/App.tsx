@@ -1,4 +1,5 @@
 import { Archivo_400Regular, Archivo_600SemiBold, Archivo_700Bold } from "@expo-google-fonts/archivo";
+import { armConcept2 } from "./src/concept2";
 import { ArchivoBlack_400Regular } from "@expo-google-fonts/archivo-black";
 import { SpaceMono_400Regular, SpaceMono_700Bold } from "@expo-google-fonts/space-mono";
 import { useFonts } from "expo-font";
@@ -173,6 +174,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   useEffect(() => {
     onNav({ tab, stack });
   }, [tab, stack, onNav]);
+  /* THE CONCEPT2 LOGBOOK: what is waiting goes as the app opens
+   * (src/concept2.tsx). In development, an admin only. */
+  useEffect(() => {
+    if (me.isAdmin) armConcept2();
+  }, [me.isAdmin]);
   /* LOG A ROW sits over everything. Once opened it stays mounted until the
    * row is logged, shown or not, so a form half filled survives a look at
    * the feed (the row in progress itself lives in useErg and needs no such
@@ -541,7 +547,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : top.kind === "m2dshare" ? "Shareables" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : top.page === "concept2" ? "Concept2" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : top.kind === "m2dshare" ? "Shareables" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };

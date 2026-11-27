@@ -17,6 +17,7 @@ import { C, F } from "../theme";
 import { pickFace, setAvatar } from "../upload";
 import { Avatar, Waiting, useLoad } from "../ui";
 import { Act, Sheet, Small, type PeopleList } from "./Social";
+import { Concept2Card } from "../concept2";
 
 /* SETTINGS, behind the three lines on the rower's own profile (owner,
  * 2026-11-21: "the settings should probably just be like ... how do they
@@ -46,7 +47,7 @@ import { Act, Sheet, Small, type PeopleList } from "./Social";
 /* DEVELOPER is one page (owner, 2026-11-24: every developer option "into
  * one submenu", like the others): the arcade's resets, the Developer
  * account's reset, and the way to PASSWORD. */
-export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "developer" | "password" | "planner" | "return" | "about";
+export type SettingsPage = "account" | "privacy" | "notifications" | "appearance" | "concept2" | "developer" | "password" | "planner" | "return" | "about";
 
 const KIND: Record<string, [string, string]> = {
   passed: ["A rower I follow passes me", "At most one a day, however many passed."],
@@ -100,6 +101,9 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
         <Go label="Privacy" sub={s ? (s.isPrivate ? "Private account" : "Public account") : ""} onPress={() => onPage("privacy")} />
         <Go label="Notifications" sub="What you are told about" onPress={() => onPage("notifications")} />
         <Go label="Appearance" sub={look.dark ? "Dark" : "Light"} onPress={() => onPage("appearance")} />
+        {/* THE CONCEPT2 LOGBOOK (2026-11-26, ../concept2.tsx): in
+            development, an admin only until the owner says it goes live. */}
+        {me.isAdmin ? <Go label="Concept2 Logbook" sub="Send your rows there by themselves" onPress={() => onPage("concept2")} /> : null}
         {/* THE WIKI, the owner's plans, for him alone (owner, 2026-11-24:
             "put it in the settings page"). */}
         {/* M2D EXPOSURE, a press from the list (owner, 2026-11-25: "I need
@@ -141,6 +145,7 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
   /* ABOUT, A PAGE OF ITS OWN (owner, 2026-11-25: "the about should
    * definitely just be in its own little settings folder"). */
   if (page === "about") return wrap(<About />);
+  if (page === "concept2") return wrap(me.isAdmin ? <Concept2Card full /> : null);
   if (page === "developer") {
     return wrap(
       <>

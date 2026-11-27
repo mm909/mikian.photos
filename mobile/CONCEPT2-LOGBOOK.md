@@ -1,6 +1,7 @@
 # Rows from ROW straight into the Concept2 Logbook
 
-A plan, not built. Owner, 2026-11-26, of a rower logging every M2D row twice
+**Built 2026-11-26, in development, waiting on a Concept2 test key** (see
+"Where it stands" at the end). Owner, 2026-11-26, of a rower logging every M2D row twice
 (once on ROW, once typed into log.concept2.com): "is there a way for us to
 auto write to the log book?" then "Def do this."
 
@@ -11,7 +12,7 @@ goes live only when the owner says so.
 
 Concept2 has a public Logbook API with OAuth2 and an "add a result" call. A
 row that ROW recorded off the monitor can be written into the rower's own
-Logbook the moment it is saved, with its splits and strokes. Three things are
+Logbook the moment it is saved, with its splits and strokes. Two things are
 not in our hands:
 
 1. **Concept2 must approve the app for writing to the live Logbook.** Until
@@ -25,12 +26,6 @@ not in our hands:
    (`"source": "Web"`, `"verified": false`), so a row posted by an app should
    count the same way. Nothing says so outright. **Ask in the approval
    email.**
-3. **Commercial use.** The Logbook terms (section 6) allow Logbook contents
-   "for your own personal purposes" and not "for any commercial purposes
-   without Concept2's prior written consent." ROW plans a subscription
-   (project notes, 2026-11-22). Say in the approval email what ROW is and
-   that the Logbook sync is free. Their written yes covers it.
-
 **Time is forgiving.** The challenge runs Nov 26 to Dec 24, and the Logbook
 takes meters until **Jan 4, 11:59 pm GMT**. A backfill (below) sends every M2D
 row a rower already logged on ROW the day they connect. So approval arriving
@@ -235,12 +230,13 @@ the test server first and the live one after approval.
 
 ### 3. Push on save
 
-In `logOffTheMonitor` (`src/app/api/row100k/app/erg/route.ts`), once the row
-and its recording are saved:
+As built: the site is on Next 14, which has no `after()`, so the erg route is
+left alone and **the phone asks**. When `autolog.ts` has a row saved, it calls
+`POST /api/row100k/app/concept2/sync`, and so does the app as it opens
+(`armConcept2`). The sync (`syncUser` in `src/lib/concept2.ts`) gives every
+monitor row since M2D began a `Concept2Push`, then sends what is due:
 
-- If the account has an `ok` link and the row is in the M2D window, write a
-  `Concept2Push` (`pending`) and send it in `after()` from `next/server`. The
-  phone's answer does not wait on Concept2.
+- The phone's answer for the row itself never waits on Concept2.
 - Concept2 answers in one of four ways:
   - `201`: `sent` with `c2ResultId`.
   - `409`: `already-there`. Concept2 itself says the same date, time and
@@ -275,8 +271,8 @@ Concept2 Logbook too?" instead.
 
 When a rower connects (and again if they reconnect), the site goes through
 their ROW rows with a recording from **2026-11-26** to today. For each one with
-no `Concept2Push`, it runs the duplicate check, then sends them with **bulk
-add** (one call, one answer per row). The rower sees "Sent 14 rows to your
+no `Concept2Push`, it runs the duplicate check, then sends them one by one
+(up to 40 a call, inside 40 seconds; the rest go on the next call). The rower sees "Sent 14 rows to your
 Concept2 Logbook (3 were already there)."
 
 ### 5. No duplicates of what ErgData or a hand entry put there
@@ -364,17 +360,19 @@ Nothing here has been registered, signed in to or sent.
    - `CONCEPT2_CLIENT_ID`: the test key's client id
    - `CONCEPT2_CLIENT_SECRET`: the test key's secret
    - `CONCEPT2_BASE` = `https://log-dev.concept2.com`
-   - `CONCEPT2_TOKEN_KEY`: 32 random bytes, base64. Make it with
+   - `CONCEPT2_TOKEN_KEY`: any long random string (16 characters or more),
+     for example 32 random bytes in base64. Make it with
      `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
      Never change it once rowers have connected, or their links stop working.
 3. **When it works on the test server, email ranking@concept2.com.** Say what
    ROW is (a rowing app that records the PM5 over Bluetooth), that it writes
-   the rower's own rows to their Logbook after they connect, that it checks
-   for duplicates, and that the Logbook sync is free inside an app with a paid
-   tier. Ask three things:
+   the rower's own rows to their Logbook only after they connect, and that it
+   checks for duplicates first. Owner, 2026-11-26: "I don't want to tell them
+   about any paid features or plans. Need to maximize good will." So the email
+   says nothing of a paid tier, a subscription or plans, and asks two things
+   only:
    1. Approve live write access.
    2. Do rows posted this way count toward the Holiday Challenge?
-   3. Is the written consent for commercial use in the terms covered?
 4. **On their yes**, create the live key at
    https://log.concept2.com/developers/keys with the same redirect URI, and
    swap `CONCEPT2_CLIENT_ID`, `CONCEPT2_CLIENT_SECRET` and
@@ -389,3 +387,46 @@ Nothing here has been registered, signed in to or sent.
 - After M2D, does the sync stay on all year? (Recommended: yes.)
 - Should typed rows get the Send to Concept2 button, or should only monitor
   rows be sent? (Recommended: the button, with the duplicate check.)
+
+## Where it stands (2026-11-26)
+
+Built, in development (admin-only in production, open in local dev), and
+**waiting on the four keys**. Until all four are set, every route and the
+card say "Not set up on ROW yet", and nothing is sent anywhere.
+
+- **The site:**
+  - `src/lib/concept2.ts`: OAuth, the tokens sealed with AES-256-GCM, the
+    result built from a recording, the duplicate check and the sync.
+  - The routes: `api/row100k/app/concept2` (GET for status, DELETE to
+    disconnect), `.../start`, `.../callback` and `.../sync`, behind
+    `.../gate.ts`.
+  - Two new tables, `Concept2Link` and `Concept2Push`. They are additive and
+    go through db-push-prod.
+- **The app:**
+  - `mobile/src/concept2.tsx`: the card, with Connect, Disconnect and Send
+    now.
+  - The card shows on the M2D tab under joining and in Settings → Concept2
+    Logbook, both for an admin only.
+  - A sync runs after each row `autolog.ts` saves and as the app opens.
+  - It is JS only, so it goes over the air with no rebuild.
+- **Not built yet:**
+  - the Send to Concept2 button on typed rows
+  - the webhook (guard 3)
+  - the M2D FAQ's new steps, which wait for live
+  - the `Sent to your Concept2 Logbook` word on the after-row page
+- **Not tried against Concept2.** With no key, it has never talked to
+  Concept2. With the test key in, try these first:
+  - Connect, then a backfill.
+  - A JustRow piece with strokes.
+  - A set distance with splits.
+  - An interval piece, which is sent with totals only.
+  - A row already typed in by hand, which should read `already there`.
+- **The site's privacy policy and terms are left alone**, because the site is
+  frozen. Before this goes live they need a paragraph that says:
+  - On Connect, the row's meters, time, date, splits, strokes, heart rate and
+    drag go to the rower's Concept2 Logbook.
+  - ROW keeps a Concept2 sign-in token for that account, encrypted.
+  - The token is deleted on Disconnect or when the account is deleted.
+  - Rows already sent stay in the Logbook.
+- **Account deletion** (`api/row100k/app/account`) deletes the account's
+  `Concept2Link` and `Concept2Push` rows with the rest of it.
