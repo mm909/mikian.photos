@@ -570,9 +570,48 @@ export type RaceDayPoster = {
   caption: string;
 };
 
+/* THE M2D POSTER (owner, 2026-11-26: "The other poster I need is one for
+ * M2D. I need an M2D poster."): the Concept2 Holiday Challenge window,
+ * Nov 26 - Dec 24, on the same cream sheet in the same newspaper grammar,
+ * built off row100k/m2d.ts (poster/m2dData.ts reads it, poster/m2dPoster.ts
+ * draws it). Like race day it sits OUTSIDE PosterData and reaches
+ * compose() through one cast (poster/serverPoster.ts). No goal, no cap and
+ * no address anywhere on it. `me` is the rower's own line when the poster
+ * is theirs; masked as the M2D board masks it (blocks, no dollars). */
+export type M2dPoster = {
+  kind: "m2d";
+  asOf: {
+    /* "HOLIDAY CHALLENGE · NOV 26 – DEC 24 · DAY 1 OF 29" */
+    dateline: string;
+    /* 1..29 once the window is open; 0 before. */
+    dayNumber: number;
+    days: number;
+    firstDay: string;
+    firstDow: number;
+    final: boolean;
+    year: number;
+  };
+  totals: {
+    /* Everything raised: Concept2's, ROWTEMBER's and the pledges. */
+    total: number;
+    concept2: number;
+    rowtember: number;
+    pledges: number;
+    meters: number;
+    rowers: number;
+    past100k: number;
+  };
+  /* ROWTEMBER's part and the pledges, by the charity each rower picked. */
+  charities: { key: string; name: string; dollars: number }[];
+  /* Everyone's meters per day of the window, index 0 = Nov 26. */
+  byDay: number[];
+  me: { rowerNumber: number; name: string; meters: Figure; dollars: Figure } | null;
+};
+
 /* Every payload a layout may be written against. The engine still only
- * knows PosterData (above); see the RaceDayPoster note. */
-export type PosterSubject = PosterData | RaceDayPoster;
+ * knows PosterData (above); see the RaceDayPoster note. M2dPoster joined
+ * it on 2026-11-26 (owner: "I need an M2D poster"). */
+export type PosterSubject = PosterData | RaceDayPoster | M2dPoster;
 
 /* THE GROUND a sheet is painted on. Every other subject is cream paper and
  * says nothing; race day is monochrome and ships three ways — "ink" is the

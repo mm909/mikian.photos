@@ -160,8 +160,12 @@ export function ProfileScreen({
   onSettings,
   onLocker,
   onM2dFaq,
+  onPosters,
   startSub,
 }: {
+  /* POSTERS, beside SHARE on the rower's own page (owner, 2026-11-26:
+   * "need to bring over the poster utility into the app"). */
+  onPosters?: () => void;
   /* The column to open on (PICK MY CHARITY opens the M2D one). */
   startSub?: "rows" | "stats" | "m2d" | "ratings";
   num?: number;
@@ -260,13 +264,17 @@ export function ProfileScreen({
   const glideTo = useCallback(
     (to: number, ms: number) => {
       glide.current = to;
-      Animated.timing(pos, { toValue: to, duration: ms, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(({ finished }) => {
+      /* ON THE PHONE'S OWN THREAD (owner, 2026-11-26, of swiping the
+       * profile's tabs: "it's pretty laggy ... chunky ... it just is not
+       * smooth"): the glide no longer waits on the app's script. */
+      Animated.timing(pos, { toValue: to, duration: ms, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== "web" }).start(({ finished }) => {
         if (finished && glide.current === to) settle();
       });
     },
     [pos, settle],
   );
-  const pickTab = useCallback(
+  /* At once, for the column a page opens on. */
+  const jumpTab = useCallback(
     (t: Sub) => {
       glide.current = null;
       pos.stopAnimation();
@@ -278,8 +286,31 @@ export function ProfileScreen({
     },
     [pos],
   );
+  /* A TAP SLIDES (owner, 2026-11-26: "when I tap the icon at the top of the
+   * tab, we jump to the page rather than slide to it"): the same glide a
+   * swipe ends in. */
+  const pickTab = useCallback(
+    (t: Sub) => {
+      const to = subsRef.current.indexOf(t);
+      if (to < 0) return;
+      if (t === tabRef.current && glide.current === null) return;
+      glideTo(to, 280);
+    },
+    [glideTo],
+  );
+  /* EVERY COLUMN READY BEFORE THE FINGER (owner, the same day: "laggy"): a
+   * swipe used to build the column it moved toward as it began, and the
+   * drag stuttered while it did. Once the page has settled, the others are
+   * built behind it, out of sight. */
+  const [allBuilt, setAllBuilt] = useState(false);
+  const allBuiltRef = useRef(false);
+  allBuiltRef.current = allBuilt;
   useEffect(() => {
-    if (startSub && subsRef.current.includes(startSub)) pickTab(startSub);
+    const h = setTimeout(() => setAllBuilt(true), 700);
+    return () => clearTimeout(h);
+  }, []);
+  useEffect(() => {
+    if (startSub && subsRef.current.includes(startSub)) jumpTab(startSub);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const swipe = useRef(
@@ -305,7 +336,8 @@ export function ProfileScreen({
         const want = n >= 0 && n < subsRef.current.length ? subsRef.current[n] : null;
         if (peekRef.current !== want) {
           peekRef.current = want;
-          setPeek(want);
+          /* Built already, it needs no new drawing of the page mid-drag. */
+          if (!allBuiltRef.current) setPeek(want);
         }
       },
       onPanResponderRelease: (_e, g) => {
@@ -506,6 +538,13 @@ export function ProfileScreen({
               <Pressable accessibilityRole="button" accessibilityLabel="Share your stickers" onPress={() => setSharing(true)} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderCurve: "continuous", borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
                 <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Share</Text>
               </Pressable>
+              {/* POSTERS (owner, 2026-11-26: "We want to bring the poster
+                  for the individual rower"): one tap to the Posters page. */}
+              {onPosters ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Make a poster" onPress={onPosters} style={({ pressed }) => ({ flex: 1, alignItems: "center", justifyContent: "center", height: 32, borderCurve: "continuous", borderRadius: 8, backgroundColor: C.pale, opacity: pressed ? 0.6 : 1 })}>
+                  <Text style={{ fontFamily: F.semi, fontSize: 13.5, color: C.ink }}>Posters</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
           {sharing ? <StickerViewer onClose={() => setSharing(false)} /> : null}
@@ -533,7 +572,7 @@ export function ProfileScreen({
       {locked || p.masked ? null : (
         <View {...swipe.panHandlers} style={{ marginHorizontal: -16, overflow: "hidden", minHeight: Math.max(360, win.height - 300) }}>
           {subsRef.current.map((t, i) =>
-            t === tab || t === peek ? (
+            t === tab || t === peek || allBuilt ? (
               <Animated.View
                 key={t}
                 pointerEvents={t === tab ? "auto" : "none"}

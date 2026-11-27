@@ -788,13 +788,21 @@ export function M2dPanel({ num, own, onFaq }: { num: number; own: boolean; onFaq
  * animating the money and meters going up for M2D"), my meters and dollars
  * rolling up and everyone's, to film over a video. A page over the tabs, so
  * scrolling the reel tiles sideways no longer swipes to the next tab. */
-export function M2dSharePage({ onScrollDir }: { onScrollDir?: (down: boolean) => void }) {
+export function M2dSharePage({ onScrollDir, onPosters }: { onScrollDir?: (down: boolean) => void; onPosters?: () => void }) {
   const dir = useScrollDir(onScrollDir);
   const { data: v, error, reload } = useM2d();
   if (!v) return <Waiting error={error} onRetry={reload} />;
   return (
     <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 132 }}>
       <StickerTiles title="M2D stickers" only={v.me ? "m2d-all,m2d-me,m2d-day,m2d-mark" : "m2d-all,m2d-day,m2d-mark"} empty="The M2D stickers open Nov 26, with the first meters." />
+      {/* THE M2D POSTER (owner, 2026-11-26: "I need an M2D poster"): the
+          Posters page, opened on M2D. */}
+      {onPosters ? (
+        <>
+          <Eye left="M2D poster" right="Story, post, print" />
+          <Ctl label="Make the M2D poster" onPress={onPosters} />
+        </>
+      ) : null}
       {v.me ? <Reels src={M2D_REELS} title="M2D reels" aside="Counting up" /> : <Text style={[mono(11, false, C.gray), { marginTop: 18 }]}>Sign in for the reels.</Text>}
     </ScrollView>
   );

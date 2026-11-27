@@ -495,6 +495,22 @@ export async function m2dView(viewer: Viewer): Promise<M2dView> {
   };
 }
 
+/* WHETHER THE PUBLIC M2D BOARD HIDES A ROWER, for the M2D poster (owner,
+ * 2026-11-26: "I need an M2D poster"). A poster leaves the app, so the
+ * question is put to the board a stranger reads (no viewer, no admin), as
+ * the poster studio's boards are (poster/data.ts); `force` is an admin's
+ * test blackout. A board that cannot be read hides them: fail closed. */
+export async function m2dMaskedOnBoard(participantId: string, force: boolean): Promise<{ masked: boolean; digits: number | null }> {
+  try {
+    const v = await boardView({ viewerParticipantId: null, admin: false, forceBlackout: force, period: PERIOD });
+    const r = v.boards.total.find((x) => x.participantId === participantId);
+    return { masked: !!r?.masked, digits: r?.masked ? (r.digits ?? null) : null };
+  } catch (err) {
+    console.error("M2D poster: the board could not be read, so the rower's line is masked", err);
+    return { masked: true, digits: null };
+  }
+}
+
 /* What a rower's dollar stickers print (share/cards.ts, the M2D cards).
  * Null before the window opens: no sticker says $0 for a challenge that
  * has not started. `allRaised` is the total (Concept2 and the match), the

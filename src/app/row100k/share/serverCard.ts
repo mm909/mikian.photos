@@ -11,7 +11,7 @@ import type { Viewer } from "@/lib/row100kViewer";
 import { buildProfile } from "../r/[num]/profileData";
 import { m2dShare } from "../m2d";
 import { setCardAccent } from "./accent";
-import { RACE_CARD_IDS, RACE_TIME_CARD_IDS, availableCards, type ShareCard, type ShareData, type ShareFonts } from "./cards";
+import { RACE_CARD_IDS, RACE_TIME_CARD_IDS, availableCards, rowBibCard, type ShareCard, type ShareData, type ShareFonts } from "./cards";
 
 /* A SHARE CARD, DRAWN ON THE SERVER (2026-11-20). The cards are canvases
  * (cards.ts), and until now only a browser drew them. The phone app has no
@@ -52,7 +52,21 @@ const NOT_HERE = new Set<string>([...RACE_CARD_IDS, ...RACE_TIME_CARD_IDS]);
 export async function serverCards(data: ShareData): Promise<ShareCard[]> {
   const settings = await siteSettings();
   const off = new Set(settings.cardsOff);
-  return availableCards(data).filter((c) => !NOT_HERE.has(c.id) && !off.has(c.id));
+  const list = availableCards(data).filter((c) => !NOT_HERE.has(c.id) && !off.has(c.id));
+  /* THE BIB (owner, 2026-11-26: "a sticker that shows their name, their
+   * bib number, and the row logo"): the app's own card (cards.ts
+   * rowBibCard), first of the rower's set, after the M2D ones the deck
+   * opens on while the Holiday Challenge runs. Its id is not m2d-, so the
+   * app's row and profile viewers show it. An off switch for its id in
+   * cards.off is honoured, as for every other card. */
+  if (!off.has(rowBibCard.id)) {
+    let at = 0;
+    list.forEach((c, i) => {
+      if (c.id.startsWith("m2d-")) at = i + 1;
+    });
+    list.splice(at, 0, rowBibCard);
+  }
+  return list;
 }
 
 export async function renderCardPng(card: ShareCard, data: ShareData): Promise<Buffer> {

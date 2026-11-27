@@ -16,6 +16,7 @@ import { BoardScreen, MonthSheet, loadBoardMonths, monthMark, useBoardMonth } fr
 import { M2dFaqPage, M2dScreen, M2dSharePage } from "./src/screens/M2D";
 import { FeedScreen } from "./src/screens/Feed";
 import { BestsScreen, ProfileScreen } from "./src/screens/Profile";
+import { PostersScreen, type PosterSubject } from "./src/screens/Posters";
 import { DemoPage, ErgPage, RowPage, type Fresh } from "./src/screens/RowPage";
 import type { TelemetryDoc } from "./src/pm5/session";
 import { RowScreen, type Faked, type Logged } from "./src/screens/RowScreen";
@@ -108,6 +109,9 @@ type Over = { k: number } & (
   | { kind: "locker" }
   | { kind: "m2dfaq"; focus?: "concept2" | "rowtember" | "all" }
   | { kind: "m2dshare" }
+  /* THE POSTERS (owner, 2026-11-26: "need to bring over the poster utility
+   * into the app"): screens/Posters.tsx, opened on whose poster. */
+  | { kind: "posters"; subject?: PosterSubject }
   | { kind: "people"; list: PeopleList; num?: number }
   | { kind: "rankings"; period: string; rec: string }
   | { kind: "erg"; id: string }
@@ -478,7 +482,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : t === "stats" ? (
       <StatsScreen onRower={openRower} onRow={openRow} onRankings={(period, rec) => push({ kind: "rankings", period, rec })} onScrollDir={setAway} />
     ) : (
-      <ProfileScreen key={stamp} onLocker={() => push({ kind: "locker" })} onM2dFaq={() => push({ kind: "m2dfaq" })} onPlus={onPlus} onEdit={() => push({ kind: "settings", page: "account" })} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
+      <ProfileScreen key={stamp} onPosters={() => push({ kind: "posters" })} onLocker={() => push({ kind: "locker" })} onM2dFaq={() => push({ kind: "m2dfaq" })} onPlus={onPlus} onEdit={() => push({ kind: "settings", page: "account" })} onRow={openRow} onPeople={openPeople} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     );
 
   /* A ROW LOGGED lands on its own page, with what the totals were a moment
@@ -554,7 +558,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : top.page === "m2d" ? "M2D" : top.page === "usage" ? "App usage" : top.page === "concept2" ? "Concept2" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : top.kind === "m2dshare" ? "Shareables" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : top.page === "m2d" ? "M2D" : top.page === "usage" ? "App usage" : top.page === "concept2" ? "Concept2" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : top.kind === "m2dshare" ? "Shareables" : top.kind === "posters" ? "Posters" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -563,7 +567,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
 
   const screen = (o: Over): ReactNode =>
     o.kind === "rower" ? (
-      <ProfileScreen num={o.num} startSub={o.sub} onM2dFaq={() => push({ kind: "m2dfaq" })} onPlus={onPlus} onRow={openRow} onPeople={openPeople} onSettings={(page) => push({ kind: "settings", page })} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
+      <ProfileScreen num={o.num} startSub={o.sub} onPosters={() => push({ kind: "posters" })} onM2dFaq={() => push({ kind: "m2dfaq" })} onPlus={onPlus} onRow={openRow} onPeople={openPeople} onSettings={(page) => push({ kind: "settings", page })} menu={menu && top === o} onMenu={setMenu} onGone={drop} onErg={(id) => push({ kind: "erg", id })} onBest={(num, best) => push({ kind: "bests", num, best })} onScrollDir={setAway} />
     ) : o.kind === "people" ? (
       <PeopleScreen list={o.list} num={o.num} onRower={openRower} />
     ) : o.kind === "bests" ? (
@@ -579,7 +583,9 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : o.kind === "m2dfaq" ? (
       <M2dFaqPage focus={o.focus} onScrollDir={setAway} onCharity={mine != null ? () => push({ kind: "rower", num: mine, sub: "m2d" }) : undefined} />
     ) : o.kind === "m2dshare" ? (
-      <M2dSharePage onScrollDir={setAway} />
+      <M2dSharePage onScrollDir={setAway} onPosters={() => push({ kind: "posters", subject: "m2d" })} />
+    ) : o.kind === "posters" ? (
+      <PostersScreen start={o.subject} onScrollDir={setAway} />
     ) : o.kind === "wiki" ? (
       <WikiScreen id={o.id} onPage={(id) => push({ kind: "wiki", id })} />
     ) : o.kind === "stories" ? (

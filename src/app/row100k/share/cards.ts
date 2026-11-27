@@ -3848,6 +3848,51 @@ const m2dDayCard: ShareCard = {
   },
 };
 
+/* THE BIB, BACK, IN THE APP (owner, 2026-11-26: "we don't have their bib
+ * number anymore on a sticker, so we should have like a sticker that shows
+ * their name, their bib number, and the row logo"). The old bib
+ * (rowtember-bib) stays retired from the site's pickers (rowSettings.ts
+ * DEFAULT_CARDS_OFF); this is a new card under a new id, so it is on by
+ * default, and it is handed to the app's deck alone (serverCard.ts
+ * serverCards) — not in CARDS, so the site's share dialog is unchanged.
+ * The ROW mark, the number zero-padded to three, the name, all bold, white
+ * on clear with the board sticker's soft shadow. A hidden rower's mark is
+ * their ink one, as on every rower card; the number and the name are
+ * public. No address, no handle. */
+export const rowBibCard: ShareCard = {
+  id: "row-bib",
+  label: "My bib",
+  width: 1080,
+  height: 820,
+  light: true,
+  draw(ctx, data, fonts) {
+    const cx = this.width / 2;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 3;
+    drawMark(ctx, [{ text: MARK }], { cx, cy: 140, size: 96, fontFamily: fonts.black, masked: data.masked });
+    drawCenteredText(ctx, String(data.rowerNumber).padStart(3, "0"), {
+      cx,
+      baseline: 560,
+      font: `330px ${fonts.black}`,
+      color: "#ffffff",
+      maxWidth: this.width - 80,
+    });
+    // The name shrinks to fit — names run to 40 chars.
+    const name = data.displayName.toUpperCase();
+    const maxW = this.width - 120;
+    let size = 76;
+    ctx.font = `${size}px ${fonts.black}`;
+    while (size > 34 && ctx.measureText(name).width > maxW) {
+      size -= 2;
+      ctx.font = `${size}px ${fonts.black}`;
+    }
+    drawCenteredText(ctx, ellipsize(ctx, name, maxW), { cx, baseline: 700, font: `${size}px ${fonts.black}`, color: "#ffffff" });
+    ctx.restore();
+  },
+};
+
 export const CARDS: ShareCard[] = [
   // M2D (2026-11-25): the dollar stickers first while the Holiday Challenge
   // runs. Only the app's deck sets data.m2d (serverCard.ts), so the site's
