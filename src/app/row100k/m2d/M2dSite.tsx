@@ -17,7 +17,7 @@ const isEvenSplit = (s: Record<string, number | undefined>) => Object.entries(ev
  *
  * THE ORDER (owner, 2026-11-25, of the app's tab, which this page mirrors:
  * "bring back whatever we had, like a total ... a receipts up there"):
- * the total, labelled RAISED; the goal; the receipts, CONCEPT2 then
+ * the total, labelled RAISED; the receipts, CONCEPT2 then
  * ROWTEMBER with a line per charity, each a link to the FAQ's math
  * (/m2d/faq); the board. Never a match, never "Las Vegas", never a word
  * asking for money (owner: "I don't want to ask people for money").
@@ -53,7 +53,7 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
   const [pick, setPick] = useState<string | null>(view.me?.choice ?? null);
   const [changing, setChanging] = useState(false);
   const [joining, setJoining] = useState(false);
-  const { window: w, totals: t, goal, charities, rate } = view;
+  const { window: w, totals: t, charities, rate } = view;
   const perKm = view.perKm ?? rate;
   const by = view.match.by;
 
@@ -217,8 +217,6 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
     </div>
   );
 
-  const share = Math.min(1, t.total / goal);
-
   return (
     <main className="bd m2">
       <div className="wrap front">
@@ -239,15 +237,8 @@ export function M2dSite({ view, signedIn, signInHref }: { view: M2dView; signedI
             Raised
             {w.started ? <span className="m2-kick-q"> · {num(t.meters)} m rowed since {day(w.first)}</span> : null}
           </p>
-          <div className="m2-goal">
-            <div className="m2-goal-t">
-              <span>Goal {usd(goal)} to charity</span>
-              <span>{Math.round(share * 100)}%</span>
-            </div>
-            <div className="m2-track" role="img" aria-label={`${usd(t.total)} of ${usd(goal)}`}>
-              <i style={{ width: `${(share * 100).toFixed(1)}%` }} />
-            </div>
-          </div>
+          {/* NO GOAL (owner, 2026-11-26: "Remove the M2D goal of $1000 I
+              don't want the bar or a public goal"). */}
           {/* THE RECEIPTS: each name opens the math (owner: tapping CONCEPT2
               or ROWTEMBER opens the FAQ that shows it). */}
           <dl className="m2-from">

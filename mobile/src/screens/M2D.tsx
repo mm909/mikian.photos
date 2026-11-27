@@ -4,7 +4,7 @@ import { api } from "../api";
 import { useSession } from "../session";
 import { Ctl, Dateline, Eye, mono } from "../site";
 import { C, F, fmtInt } from "../theme";
-import { Bar, Blocks, Waiting, useLoad, useScrollDir } from "../ui";
+import { Blocks, Waiting, useLoad, useScrollDir } from "../ui";
 import { M2D_REELS } from "../stickers";
 import { Reels, StickerViewer } from "./RowPage";
 
@@ -549,7 +549,8 @@ function Raised({ v, onFaq }: { v: M2dView; onFaq: (k: "concept2" | "rowtember")
       <Text style={[mono(11, true, C.ink, 0.12), { marginTop: 4 }]}>
         Raised{v.window.started ? <Text style={mono(11, false, C.gray, 0.12)}> · {fmtInt(t.meters)} m rowed</Text> : null}
       </Text>
-      <M2dGoal v={v} />
+      {/* NO GOAL (owner, 2026-11-26: "Remove the M2D goal of $1000 I don't
+          want the bar or a public goal"). */}
       {/* More room between the bar and the receipts (owner, 2026-11-25). */}
       <View style={{ marginTop: 34, borderTopWidth: 2, borderColor: C.ink }}>
         <Item who="Concept2" rate="2¢/km once a rower passes 100K, 4¢ after" d={usd(t.raised)} onPress={() => onFaq("concept2")} />
@@ -561,19 +562,6 @@ function Raised({ v, onFaq }: { v: M2dView; onFaq: (k: "concept2" | "rowtember")
         {(t.unpicked ?? 0) > 0 ? sub("No charity picked yet", t.unpicked ?? 0) : null}
         <TotalItem d={usd(total)} />
       </View>
-    </View>
-  );
-}
-
-export function M2dGoal({ v }: { v: M2dView }) {
-  const total = totalOf(v);
-  return (
-    <View style={{ marginTop: 22 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-        <Text style={mono(11, true)}>Goal · {usd(v.goal)} to charity</Text>
-        <Text style={mono(11, true, total >= v.goal ? C.accent : C.ink)}>{total >= v.goal ? "Made it" : `${usd(Math.max(0, v.goal - total))} to go`}</Text>
-      </View>
-      <Bar value={Math.min(total, v.goal)} goal={v.goal} height={10} />
     </View>
   );
 }
