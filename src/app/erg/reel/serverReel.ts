@@ -33,7 +33,8 @@ export const REEL_FORMATS = { story: [1080, 1920], post: [1080, 1350], square: [
 export type ReelFormat = keyof typeof REEL_FORMATS;
 export const REEL_CLIPS: readonly ClipId[] = ["meters", "clock", "pace", "stack", "stroke", "monitor"];
 export const REEL_GROUNDS: readonly BgId[] = ["green", "blue", "black", "ink", "cream"];
-export const REEL_LENGTHS = [5, 10, 15] as const;
+/* 1 s too (owner, 2026-11-27: "a 1-second option for the reels on the rows"). */
+export const REEL_LENGTHS = [1, 5, 10, 15] as const;
 const FPS = 30;
 /* THE PHONE'S FILM RUNS AT 20 FRAMES A SECOND (owner, 2026-11-21: "there's
  * got to be a really smart way for us to reduce the amount of time needed

@@ -13,7 +13,7 @@ import { NoEncoder, REEL_CLIPS, REEL_FORMATS, REEL_GROUNDS, REEL_LENGTHS, render
  *   ?row=<entry id>  the logged row; it must have a recording tied to it
  *   &clip=meters|clock|pace|stack|stroke|monitor
  *   &bg=green|blue|black|ink|cream     the ground to key out or blend
- *   &format=story|post|square  &len=5|10|15  &unit=pace|watts|cal
+ *   &format=story|post|square  &len=1|5|10|15  &unit=pace|watts|cal
  *   &screen=all|large|force|bars       (the monitor clip's screen)
  *   &still=1   the last frame as a PNG, for a preview, instead of the film
  *   &strip=1   the five-second version as fifty small frames on one JPEG

@@ -12,7 +12,7 @@ import { M2D_CLIPS, m2dPainter, type M2dClip } from "@/app/row100k/m2dReel";
  * going up for M2D"). The painting is row100k/m2dReel.ts; the filming is
  * the row reel's (erg/reel/serverReel.ts). GET
  *   ?clip=me-m|me-both|all-m|all-both
- *   &bg=green|blue|black|ink|cream  &len=5|10|15  &format=phone|story|...
+ *   &bg=green|blue|black|ink|cream  &len=1|5|10|15  &format=phone|story|...
  *   &still=1  the last frame as a PNG     &strip=1  the five-second preview
  *   &gif=1    no ground at all, an animated GIF cropped to the drawing
  *

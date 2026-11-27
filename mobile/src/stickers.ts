@@ -94,7 +94,8 @@ export const GROUNDS = [
   { id: "black", label: "Black" },
 ] as const;
 export type GroundId = (typeof GROUNDS)[number]["id"];
-export const LENGTHS = [5, 10, 15] as const;
+/* 1 s too (owner, 2026-11-27: "a 1-second option for the reels on the rows"). */
+export const LENGTHS = [1, 5, 10, 15] as const;
 
 /* WHERE A SET OF CLIPS IS FILMED (2026-11-26). A row's reel overlays are
  * filmed off its recording (/api/row100k/app/reel); the M2D count-ups
