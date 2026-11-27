@@ -605,6 +605,8 @@ export type M2dPoster = {
   charities: { key: string; name: string; dollars: number }[];
   /* Everyone's meters per day of the window, index 0 = Nov 26. */
   byDay: number[];
+  /* Rows logged in the window by Pacific hour, 0..23 (null with none). */
+  hours: number[] | null;
   me: { rowerNumber: number; name: string; meters: Figure; dollars: Figure } | null;
 };
 

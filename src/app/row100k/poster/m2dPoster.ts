@@ -23,7 +23,7 @@
  * shown"); no address, no handle (owner, 2026-10-14). PURE: no db. */
 
 import { fmtRowerNumber } from "@/lib/row100k";
-import { drawFooter, drawHeadline, drawLedger, drawMonth, drawNameplate, drawStrip, silently, type Run, type StripCell } from "./charts";
+import { drawFooter, drawHours, drawHeadline, drawLedger, drawMonth, drawNameplate, drawStrip, silently, type Run, type StripCell } from "./charts";
 import type { Figure, M2dPoster, PosterBox, PosterLayout, PosterModule, PosterPaint, PosterPlan, PosterTakeaway } from "./types";
 
 type Ctx = CanvasRenderingContext2D;
@@ -170,33 +170,18 @@ const windowGrid: Mod = (() => {
   };
 })();
 
-/* THE NUMBERS, WHERE THE CHARITIES WERE (owner, 2026-11-26: "I don't want
- * to list the charities ... I especially don't want to show like one
- * charity is getting more money than another ... I don't want it to be
- * super empty"): the rowers, those past 100K, a rower's average, the
- * biggest day, what a kilometer raised, the days left. No charity named. */
-const numbersOf = (d: M2dPoster): PosterTakeaway[] => {
-  const k = "avgRow" as PosterTakeaway["key"];
-  const t = d.totals;
-  const items: PosterTakeaway[] = [{ key: k, label: "Rowers", value: fmtN(t.rowers) }];
-  items.push({ key: k, label: "Past 100K", value: fmtN(t.past100k) });
-  if (t.rowers > 0) items.push({ key: k, label: "A rower, on average", value: `${fmtN(Math.round(t.meters / t.rowers))} m` });
-  const top = d.byDay.reduce((b, m, i) => (m > d.byDay[b] ? i : b), 0);
-  if (d.byDay[top] > 0) {
-    const day = new Date(Date.parse(`${d.asOf.firstDay}T12:00:00Z`) + top * 86_400_000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toUpperCase();
-    items.push({ key: k, label: `Biggest day, ${day}`, value: `${fmtN(d.byDay[top])} m` });
-  }
-  if (t.meters >= 1000) items.push({ key: k, label: "Raised a kilometer", value: `${((t.total / (t.meters / 1000)) * 100).toFixed(1)}¢` });
-  if (!d.asOf.final && d.asOf.dayNumber > 0) items.push({ key: k, label: "Days to go", value: fmtN(Math.max(0, d.asOf.days - d.asOf.dayNumber)) });
-  return items;
+/* WHEN M2D ROWS, WHERE THE CHARITIES WERE (owner, 2026-11-26: "I don't
+ * want to list the charities ... I don't want it to be super empty"; of a
+ * list of figures there: "I don't know if I like those numbers ... What
+ * else do we show here"; the curve was off the table, "the curve needs to
+ * go", 2026-09-10): everyone's rows by the hour they were logged, the
+ * chart the month's poster keeps. A fixed row, as there. */
+const numbers: Mod = {
+  id: "numbers",
+  minH: 60,
+  measure: (ctx, box, d, _fonts, paint) => (d.hours ? (paint.format.family === "printL" ? 170 : 120) : silently(ctx, () => drawHours(ctx, paint, box, null))),
+  draw: (ctx, box, d, _fonts, paint) => drawHours(ctx, paint, box, d.hours),
 };
-const fmtN = (n: number) => Math.round(n).toLocaleString("en-US");
-const numbers = mod("numbers", 80, (ctx, box, d, paint) => {
-  const y = paint.eyebrow(ctx, box.x, box.y, box.w, "The numbers", "Everyone");
-  const items = numbersOf(d);
-  const used = drawLedger(ctx, paint, { x: box.x, y, w: box.w, h: Number.POSITIVE_INFINITY }, items, { max: items.length, min: items.length });
-  return y + used - box.y;
-});
 
 /* WHERE IT COMES FROM: the three parts of the lead number on the dotted
  * ledger. PLEDGES only once there is one. */

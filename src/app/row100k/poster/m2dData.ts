@@ -23,10 +23,17 @@ const tag = (day: string) => `${SHORT[Number(day.slice(5, 7)) - 1]} ${Number(day
  * for everyone's. `force`: an admin's test blackout. */
 export async function m2dPosterData(rowerNumber: number | null, force = false): Promise<M2dPoster> {
   const w = m2dWindow();
-  const [{ totals, by, perKm }, days] = await Promise.all([
+  const [{ totals, by, perKm }, days, logged] = await Promise.all([
     m2dTotals(),
     db.rowEntry.groupBy({ by: ["day"], where: { challenge: CHALLENGE, day: { gte: M2D_FIRST, lte: M2D_LAST } }, _sum: { meters: true } }),
+    db.rowEntry.findMany({ where: { challenge: CHALLENGE, day: { gte: M2D_FIRST, lte: M2D_LAST } }, select: { createdAt: true } }),
   ]);
+  /* WHEN M2D ROWS (owner, 2026-11-26: "What else do we show here"): the
+   * rows by the Pacific hour they were logged. */
+  const hourOf = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23" });
+  const hoursArr = Array.from({ length: 24 }, () => 0);
+  for (const e of logged) hoursArr[Number(hourOf.format(e.createdAt)) % 24]++;
+  const hours = logged.length ? hoursArr : null;
   const byDay = Array.from({ length: M2D_DAYS }, () => 0);
   const first = Date.parse(`${M2D_FIRST}T00:00:00Z`);
   for (const d of days) {
@@ -77,6 +84,7 @@ export async function m2dPosterData(rowerNumber: number | null, force = false): 
     },
     charities: CHARITIES.map((c) => ({ key: c.key, name: c.name, dollars: totals.split[c.key] ?? 0 })),
     byDay,
+    hours,
     me,
   };
 }

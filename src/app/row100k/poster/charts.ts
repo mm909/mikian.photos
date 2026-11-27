@@ -503,12 +503,18 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
   // The cell is as wide as its share of the box, always — the grid fills
   // its column. Its HEIGHT is the same number unless the caller capped it
   // (see MonthOpts.cellCap).
-  const cellW = (box.w - gap * 6) / 7;
-  const cellH = Math.min(o.cellCap ?? Number.POSITIVE_INFINITY, cellW);
-  const cell = Math.min(cellW, cellH);
+  /* SQUARE CELLS (owner, 2026-11-26: "sometimes the squares on the poster
+   * get a little rectangle-y. They're not very square-like"): a capped
+   * height used to leave the cell as wide as its share of the box. The
+   * cell is now the smaller of the two both ways, and a grid narrower than
+   * the box stands in its middle. */
+  const cell = Math.min(o.cellCap ?? Number.POSITIVE_INFINITY, (box.w - gap * 6) / 7);
+  const cellW = cell;
+  const cellH = cell;
+  const x0 = box.x + (box.w - (7 * cell + 6 * gap)) / 2;
   const dow = paint.font("mono", tk.axis);
   DOW_LETTERS.forEach((d, i) =>
-    paint.drawCentered(ctx, d, box.x + i * (cellW + gap) + cellW / 2, y + tk.small, dow, C.gray, 0.1 * tk.small),
+    paint.drawCentered(ctx, d, x0 + i * (cellW + gap) + cellW / 2, y + tk.small, dow, C.gray, 0.1 * tk.small),
   );
   y += tk.small * 1.9;
   const dayN = Math.max(1, Math.min(o.days, o.dayNumber));
@@ -536,7 +542,7 @@ export function drawMonth(ctx: Ctx, paint: PosterPaint, box: PosterBox, o: Month
   const showNum = cell >= tk.axis * 1.8;
   for (let i = 0; i < shown; i++) {
     const idx = i + o.firstDow;
-    const x = box.x + (idx % 7) * (cellW + gap);
+    const x = x0 + (idx % 7) * (cellW + gap);
     const cy = y + Math.floor(idx / 7) * (cellH + gap);
     const dom = String(domAt(o.firstDay, i));
     if (i >= dayN) {
