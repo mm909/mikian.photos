@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isDevAccount } from "@/lib/devAccount";
-import { CHALLENGE, GOAL_METERS, MONTH } from "@/lib/row100k";
+import { CHALLENGE, GOAL_METERS, MONTH, nowMs, pacificDay } from "@/lib/row100k";
 import { resolveViewer } from "@/lib/row100kViewer";
 import { monthOptIns } from "@/app/row100k/monthOptIn";
 import { avatarsFor } from "@/lib/rowSocial";
@@ -14,9 +14,35 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store, max-age=0" };
 
-export async function GET() {
+/* THE STORE BUILDS COUNT TOO (owner, 2026-11-27: "Stuart Ho looks like
+ * he's downloaded the app, but ... still shows him as invited"): the Play
+ * and App Store builds were made before the app said when it opened
+ * (app/seen), and an update never reaches them (it goes to the preview
+ * builds only). Every build asks for this on opening, so an app's ask with
+ * no x-row-client header (the builds before it) is counted here, the
+ * platform read off the phone's own HTTP library: okhttp is Android,
+ * CFNetwork / Darwin is an iPhone. A browser (Mozilla) is never counted. */
+async function oldBuildOpened(req: Request, userId: string) {
+  if (req.headers.get("x-row-client")) return;
+  const ua = req.headers.get("user-agent") ?? "";
+  const platform = /okhttp/i.test(ua) ? "android" : /CFNetwork|Darwin/i.test(ua) ? "ios" : null;
+  if (!platform || /Mozilla/i.test(ua)) return;
+  try {
+    const day = pacificDay(nowMs());
+    await db.rowAppSeen.upsert({
+      where: { userId_day_platform: { userId, day, platform } },
+      create: { userId, day, platform, version: "store build" },
+      update: { opens: { increment: 1 } },
+    });
+  } catch (err) {
+    console.error("row app: an old build's open was not counted", err);
+  }
+}
+
+export async function GET(req: Request) {
   const viewer = await resolveViewer();
   if (!viewer.actor) return NextResponse.json({ ok: true, signedIn: false }, { headers: NO_STORE });
+  await oldBuildOpened(req, viewer.actor.photographerId);
   const me = viewer.me;
   let totals = { meters: 0, seconds: 0, sessions: 0, monthMeters: 0, monthSessions: 0 };
   let optedIn = false;

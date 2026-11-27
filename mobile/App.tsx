@@ -414,7 +414,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
    * is lib/rowNotify's: a row line ({ row }) opens that row, its comments
    * for a comment, reply or mention; PASSED opens the board; a follow,
    * request or accept opens the notifications; the owner's M2D line opens
-   * the M2D tab. */
+   * the M2D tab; the owner's sign-up line opens the new rower. */
   const pushTap = useRef<(d: Record<string, unknown>) => void>(() => undefined);
   pushTap.current = (d) => {
     const kind = typeof d.kind === "string" ? d.kind : "";
@@ -423,6 +423,10 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
       goTab("board");
     } else if (typeof d.row === "string" && d.row) {
       push({ kind: "row", id: d.row, talk: kind === "commented" || kind === "replied" || kind === "mentioned" || kind === "likedComment" });
+    } else if (kind === "signup" && Number(d.rower) >= 0 && d.rower !== "") {
+      /* A NEW ROWER opens their profile (owner, 2026-11-27: "clicking on
+       * that notification should take me to their profile"). */
+      push({ kind: "rower", num: Number(d.rower) });
     } else if (kind === "passed") {
       goTab("board");
     } else if (kind === "follow" || kind === "request" || kind === "accepted") {
