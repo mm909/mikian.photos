@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert, Animated, Easing, Image, PanResponder, Platform, Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { pulled } from "../buzz";
 import { ROWER_URL, shareLink } from "../files";
 import Svg, { Line, Path, Rect } from "react-native-svg";
 import { api, edits, type Best, type Blocked, type Counts, type FiveK, type LogRow, type Profile, type Rel } from "../api";
@@ -463,7 +464,7 @@ export function ProfileScreen({
         nearAt.current = now;
         setNear((x) => x + 1);
       }}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={pulled(reload)} tintColor={C.ink} />}>
       <SocialLine
         p={p}
         rel={rel}

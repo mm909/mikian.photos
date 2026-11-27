@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Animated, Easing, Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { pulled } from "../buzz";
 import { api, type BoardData, type BoardRow } from "../api";
 import { useSession } from "../session";
 import { Ctl, Dateline, WordMenu, mono } from "../site";
@@ -204,7 +205,7 @@ export function BoardScreen({ onRower, onScrollDir, look = "bars" }: { onRower: 
   const tierOf = (r: BoardRow) => data.tiers.find((t) => r.meters >= t.floor) ?? data.tiers[data.tiers.length - 1];
 
   return (
-    <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={pulled(reload)} tintColor={C.ink} />}>
       <View style={{ paddingHorizontal: 20 }}>
         <Dateline left={head ?? data.month.label} right={live ? `Day ${data.month.day} of ${data.month.days}` : "Final standings"} days={data.month.days} day={data.month.day} />
         {live && data.me && !data.me.in ? (
@@ -357,7 +358,7 @@ function Sheet({ data, live, head, placed, loading, reload, onRower, dir }: { da
   const GAP = 3;
 
   return (
-    <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={pulled(reload)} tintColor={C.ink} />}>
       <View style={{ paddingHorizontal: 16 }}>
         <Dateline left={head ?? data.month.label} right={live ? `Day ${data.month.day} of ${data.month.days}` : "Final standings"} days={data.month.days} day={data.month.day} />
         {mine && mine.blocks === undefined ? (

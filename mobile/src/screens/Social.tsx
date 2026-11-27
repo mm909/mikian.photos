@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, FlatList, Keyboard, Modal, Platform, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
+import { pulled } from "../buzz";
 import { api, peek, type Counts, type FollowState, type Notice, type Person, type Rel } from "../api";
 import { SearchIcon } from "../icons";
 import { useSession } from "../session";
@@ -348,7 +349,7 @@ export function PeopleScreen({ list, num, onRower }: { list: PeopleList; num?: n
       data={data.people}
       keyExtractor={(p) => String(p.rowerNumber)}
       contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 124 }}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={pulled(reload)} tintColor={C.ink} />}
       renderItem={({ item }) => (
         <PersonLine
           p={item}
@@ -419,7 +420,7 @@ export function NewsScreen({ onRower, onRow, onBoard, onPeople }: { onRower: (n:
       data={data.items}
       keyExtractor={(it) => it.id}
       contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 124 }}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={pulled(reload)} tintColor={C.ink} />}
       ListHeaderComponent={
         requests > 0 ? (
           <Pressable accessibilityRole="link" accessibilityLabel={`Follow requests, ${requests}`} onPress={() => onPeople("requests")} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", minHeight: 58, borderBottomWidth: 1, borderColor: C.ink, opacity: pressed ? 0.6 : 1 })}>

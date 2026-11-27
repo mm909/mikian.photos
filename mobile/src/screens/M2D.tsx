@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Linking, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
+import { pulled } from "../buzz";
 import { api } from "../api";
 import { useSession } from "../session";
 import { Ctl, Dateline, Eye, mono } from "../site";
@@ -582,7 +583,7 @@ export function M2dScreen({ onRower, onScrollDir, onShareables }: { onRower: (n:
   const w = v.window;
   let place = 0;
   return (
-    <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView {...dir} contentContainerStyle={{ paddingTop: 16, paddingBottom: 132 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={pulled(reload)} tintColor={C.ink} />}>
       <View style={{ paddingHorizontal: 20 }}>
         <Dateline left="Concept2 Holiday Challenge" right={windowWord(v)} days={w.days} day={w.day} />
         <Raised v={v} onFaq={setFaq} />

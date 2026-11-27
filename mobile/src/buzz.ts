@@ -33,3 +33,11 @@ export const buzz = {
    * a boat on the race page. */
   done: () => run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)),
 };
+
+/* A KNOCK AS A PULL DOWN REFRESHES (owner, 2026-11-26: "Give a little
+ * haptic feedback when we pull down to refresh"): wraps a RefreshControl's
+ * onRefresh. */
+export const pulled = (f: () => void) => () => {
+  buzz.tap();
+  f();
+};

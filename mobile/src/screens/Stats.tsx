@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { pulled } from "../buzz";
 import { api, type Kde, type KdeYou, type PeriodRow, type RecordRow, type Stats } from "../api";
 import { Columns, Density, HourGrid, MonthGrid, kdeAtShare, kdePeak, kdeShareUnder } from "../charts";
 import { useSession } from "../session";
@@ -187,7 +188,7 @@ export function StatsScreen({ onRower, onRow, onRankings, onScrollDir }: { onRow
   ) : null;
 
   return (
-    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView {...dir} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={pulled(reload)} tintColor={C.ink} />}>
       {/* No stamp of the month and its meters here any more (owner,
           2026-11-21): every meter anybody has rowed is what the mark in the
           top bar rolls over into on this tab (App.tsx). */}
@@ -689,7 +690,7 @@ export function RankingsScreen({ period: p0, rec: r0, onRower, onRow }: { period
   const val = (r: RecordRow) => (rec.time ? fmtClock(r.value) : `${fmtInt(r.value)} m`);
   let place = 0;
   return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} tintColor={C.ink} />}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={pulled(reload)} tintColor={C.ink} />}>
       {/* THREE OF ONE KIND (owner, 2026-11-23: "all-time, total meters, and
           then men, women, everyone should have the same exact selectors"):
           the time frame, the record and who, each a button with a caret,

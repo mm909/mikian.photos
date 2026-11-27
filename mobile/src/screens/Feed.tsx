@@ -256,6 +256,7 @@ export function FeedScreen({ onRower, onRow, stamp, onScrollDir }: { onRower: (n
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => {
+              buzz.tap();
               setPulls((n) => n + 1);
               first(true);
             }}
