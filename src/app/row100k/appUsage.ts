@@ -26,7 +26,19 @@ export type UsagePerson = {
   lastDay: string;
   days: number;
   opens: number;
+  /* THE LAST 28 DAYS: the days they used the app (an open, or something
+   * only the app does), the opens, and those things done (a like, a
+   * comment, a follow, a row logged on the app, a recording). */
+  days28: number;
+  opens28: number;
+  acts28: number;
+  /* A POWER USER (owner, 2026-11-26: "Power user should be someone who has
+   * used the app 15 or more times ... in a month"): 15 or more uses (opens
+   * and things done) in the last 28 days. */
+  power: boolean;
 };
+export const POWER_USES = 15;
+export const WEEKLY_GOAL = 100;
 /* AGAINST FOUR WEEKS (owner, 2026-11-26: "You can include things like
  * likes and comments on rows as well as part of the usage stats. And I
  * probably want to compare most of these numbers to a 4-week period, like a
@@ -38,6 +50,8 @@ export type Versus = { key: string; label: string; today: number; avgDay: number
 export type AppUsage = {
   today: string;
   versus: Versus[];
+  weekly: { thisWeek: number; avg4: number; goal: number; weeks: { start: string; end: string; users: number }[] };
+  powerUses: number;
   since: string | null;
   accounts: number;
   /* `phone`: on the app by what they did there, the kind of phone not yet
@@ -65,6 +79,7 @@ const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T12:00:00
 
 export async function appUsage(): Promise<AppUsage> {
   const today = pacificDay(nowMs());
+  const since28 = addDays(today, -27);
   /* NONE OF THE OWNER'S OWN (owner, 2026-11-26: "this usage page should
    * exclude any of my usage"): his accounts and the Developer sign-in are
    * left out of every figure here. */
@@ -82,11 +97,11 @@ export async function appUsage(): Promise<AppUsage> {
   const signedOut = new Set(seenAll.filter((s) => s.userId.startsWith("device:")).map((s) => s.userId)).size;
   const seen = seenAll.filter((s) => !notMe.has(s.userId) && !s.userId.startsWith("device:"));
   const push = pushAll.filter((t) => !notMe.has(t.userId));
-  type P = { platforms: Set<string>; first: string; last: string; days: Set<string>; opens: number };
+  type P = { platforms: Set<string>; first: string; last: string; days: Set<string>; opens: number; active: Set<string>; opens28: number; acts28: number };
   const by = new Map<string, P>();
   const get = (id: string) => {
     let p = by.get(id);
-    if (!p) by.set(id, (p = { platforms: new Set(), first: "9999", last: "", days: new Set(), opens: 0 }));
+    if (!p) by.set(id, (p = { platforms: new Set(), first: "9999", last: "", days: new Set(), opens: 0, active: new Set(), opens28: 0, acts28: 0 }));
     return p;
   };
   for (const t of push) {
@@ -134,8 +149,30 @@ export async function appUsage(): Promise<AppUsage> {
     const d = pacificDay(a.at.getTime());
     if (d < p.first) p.first = d;
     if (d > p.last) p.last = d;
+    p.active.add(d);
+    if (d >= since28) p.acts28++;
+  }
+  for (const s of seen) {
+    const p = by.get(s.userId);
+    if (!p) continue;
+    p.active.add(s.day);
+    if (s.day >= since28) p.opens28 += s.opens;
   }
   for (const p of by.values()) if (p.platforms.size === 0) p.platforms.add("phone");
+
+  /* WEEKLY APP USERS (owner, 2026-11-26: "I want 100 average weekly users
+   * across 4 weeks, I think is the goal to hit"): the rowers who used the
+   * app on some day of each 7-day stretch, the one ending today and the
+   * four before it, and the average of those four. */
+  const weeks: { start: string; end: string; users: number }[] = [];
+  for (let w = 0; w < 5; w++) {
+    const end = addDays(today, -7 * w);
+    const start = addDays(end, -6);
+    let users = 0;
+    for (const p of by.values()) if ([...p.active].some((d) => d >= start && d <= end)) users++;
+    weeks.push({ start, end, users });
+  }
+  const weekly = { thisWeek: weeks[0].users, avg4: Math.round((weeks.slice(1).reduce((a, w) => a + w.users, 0) / 4) * 10) / 10, goal: WEEKLY_GOAL, weeks: weeks.reverse() };
   const ids = [...by.keys()];
   const [accounts, rowers] = await Promise.all([
     db.photographer.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }),
@@ -156,9 +193,16 @@ export async function appUsage(): Promise<AppUsage> {
         lastDay: p.last,
         days: p.days.size,
         opens: p.opens,
+        days28: [...p.active].filter((d) => d >= since28).length,
+        opens28: p.opens28,
+        acts28: p.acts28,
+        power: p.opens28 + p.acts28 >= POWER_USES,
       };
     })
-    .sort((a, b) => (a.lastDay === b.lastDay ? b.opens - a.opens : a.lastDay < b.lastDay ? 1 : -1));
+    /* RANKED BY USE (owner, 2026-11-26: "rank each user for how much
+     * they're using the app ... who are the super users"): the days they
+     * used it in the last 28, then the uses, then the most recent. */
+    .sort((a, b) => b.days28 - a.days28 || b.opens28 + b.acts28 - (a.opens28 + a.acts28) || (a.lastDay < b.lastDay ? 1 : a.lastDay > b.lastDay ? -1 : 0));
 
   const byPlatform = { ios: 0, android: 0, web: 0, phone: 0 };
   for (const p of by.values()) for (const k of p.platforms) if (k === "ios" || k === "android" || k === "web" || k === "phone") byPlatform[k]++;
@@ -306,6 +350,8 @@ export async function appUsage(): Promise<AppUsage> {
   const panels = [...pm.entries()].map(([panel, e]) => ({ panel, minutes: Math.round(e.s / 6) / 10, rowers: e.who.size })).sort((a, b) => b.minutes - a.minutes);
   return {
     today,
+    weekly,
+    powerUses: POWER_USES,
     versus,
     meterShare,
     recorded: { week: rw.pct, weekRows: rw.n, prior4: rp.pct, prior4Rows: rp.n },

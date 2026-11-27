@@ -12,10 +12,12 @@ import { Waiting, useLoad } from "../ui";
  * place inside of settings that shows me the Android status, like how many
  * people we have and if they've ... downloaded the app"). The owner's
  * alone, in settings. The figures are the site's (row100k/appUsage.ts). */
-type Person = { name: string; rowerNumber: number | null; platforms: string[]; firstDay: string; lastDay: string; days: number; opens: number };
+type Person = { name: string; rowerNumber: number | null; platforms: string[]; firstDay: string; lastDay: string; days: number; opens: number; days28?: number; opens28?: number; acts28?: number; power?: boolean };
 type Versus = { key: string; label: string; today: number; avgDay: number | null; week: number; avgWeek: number | null };
 type Usage = {
   today: string;
+  weekly?: { thisWeek: number; avg4: number; goal: number; weeks: { start: string; end: string; users: number }[] };
+  powerUses?: number;
   versus?: Versus[];
   since: string | null;
   accounts: number;
@@ -122,7 +124,29 @@ export function AppUsage() {
         </>
       ) : (
         <>
-          {d.signedOut ? row("Phones not signed in", fmtInt(d.signedOut), "Opened the app and never signed in, counted from this update.") : null}
+          {/* THE GOAL (owner, 2026-11-26: "I want 100 average weekly users
+          across 4 weeks ... we just first need to get to there"): rowers
+          who used the app on some day of each 7-day stretch. */}
+      {d.weekly ? (
+        <>
+          {head("Weekly app users", `goal ${d.weekly.goal}`)}
+          <View style={{ flexDirection: "row", alignItems: "baseline", columnGap: 10, marginTop: 10 }}>
+            <Text style={{ fontFamily: F.black, fontSize: 40, lineHeight: 44, color: C.accent, fontVariant: ["tabular-nums"] }}>{d.weekly.avg4}</Text>
+            <Text style={mono(10, false, C.gray, 0.08)}>{`a week, the 4 weeks before this one · ${d.weekly.thisWeek} this week`}</Text>
+          </View>
+          <View style={{ height: 8, backgroundColor: C.line, marginTop: 10 }}>
+            <View style={{ height: 8, width: `${Math.min(100, (d.weekly.avg4 / d.weekly.goal) * 100)}%`, backgroundColor: C.accent }} />
+          </View>
+          <View style={{ marginTop: 12 }}>
+            <ScrubColumns
+              values={d.weekly.weeks.map((w) => w.users)}
+              accent={d.weekly.weeks.length - 1}
+              say={(i) => (i === null ? "App users a week. Scrub for a week." : `${short(d.weekly!.weeks[i].start)} to ${short(d.weekly!.weeks[i].end)}: ${d.weekly!.weeks[i].users} rowers`)}
+            />
+          </View>
+        </>
+      ) : null}
+      {d.signedOut ? row("Phones not signed in", fmtInt(d.signedOut), "Opened the app and never signed in, counted from this update.") : null}
       {head("Today", short(d.today))}
           {row("Rowers who opened the app", fmtInt(d.todayUsers))}
           {row("Times it was opened", fmtInt(d.todayOpens), "Each time it comes to the front, a minute apart at least.")}
@@ -148,10 +172,18 @@ export function AppUsage() {
         </View>
       ))}
 
-      {head("Who", `${d.people.length}`)}
+      {/* RANKED BY USE (owner, 2026-11-26: "rank each user for how much
+          they're using the app ... who are the super users ... I should
+          reach out for example, for inputs, or I should maybe deliver
+          features first to"). */}
+      {head("Who, by use", `${d.people.filter((p) => p.power).length} power · ${d.people.length} in all`)}
+      <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 6, lineHeight: 15 }]}>
+        {`Ranked by the days they used the app in the last 28, then by uses: each open, like, comment, follow, row logged on the app or recording. A power user has ${d.powerUses ?? 15} or more uses in 28 days.`}
+      </Text>
       {d.people.map((p, i) => (
         <View key={`${p.name}${i}`} style={{ paddingVertical: 9, borderBottomWidth: 1, borderColor: C.line }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", columnGap: 10 }}>
+            <Text style={{ width: 24, fontFamily: F.monoBold, fontSize: 13, color: p.power ? C.accent : C.gray }}>{i + 1}</Text>
             <Text numberOfLines={1} style={{ flex: 1, fontFamily: F.bold, fontSize: 14, color: C.ink }}>
               {p.rowerNumber != null ? <Text style={{ fontFamily: F.mono, fontSize: 12, color: C.gray }}>{`${String(p.rowerNumber).padStart(3, "0")} · `}</Text> : null}
               {p.name}
@@ -159,7 +191,7 @@ export function AppUsage() {
             <Text style={mono(10, true, C.ink, 0.06)}>{p.platforms.map((x) => PLAT[x] ?? x).join(" · ")}</Text>
           </View>
           <Text style={[mono(9.5, false, C.gray, 0.06), { marginTop: 3 }]}>
-            {`Since ${short(p.firstDay)} · last ${short(p.lastDay)}${p.days ? ` · ${p.days} day${p.days === 1 ? "" : "s"}, opened ${p.opens}` : ""}`}
+            {`${p.power ? "POWER · " : ""}${p.days28 ?? 0} day${p.days28 === 1 ? "" : "s"}, ${(p.opens28 ?? 0) + (p.acts28 ?? 0)} uses in 28 · since ${short(p.firstDay)} · last ${short(p.lastDay)}`}
           </Text>
         </View>
       ))}
