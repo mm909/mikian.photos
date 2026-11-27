@@ -461,8 +461,18 @@ export type EntryCheck =
  * the charts and the hour grid use. The form defaults to it, its date picker
  * stops at it, and validateEntry refuses anything past it — one clock, so
  * the three can never disagree about what "today" is. */
+/* THE REAL PACIFIC CLOCK (owner, 2026-11-26, at 11:46 PM: "we're showing
+ * the next day"): a fixed UTC-7 was Pacific in September, but from Nov 1
+ * Pacific is UTC-8, and for the last hour of every day the site thought it
+ * was already tomorrow. The day is read in America/Los_Angeles, summer
+ * time or not. */
+/* Made on first use and kept on the function itself: the month constants
+ * above call this as the module loads, before any let or const down here
+ * would exist. */
 export function pacificDay(atMs: number): string {
-  return new Date(atMs - 7 * 3_600_000).toISOString().slice(0, 10);
+  const self = pacificDay as typeof pacificDay & { fmt?: Intl.DateTimeFormat };
+  self.fmt ??= new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" });
+  return self.fmt.format(new Date(atMs));
 }
 
 /* Any day string pulled into the September window. */

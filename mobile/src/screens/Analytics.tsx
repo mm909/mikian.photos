@@ -1,5 +1,6 @@
 import { Text, View } from "react-native";
 import { api } from "../api";
+import { ScrubColumns } from "../charts";
 import { mono } from "../site";
 import { C, F, fmtInt } from "../theme";
 import { Waiting, useLoad } from "../ui";
@@ -90,9 +91,24 @@ export function ChurnPage() {
   return (
     <View>
       {big(pct(d.neverRowed, d.signedUp), "Signed up and never rowed", `${d.neverRowed} of the ${d.signedUp} who signed up. None of yours counted.`)}
-      {head("Another row after row N", "within a month")}
-      <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 6, lineHeight: 15 }]}>Of the rowers whose Nth row is two weeks old or more, how many logged one more.</Text>
-      {d.afterRow.filter((r) => r.judged > 0).map((r) => row(`After row ${r.n}`, pct(r.went, r.judged), `${r.went} of ${r.judged}`, `n${r.n}`))}
+      {head("Another row after row N", "the chance, rows 1 to 30")}
+      <Text style={[mono(9.5, false, C.gray, 0.08), { marginTop: 6, lineHeight: 15 }]}>Of the rowers whose Nth row is two weeks old or more, how many logged one more. Scrub the bars.</Text>
+      {/* THE CURVE (owner, 2026-11-26: "Show me your probability of logging
+          another row given you've logged X rows ... I need a chart for
+          that"). */}
+      {(() => {
+        const pts = d.afterRow.filter((r) => r.judged > 0);
+        return pts.length ? (
+          <View style={{ marginTop: 12 }}>
+            <ScrubColumns
+              height={110}
+              values={pts.map((r) => Math.round((r.went / r.judged) * 100))}
+              say={(i) => (i === null ? `After row 1: ${pct(pts[0].went, pts[0].judged)} logged another` : `After row ${pts[i].n}: ${pct(pts[i].went, pts[i].judged)} logged another, ${pts[i].went} of ${pts[i].judged}`)}
+            />
+          </View>
+        ) : null;
+      })()}
+      {d.afterRow.filter((r) => r.judged > 0 && [1, 2, 3, 5, 10, 20, 30].includes(r.n)).map((r) => row(`After row ${r.n}`, pct(r.went, r.judged), `${r.went} of ${r.judged}`, `n${r.n}`))}
       {head("Month to month", "rowed the month after")}
       {d.months.map((m) => row(monthWord(m.key), m.next == null ? `${m.rowers} rowers` : pct(m.next, m.rowers), m.next == null ? "This month: the next has not come." : `${m.next} of ${m.rowers} rowers rowed the month after`, m.key))}
       {d.byEffort ? (

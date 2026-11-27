@@ -170,26 +170,32 @@ const windowGrid: Mod = (() => {
   };
 })();
 
-/* THE THREE CHARITIES (owner, 2026-11-25: "Project Inclusion, Shine a
- * Light, and Candlelighters"), BY NAME ALONE (owner, 2026-11-26: "On the
- * posters, I don't want it to say how much each charity is getting. I
- * don't want to show the breakdown"): no dollars, no share, no bar. */
-const charities = mod("charities", 80, (ctx, box, d, paint) => {
-  const { tk, c } = paint;
-  let y = paint.eyebrow(ctx, box.x, box.y, box.w, "The charities", "Las Vegas");
-  const phone = isPhone(paint);
-  const size = tk.row * (phone ? 1 : 1.1);
-  const nf = paint.font("archivoBold", size);
-  const m = paint.metricsOf(ctx, nf, size);
-  d.charities.forEach((ch, i) => {
-    if (i > 0) y += tk.row * (phone ? 0.45 : 0.7);
-    const name = paint.ellipsize(ctx, ch.name.toUpperCase(), box.w, nf, 0.02 * size);
-    paint.drawText(ctx, name, box.x, y + m.asc, nf, c.ink, 0.02 * size);
-    y += m.lh;
-    paint.rule(ctx, box.x, y + tk.row * 0.3, box.w, tk.hair, c.line);
-    y += tk.row * 0.3 + tk.hair;
-  });
-  return y - box.y;
+/* THE NUMBERS, WHERE THE CHARITIES WERE (owner, 2026-11-26: "I don't want
+ * to list the charities ... I especially don't want to show like one
+ * charity is getting more money than another ... I don't want it to be
+ * super empty"): the rowers, those past 100K, a rower's average, the
+ * biggest day, what a kilometer raised, the days left. No charity named. */
+const numbersOf = (d: M2dPoster): PosterTakeaway[] => {
+  const k = "avgRow" as PosterTakeaway["key"];
+  const t = d.totals;
+  const items: PosterTakeaway[] = [{ key: k, label: "Rowers", value: fmtN(t.rowers) }];
+  items.push({ key: k, label: "Past 100K", value: fmtN(t.past100k) });
+  if (t.rowers > 0) items.push({ key: k, label: "A rower, on average", value: `${fmtN(Math.round(t.meters / t.rowers))} m` });
+  const top = d.byDay.reduce((b, m, i) => (m > d.byDay[b] ? i : b), 0);
+  if (d.byDay[top] > 0) {
+    const day = new Date(Date.parse(`${d.asOf.firstDay}T12:00:00Z`) + top * 86_400_000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toUpperCase();
+    items.push({ key: k, label: `Biggest day, ${day}`, value: `${fmtN(d.byDay[top])} m` });
+  }
+  if (t.meters >= 1000) items.push({ key: k, label: "Raised a kilometer", value: `${((t.total / (t.meters / 1000)) * 100).toFixed(1)}¢` });
+  if (!d.asOf.final && d.asOf.dayNumber > 0) items.push({ key: k, label: "Days to go", value: fmtN(Math.max(0, d.asOf.days - d.asOf.dayNumber)) });
+  return items;
+};
+const fmtN = (n: number) => Math.round(n).toLocaleString("en-US");
+const numbers = mod("numbers", 80, (ctx, box, d, paint) => {
+  const y = paint.eyebrow(ctx, box.x, box.y, box.w, "The numbers", "Everyone");
+  const items = numbersOf(d);
+  const used = drawLedger(ctx, paint, { x: box.x, y, w: box.w, h: Number.POSITIVE_INFINITY }, items, { max: items.length, min: items.length });
+  return y + used - box.y;
 });
 
 /* WHERE IT COMES FROM: the three parts of the lead number on the dotted
@@ -227,7 +233,7 @@ const printRows = [
   {
     id: "E",
     slots: [
-      { module: "charities", span: 2 as const },
+      { module: "numbers", span: 2 as const },
       { module: "sources", span: 1 as const },
     ],
   },
@@ -257,7 +263,7 @@ const story: PosterPlan = {
   rows: [
     ...top2,
     { id: "D", grow: 1, slots: [{ module: "window", span: 2, fit: "cap" }] },
-    { id: "E", slots: [{ module: "charities", span: 2 }] },
+    { id: "E", slots: [{ module: "numbers", span: 2 }] },
   ],
   footer: "footer",
   shrink: ["gap", "cap"],
@@ -268,7 +274,7 @@ const post: PosterPlan = {
   rows: [
     ...top2,
     { id: "D", grow: 1, slots: [{ module: "window", span: 2, fit: "cap" }] },
-    { id: "E", slots: [{ module: "charities", span: 2 }] },
+    { id: "E", slots: [{ module: "numbers", span: 2 }] },
   ],
   footer: "footer",
   drop: ["window"],
@@ -277,7 +283,7 @@ const post: PosterPlan = {
 const square: PosterPlan = {
   key: "square",
   cols: 2,
-  rows: [...top2, { id: "E", grow: 1, slots: [{ module: "charities", span: 2 }] }],
+  rows: [...top2, { id: "E", grow: 1, slots: [{ module: "numbers", span: 2 }] }],
   footer: "footer",
   drop: ["you"],
   shrink: ["gap"],
@@ -285,7 +291,7 @@ const square: PosterPlan = {
 
 export const m2dLayout: PosterLayout<M2dPoster> = {
   subject: "m2d",
-  modules: { masthead, headline, strip, you, window: windowGrid, charities, sources, footer },
+  modules: { masthead, headline, strip, you, window: windowGrid, numbers, sources, footer },
   plans: {
     tall: printPlan("tall", "short"),
     short: printPlan("short", "squat"),

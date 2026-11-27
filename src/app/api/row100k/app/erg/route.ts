@@ -147,7 +147,8 @@ export async function GET(req: Request) {
     if (!t || (!viewer.isAdmin && t.userId !== viewer.userId)) return no("No such session.", 404);
     const doc = validateTelemetryDoc(t.data);
     if (typeof doc === "string") return no("That recording could not be read.", 500);
-    const day = new Date(t.startedAt.getTime() - 7 * 3600_000).toISOString().slice(0, 10);
+    /* The row's day on the real Pacific clock (lib/row100k.ts pacificDay). */
+    const day = pacificDay(t.startedAt.getTime());
     return NextResponse.json({ ok: true, session: { id: t.id, day, meters: t.meters, entryId: t.entryId, doc } }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     console.error("row app: failed to read a saved session", err);

@@ -38,7 +38,10 @@ export async function churn(): Promise<Churn> {
   for (const d of by.values()) d.sort();
   const age = (day: string) => Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${day}T12:00:00Z`)) / 86_400_000);
 
-  const afterRow = [1, 2, 3, 4, 5, 7, 10, 15, 20, 30].map((n) => {
+  /* Every N from 1 to 30, for the curve (owner, 2026-11-26: "Show me your
+   * probability of logging another row given you've logged X rows ... I need
+   * a chart for that"). */
+  const afterRow = Array.from({ length: 30 }, (_, i) => i + 1).map((n) => {
     const have = [...by.values()].filter((d) => d.length >= n);
     const old = have.filter((d) => age(d[n - 1]) >= 14);
     return { n, rowers: have.length, judged: old.length, went: old.filter((d) => d.length > n).length };
