@@ -242,10 +242,7 @@ export default async function M2dFaqPage() {
                 Logbook.
               </p>
               <h3>Is there a limit?</h3>
-              <p>
-                Concept2 sets none: every rower past 100K earns its donation, at 4¢ a kilometer for every kilometer after 100. Meters go into the
-                Logbook until 11:59 pm GMT on Jan 4. {v.match.by} matches up to ${M2D_CAP.toLocaleString("en-US")}.
-              </p>
+              <p>{v.match.by} matches up to ${M2D_CAP.toLocaleString("en-US")}.</p>
               <h3>Can I add to it?</h3>
               <p>
                 Yes: <Link href="/m2d/give">add cents to every kilometer</Link>.

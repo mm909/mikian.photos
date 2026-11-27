@@ -132,7 +132,7 @@ export function RowPage({
   const pretend = useMemo(() => (fake && fresh ? fakeRow(fake, fresh, localDoc ?? null, me) : null), [fake, fresh, localDoc, me]);
   const data = pretend ? { row: pretend } : loaded.data;
   const { error, reload } = loaded;
-  const [sharing, setSharing] = useState(false);
+  const [sharing, setSharing] = useState<false | true | { start: string; only: string }>(false);
   const [talking, setTalking] = useState(!!talk);
   /* THE ARCADE'S AFTER-ROW, over a row just logged that had a run on it
    * (AfterRow.tsx): performance, progress, the boxes. Once. */
@@ -283,11 +283,14 @@ export function RowPage({
       {/* THE STICKERS, then the reels (owner, 2026-11-21: "before I see
           the reel overlays, I want to see the sticker overlays above
           them"). */}
-      {mayShare ? <Stickers rowId={r.id} onOpen={() => setSharing(true)} /> : null}
+      {/* THE ROW'S OWN, THEN M2D'S IN ROWS OF THEIR OWN (owner, 2026-11-26:
+          "We can prob separate the M2d's stickers and reels from the normal
+          ones. Have them in their own row?"). */}
+      {mayShare ? <Stickers rowId={r.id} part="row" onOpen={(id) => setSharing({ start: id, only: ROW_ONLY })} /> : null}
       {r.canReel && !r.masked && !fake ? <Reels src={rowReels(r.id)} /> : null}
-      {/* THE M2D COUNT-UPS, beside the M2D stickers (2026-11-26). They
-          count the rower's M2D total and everyone's, not this row, so they
-          need no recording. */}
+      {mayShare && !fake ? <Stickers rowId={r.id} part="m2d" onOpen={(id) => setSharing({ start: id, only: "m2d-" })} /> : null}
+      {/* THE M2D COUNT-UPS: the rower's M2D total and everyone's, not this
+          row, so they need no recording. */}
       {mayShare && !fake ? <Reels src={M2D_REELS} title="M2D reels" aside="Counting up" /> : null}
 
       {/* THE ROW'S GAME (owner, 2026-11-24: "after the stickers/reels and
@@ -329,7 +332,7 @@ export function RowPage({
           onChange={(what) => (what === "row-gone" || what === "blocked" ? onDone() : reload())}
         />
       ) : null}
-      {sharing ? <StickerViewer rowId={r.id} onClose={() => setSharing(false)} /> : null}
+      {sharing ? <StickerViewer rowId={r.id} only={sharing === true ? undefined : sharing.only} start={sharing === true ? undefined : sharing.start} onClose={() => setSharing(false)} /> : null}
       {writing && r.mine && r.meters && r.seconds ? (
         <EditRow
           row={{ id: r.id, day: r.day, meters: r.meters, seconds: r.seconds, title: r.title, caption: r.caption ?? "", photos: r.photos, photoKeys: r.photoKeys ?? [], telemetry: !!r.erg }}
@@ -861,13 +864,16 @@ function GameLines({ g }: { g: Game }) {
  * shows while its picture comes; a deck that could not be fetched says so
  * and offers another try, where it used to leave nothing at all. Only an
  * answer with no stickers in it (not the rower's row) takes the strip away. */
-function Stickers({ rowId, onOpen }: { rowId: string; onOpen: () => void }) {
+/* Every sticker id that is not M2D's, as StickerViewer's `only` takes ids:
+ * a part of the deck is passed as the prefixes it starts with. */
+const ROW_ONLY = "!m2d-";
+function Stickers({ rowId, onOpen, part }: { rowId: string; onOpen: (id: string) => void; part: "row" | "m2d" }) {
   const { data, error, reload } = useLoad(() => deck(rowId), [rowId]);
-  const cards = data?.cards ?? [];
+  const cards = (data?.cards ?? []).filter((c) => (part === "m2d") === c.id.startsWith("m2d-"));
   if (data && !cards.length) return null;
   return (
     <>
-      <Eye left="Stickers" right="For your story" />
+      <Eye left={part === "m2d" ? "M2D stickers" : "Stickers"} right="For your story" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
         {!data
           ? [0, 1, 2, 3].map((k) =>
@@ -886,7 +892,7 @@ function Stickers({ rowId, onOpen }: { rowId: string; onOpen: () => void }) {
             )
           : null}
         {cards.map((c) => (
-          <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Sticker: ${c.label}`} onPress={onOpen} style={{ width: 124 }}>
+          <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`Sticker: ${c.label}`} onPress={() => onOpen(c.id)} style={{ width: 124 }}>
             <View style={{ height: 150, backgroundColor: GROUND, alignItems: "center", justifyContent: "center", padding: 10 }}>
               <StickerImage id={c.id} rowId={rowId} ratio={c.width / c.height} />
             </View>
@@ -913,50 +919,24 @@ const GROUND = "#1f2226";
  * are made for, one sticker to a page, a swipe to the next; SHARE hands the
  * one showing to the phone's share sheet, COPY puts it on the clipboard. */
 export function StickerViewer({ rowId, onClose, only, empty, start }: { rowId?: string; onClose: () => void; only?: string; empty?: string; start?: string }) {
+  /* TWO ACROSS, LIKE STRAVA (owner, 2026-11-26: "The number of shareables
+   * is getting to large for the dots a the bottom. Should we show them 2x2
+   * like Strava does?"): every sticker at once in a grid of two columns,
+   * scrolled down; a tap picks one (a white ring and a check), SHARE and
+   * COPY act on the one picked. */
   useModalHold();
   const win = useWindowDimensions();
   const w = Math.min(win.width, 560);
   const { data, error } = useLoad(() => deck(rowId), [rowId]);
-  const [at, setAt] = useState(0);
+  const [pick, setPick] = useState<string | null>(start ?? null);
   const [busy, setBusy] = useState<"" | "share" | "copy">("");
   const [note, setNote] = useState("");
-  /* `only`: the stickers whose id starts with it (the M2D share buttons
-   * open the deck at its dollar stickers alone). */
-  const cards = (data?.cards ?? []).filter((c) => !only || only.split(",").some((o) => c.id.startsWith(o)));
-  /* `start`: the sticker to open on (a tile on the Shareables page). */
-  const startAt = Math.max(0, start ? cards.findIndex((c) => c.id === start) : 0);
-  const begun = useRef(false);
-  if (!begun.current && cards.length) {
-    begun.current = true;
-    if (startAt !== at) setAt(startAt);
-  }
-  const card = cards[Math.min(at, cards.length - 1)];
-  /* ROUND AND ROUND (owner, 2026-11-21: "if I try to swipe left and I
-   * can't go left, just go to the last one ... when I'm at the end ... show
-   * me the first one"). The last sticker is drawn again before the first
-   * and the first again after the last; a swipe that settles on one of
-   * those two is moved, unseen, to the real one. */
-  const loop = cards.length > 1;
-  const pages = loop ? [cards[cards.length - 1], ...cards, cards[0]] : cards;
-  const strip = useRef<{ scrollTo: (o: { x: number; animated: boolean }) => void } | null>(null);
-  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const placed = useRef(false);
-  const place = () => {
-    if (placed.current) return;
-    placed.current = true;
-    const x = (loop ? startAt + 1 : startAt) * w;
-    if (x) strip.current?.scrollTo({ x, animated: false });
-  };
-  const onStrip = (x: number) => {
-    const page = Math.round(x / Math.max(1, w));
-    if (!loop) return setAt(page);
-    setAt((page - 1 + cards.length) % cards.length);
-    if (settle.current) clearTimeout(settle.current);
-    settle.current = setTimeout(() => {
-      if (page === 0) strip.current?.scrollTo({ x: cards.length * w, animated: false });
-      else if (page === cards.length + 1) strip.current?.scrollTo({ x: w, animated: false });
-    }, 140);
-  };
+  /* `only`: the stickers whose id starts with it; "!m2d-" is every one
+   * that does not. */
+  const cards = (data?.cards ?? []).filter((c) => !only || (only.startsWith("!") ? !c.id.startsWith(only.slice(1)) : only.split(",").some((o) => c.id.startsWith(o))));
+  const card = cards.find((c) => c.id === pick) ?? cards[0];
+  const gap = 12;
+  const tileW = Math.floor((w - 32 - gap) / 2);
   const run = async (what: "share" | "copy") => {
     if (!card) return;
     setBusy(what);
@@ -978,10 +958,7 @@ export function StickerViewer({ rowId, onClose, only, empty, start }: { rowId?: 
   );
   return (
     <Modal visible animationType="fade" onRequestClose={onClose}>
-      {/* A press on the ground beside the sticker closes it (owner,
-          2026-11-22: "let me not have to click on the X ... let me just tap
-          on the sides"). */}
-      <Pressable accessibilityLabel="Close" onPress={onClose} style={{ flex: 1, backgroundColor: GROUND, alignItems: "center" }}>
+      <View style={{ flex: 1, backgroundColor: "#111214", alignItems: "center" }}>
         <View style={{ flex: 1, width: w, paddingTop: 44, paddingBottom: 30 }}>
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8 }}>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={8} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
@@ -999,22 +976,28 @@ export function StickerViewer({ rowId, onClose, only, empty, start }: { rowId?: 
           ) : !data ? (
             <View style={{ flex: 1, justifyContent: "center" }}>{error ? <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", paddingHorizontal: 20 }]}>{error}</Text> : <ActivityIndicator color="#fff" />}</View>
           ) : (
-            <ScrollView ref={strip as never} horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentOffset={loop ? { x: (startAt + 1) * w, y: 0 } : startAt ? { x: startAt * w, y: 0 } : undefined} onContentSizeChange={place} onScroll={(e) => onStrip(e.nativeEvent.contentOffset.x)} scrollEventThrottle={32} style={{ flex: 1 }}>
-              {pages.map((c, i) => (
-                <Pressable key={`${c.id}-${i}`} onPress={onClose} style={{ width: w, paddingHorizontal: 20, justifyContent: "center" }}>
-                  <Pressable onPress={() => {}}>
-                    <StickerImage id={c.id} rowId={rowId} ratio={c.width / c.height} />
+            <ScrollView style={{ flex: 1, marginTop: 8 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, flexDirection: "row", flexWrap: "wrap", gap }}>
+              {cards.map((c) => {
+                const on = c.id === card?.id;
+                return (
+                  <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={c.label} accessibilityState={{ selected: on }} onPress={() => setPick(c.id)} style={{ width: tileW }}>
+                    <View style={{ height: Math.round(tileW * 1.35), borderRadius: 14, borderWidth: 3, borderColor: on ? "#fff" : "transparent", backgroundColor: GROUND, alignItems: "center", justifyContent: "center", padding: 10, overflow: "hidden" }}>
+                      <StickerImage id={c.id} rowId={rowId} ratio={c.width / c.height} />
+                      {on ? (
+                        <View style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ fontFamily: F.black, fontSize: 13, color: GROUND }}>✓</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text numberOfLines={1} style={[mono(9.5, true, on ? "#fff" : "rgba(255,255,255,0.55)", 0.1), { marginTop: 6 }]}>
+                      {c.label}
+                    </Text>
                   </Pressable>
-                </Pressable>
-              ))}
+                );
+              })}
             </ScrollView>
           )}
-          <View style={{ flexDirection: "row", justifyContent: "center", gap: 7, marginTop: 14, minHeight: 8 }}>
-            {cards.map((c, i) => (
-              <View key={c.id} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: i === at ? "#fff" : "rgba(255,255,255,0.3)" }} />
-            ))}
-          </View>
-          <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", marginTop: 12, minHeight: 16 }]}>{note}</Text>
+          <Text style={[mono(11, false, "#fff", 0.12), { textAlign: "center", marginTop: 8, minHeight: 16 }]}>{note}</Text>
           <View style={{ flexDirection: "row", gap: 12, paddingHorizontal: 20, marginTop: 10 }}>
             {/* SHARE at the left, COPY at the right and the one that is
                 filled (owner, 2026-11-22: "copy should be the primary"). */}
@@ -1022,7 +1005,7 @@ export function StickerViewer({ rowId, onClose, only, empty, start }: { rowId?: 
             {pill("Copy", "copy", true)}
           </View>
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }

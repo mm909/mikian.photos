@@ -251,7 +251,8 @@ export function Splash() {
                 {zeroed(meters, target.current)}
                 <Text style={{ color: C.accent }}> M</Text>
               </Text>
-              <Text style={{ fontFamily: F.monoBold, fontSize: 11, letterSpacing: 2.2, color: C.gray, marginTop: 6 }}>METERS ROWED</Text>
+              {/* No METERS ROWED under it (owner, 2026-11-26: "Take meters
+                  rowed out of the splash"). */}
             </Animated.View>
           ) : null}
         </View>

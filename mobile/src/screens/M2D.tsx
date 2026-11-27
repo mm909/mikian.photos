@@ -924,7 +924,7 @@ export function M2dFaq({ v, focus, onBack, onScrollDir, onCharity }: { v: M2dVie
       {q("How do I register?", `Make a free Concept2 Logbook, pick a charity there, and add your rows there at log.concept2.com. Then press Opt in to M2D on the M2D tab, pick where ${by}'s part goes, and press I'm registered.`)}
       {q("How do I change my charity?", "On your profile, under M2D, until Dec 24. You can split it across the three there too.")}
       {q("What counts?", `For ${by}: rows logged on ROW from Nov 26 to Dec 24 by registered rowers. For Concept2: the meters in your Concept2 Logbook.`)}
-      {q("Is there a limit?", `Concept2 sets none: every rower past 100K earns its donation, at 4¢ a kilometer for every kilometer after 100. Meters go into the Logbook until 11:59 pm GMT on Jan 4. ${by} matches up to $1,000.`)}
+      {q("Is there a limit?", `${by} matches up to $1,000.`)}
       {q("Does it cost me anything?", "No. It is free.")}
       <View style={{ marginTop: 18 }}>
         <Ctl label="The challenge at Concept2 ↗" onPress={() => open(v.link)} />

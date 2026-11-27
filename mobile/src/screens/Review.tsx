@@ -184,7 +184,7 @@ export function Review({ row, rows, doc: given, onMetric }: { row: Pick<Row, "id
    * rower (Field.tsx, Pages.tsx). With nobody to compare against it is the
    * one face. */
   const deck = (name: string, own: (fill: boolean) => ReactNode, more: { pages: ReactNode[]; labels: string[] } | null) =>
-    more && more.pages.length ? <Pages w={w} pages={[own(true), ...more.pages]} labels={[`Your ${name}`, ...more.labels]} /> : own(false);
+    more && more.pages.length ? <Pages w={w} pages={[own(false), ...more.pages]} labels={[`Your ${name}`, ...more.labels]} /> : own(false);
   const steady: CellData[] = [
     num(st.paceSdTenths) ? { k: "Split spread", v: `± ${fmtGap(st.paceSdTenths)}`, u: num(st.paceMeanTenths) ? `around ${split(Math.round(st.paceMeanTenths))}` : "" } : null,
     craft.rateSd !== null ? { k: "Rate held", v: `± ${craft.rateSd.toFixed(1)}`, u: "strokes a minute" } : null,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { Animated, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Animated, Easing, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import Svg, { Circle, Line, Path } from "react-native-svg";
 import { ticks } from "../erg/reviewGeom";
 import { api } from "../api";
@@ -92,8 +92,27 @@ export function Flip({ w, name, own, other, labels }: { w: number; name: string;
    * both sides, and the window is as wide as the slot, reaching into the
    * page's own margin: the spring's swing shows the gap, not a clipped card,
    * and two faces side by side stand 2 × GUTTER apart. */
+/* EACH FACE ITS OWN HEIGHT (owner, 2026-11-26, of a short card under a
+ * tall one: "How do we address this white space problem?"): the faces are
+ * measured, and the window eases to the height of the one showing. */
   const slot = w + 2 * GUTTER;
   const [page, setPage] = useState(0);
+  const tall = useRef<number[]>([]);
+  const h = useRef(new Animated.Value(0)).current;
+  const [sized, setSized] = useState(false);
+  const fit = (real: number, now = false) => {
+    const t = tall.current[real];
+    if (!(t > 0)) return;
+    if (now) h.setValue(t);
+    else Animated.timing(h, { toValue: t, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+  };
+  const face = (i: number) => (e: { nativeEvent: { layout: { height: number } } }) => {
+    tall.current[i] = e.nativeEvent.layout.height;
+    if (i === at.current) {
+      fit(i, true);
+      if (!sized) setSized(true);
+    }
+  };
   const at = useRef(1);
   const x = useRef(new Animated.Value(-slot)).current;
   const width = useRef(slot);
@@ -105,6 +124,7 @@ export function Flip({ w, name, own, other, labels }: { w: number; name: string;
     const real = i === 0 ? 2 : i === 3 ? 1 : i;
     at.current = real;
     setPage(real - 1);
+    fit(real);
     Animated.spring(x, { toValue: -i * width.current, friction: 9, tension: 70, useNativeDriver: Platform.OS !== "web" }).start(({ finished }) => {
       if (finished && real !== i) x.setValue(-real * width.current);
     });
@@ -121,18 +141,18 @@ export function Flip({ w, name, own, other, labels }: { w: number; name: string;
   if (!other) return <>{own(false)}</>;
   return (
     <>
-      <View ref={card} {...tap} accessibilityHint="Tap for the other side" style={{ width: slot, marginHorizontal: -GUTTER, overflow: "hidden" }}>
-        <Animated.View style={{ width: slot * 4, flexDirection: "row", transform: [{ translateX: x }] }}>
-          <View style={{ width: slot, paddingHorizontal: GUTTER }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+      <Animated.View ref={card as never} {...tap} accessibilityHint="Tap for the other side" style={{ width: slot, marginHorizontal: -GUTTER, overflow: "hidden", height: sized ? h : undefined }}>
+        <Animated.View style={{ width: slot * 4, flexDirection: "row", alignItems: "flex-start", transform: [{ translateX: x }] }}>
+          <View onLayout={face(0)} style={{ width: slot, paddingHorizontal: GUTTER }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
             {other}
           </View>
-          <View style={{ width: slot, paddingHorizontal: GUTTER }}>{own(true)}</View>
-          <View style={{ width: slot, paddingHorizontal: GUTTER }}>{other}</View>
-          <View style={{ width: slot, paddingHorizontal: GUTTER }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-            {own(true)}
+          <View onLayout={face(1)} style={{ width: slot, paddingHorizontal: GUTTER }}>{own(false)}</View>
+          <View onLayout={face(2)} style={{ width: slot, paddingHorizontal: GUTTER }}>{other}</View>
+          <View onLayout={face(3)} style={{ width: slot, paddingHorizontal: GUTTER }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+            {own(false)}
           </View>
         </Animated.View>
-      </View>
+      </Animated.View>
       {/* The two dots and no words (owner, 2026-11-23: "I don't think that I
           like the copy that says swipe you over everyone. I think we can
           leave the 2 little dots there"). */}

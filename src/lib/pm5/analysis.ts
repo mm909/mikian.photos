@@ -365,8 +365,11 @@ function monitorSplits(doc: TelemetryDoc): AnalysisSplit[] {
 }
 
 /* A split size that gives a piece somewhere between four and twenty bars. */
+/* SPLITS ARE 500 M (owner, 2026-11-26: "Splits should be per 500 not
+ * 1000"): any piece of 1,000 m or more is cut every 500 m. */
 function splitSize(meters: number): number {
-  for (const size of [1000, 500, 250, 100, 50, 25]) {
+  if (meters >= 1000) return 500;
+  for (const size of [250, 100, 50, 25]) {
     if (meters / size >= 4) return size;
   }
   return Math.max(25, Math.round(meters / 4));
@@ -383,7 +386,7 @@ function splitSize(meters: number): number {
  * only warned about the method. So the first mark is the next round number
  * past the first tick, the caller is told where the bars begin, and the
  * screen says so. */
-function derivedSplits(doc: TelemetryDoc): { splits: AnalysisSplit[]; fromMeters: number } {
+function derivedSplits(doc: TelemetryDoc, strokes: AnalysisStroke[] = []): { splits: AnalysisSplit[]; fromMeters: number } {
   const none = { splits: [] as AnalysisSplit[], fromMeters: 0 };
   const track = doc.samples
     .map((s) => ({ t: s.elapsedHundredths / 100, d: s.distanceTenths / 10 }))
@@ -410,8 +413,13 @@ function derivedSplits(doc: TelemetryDoc): { splits: AnalysisSplit[]; fromMeters
         meters: Math.round(meters),
         seconds,
         paceTenths: derivePaceTenths(meters, Math.round(seconds * 10)),
-        spm: null,
-        watts: null,
+        /* The rate, from the counted strokes inside this stretch; the watts
+         * from its pace (watts = 2.8 / (seconds a meter)^3). */
+        spm: (() => {
+          const inside = strokes.filter((k) => k.counted && num(k.spm) && k.distanceM > prevD && k.distanceM <= target).map((k) => k.spm as number);
+          return inside.length ? Math.round((meanOf(inside) as number) * 10) / 10 : null;
+        })(),
+        watts: Math.round(2.8 / Math.pow(seconds / meters, 3)),
         drag: null,
       });
     }
@@ -641,9 +649,15 @@ export function analyseSession(input: AnalysisInput): ErgAnalysis {
    * still print how many strokes the document holds. */
   const counted = series.filter((s) => s.counted);
 
-  const monitor = monitorSplits(doc);
+  const fromMonitor = monitorSplits(doc);
+  /* The monitor's own splits when they are 500 m or shorter; longer ones
+   * (a 5K's 1,000 m, the default) are cut again every 500 m from the
+   * ticks, when the ticks cover the whole piece. */
+  const longSplits = fromMonitor.length >= 2 && fromMonitor.slice(0, -1).some((s) => s.meters > 520);
+  const recut = longSplits ? derivedSplits(doc, series) : null;
+  const monitor = recut && recut.splits.length >= 2 && recut.fromMeters < 25 ? [] : fromMonitor;
   const splitsDerived = monitor.length < 2;
-  const derived = splitsDerived ? derivedSplits(doc) : null;
+  const derived = splitsDerived ? (recut && recut.splits.length >= 2 ? recut : derivedSplits(doc, series)) : null;
   const splits = derived ? derived.splits : monitor;
   const paces = splits.map((s) => s.paceTenths).filter(num) as number[];
   const avgSplitTenths = t.avgPaceTenths ?? (paces.length ? Math.round(meanOf(paces) as number) : derivePaceTenths(t.meters, t.tenths));
