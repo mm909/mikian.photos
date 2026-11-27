@@ -23,9 +23,12 @@ export async function savePledge(
     ? await db.m2dPledge.update({ where: { id: pending.id }, data })
     : await db.m2dPledge.create({ data: { ...data, challenge: CHALLENGE, window: M2D_KEY, accountId: actor.photographerId } });
   const { subject, text } = ownerPledgeText({ ...saved }, !pending);
-  await notifyOwner(subject, { kind: "m2d" }).catch(() => undefined);
-  const sent = await sendOwnerNotification(subject, text, actor.email).catch((err) => ({ ok: false as const, error: String(err) }));
-  if (!sent.ok) console.error("M2D pledge: owner email failed", sent.error);
+  /* The push is the alert; the email only when it could not go (owner,
+   * 2026-11-26, rowNotify.ts notifyOwner). */
+  if (!(await notifyOwner(subject, { kind: "m2d" }).catch(() => false))) {
+    const sent = await sendOwnerNotification(subject, text, actor.email).catch((err) => ({ ok: false as const, error: String(err) }));
+    if (!sent.ok) console.error("M2D pledge: owner email failed", sent.error);
+  }
   return saved;
 }
 

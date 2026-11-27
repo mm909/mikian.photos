@@ -564,7 +564,8 @@ export async function saveM2d(
   const subject = `M2D: #${me.rowerNumber} ${me.displayName} ${isIn ? `is in · ${pick}` : "is out"}`;
   /* And a push to his phone, the same line (owner, 2026-11-25: "Give me a
    * push notification for this"); a tap opens the M2D tab. Never throws. */
-  await notifyOwner(subject, { kind: "m2d" });
+  /* The push is the alert; the email only when it could not go. */
+  if (await notifyOwner(subject, { kind: "m2d" })) return;
   const sent = await sendOwnerNotification(
     subject,
     `Rower #${me.rowerNumber} ${me.displayName} ${word} the Concept2 Holiday Challenge (M2D) on ${where}.

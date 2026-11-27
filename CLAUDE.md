@@ -33,6 +33,12 @@ Owner, 2026-10-13: "Give me an email every single time someone signs up."
 
 A sign-up or entry route (Longhorn LMS, the Hyrox board, race day) calls `sendOwnerNotification` on every save — new and updated — and logs, never surfaces, a failed send.
 
+## A push replaces the email
+
+Owner, 2026-11-26: "anything that I get a notification for, like a push notification for, I no longer need an email for."
+
+Where the owner gets a push on his phone (`notifyOwner` in `src/lib/rowNotify.ts`, which returns whether it went), he gets no email for the same thing. The email is sent only when the push could not go out, so nothing is lost. Today that is the M2D sign-up (`src/app/row100k/m2d.ts`) and the M2D pledge (`src/app/row100k/m2dPledgeActions.ts`); every other sign-up still emails.
+
 ## No address on a sticker
 
 Owner, 2026-10-14: "Never put mikianmusser.com on any stickers unless I ask for it."
