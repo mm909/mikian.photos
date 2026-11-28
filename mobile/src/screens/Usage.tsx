@@ -35,7 +35,11 @@ type Usage = {
 const PATH = "/api/row100k/app/usage";
 const short = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 /* The live erg view's panels, by the names the top bar gives them. */
-const PANEL: Record<string, string> = { race: "Race", show: "Arcade", up: "Up next", pace: "Pace", figures: "Figures", chart: "Chart", splits: "Splits", end: "The end" };
+/* "show" is the race page's show, seen by every rower; the arcade game on it
+ * is the owner's alone (arcade/gate.ts), so it is not called the arcade here
+ * (owner, 2026-11-28, seeing "Arcade · 1 rower": "I definitely don't want
+ * someone else to have access to the arcade"). */
+const PANEL: Record<string, string> = { race: "Race", show: "Show", up: "Up next", pace: "Pace", figures: "Figures", chart: "Chart", splits: "Splits", end: "The end" };
 const PLAT: Record<string, string> = { ios: "iPhone", android: "Android", web: "Web", phone: "Phone, kind not known yet" };
 
 export function AppUsage() {
