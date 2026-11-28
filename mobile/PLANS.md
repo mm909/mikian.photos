@@ -58,6 +58,21 @@ Testing the app and giving UX notes all day is work too. That happens anyway, so
 
 **How to develop:** "the best way to develop here is just to spend so much time using the app."
 
+## Next direction: ROW CLUB (voice note, Nov 28; not started)
+
+"I want to launch row club." Like a run club or a parkrun, but a row: he posts a time, people show up on their own erg wherever they are, and the app shows everyone rowing together, live. Not a class and not coaching: "a group of people that want to come and row together."
+
+- **The schedule:** he sets one-off times ("tomorrow I'm rowing at 7 a.m.") and, later, a weekly schedule (for example Mon to Thu at one time, Sat and Sun at another).
+- **In the app:** a Row Club screen shows the next row with a countdown. Tap to say you are in; the app reminds you before it starts.
+- **At the start:** the countdown runs out and the row starts. Anyone who starts within a window (about 2 minutes either side) is in the live view: you see the others rowing with you.
+- **Race or not:** it does not have to be a race. People can race, take it easy, or do whatever they like. One way he put it: "Rowing starts 7:00, the race starts 7:05. If you can keep up."
+- **Launch:** maybe December 1. iPhone first; Android can wait.
+- **The name:** "Maybe that's what we could call the app: Row Club." That means a real logo instead of the ROW wordmark. He thought of a hexagon (like the lights on the Strip, or a barbell plate); he hasn't decided.
+- **To decide with him:**
+  - how long a row is (a set distance, a set time, or anything);
+  - whether only he can post a time, or anyone can start a club row;
+  - whether people who row later can race the recording (the ghosts already do this).
+
 ## The queue (in his order, not started)
 
 ### 1. A version number made of meters
