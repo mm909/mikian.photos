@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 
 /* coins, bosses (stages beaten), best (the furthest stage), wrecks and
  * meters: the island's, from 2026-11-24 evening; older games have none. */
-export type Game = { id: string; at: number; rowId: string | null; demo: boolean; mode: "solo" | "match"; xp: number; xpBefore: number; kills: number; matches: number; items: string[]; coins?: number; bosses?: number; best?: number; wrecks?: number; meters?: number; fish?: number; /* Round four (2026-11-25): the damage done, the floor the row ended on, runs finished. */ dealt?: number; floor?: number; stars?: number; lost?: boolean };
+export type Game = { id: string; at: number; rowId: string | null; demo: boolean; mode: "solo" | "match"; xp: number; xpBefore: number; kills: number; matches: number; items: string[]; coins?: number; bosses?: number; best?: number; wrecks?: number; meters?: number; fish?: number; /* Round four (2026-11-25): the damage done, the floor the row ended on, runs finished. */ dealt?: number; floor?: number; stars?: number; lost?: boolean; /* 2026-11-26: the boxes the run dropped and its power-ups. */ boxes?: number; perks?: number };
 
 const KEY = "arcade/games/1";
 const KEEP = 30;
@@ -73,9 +73,30 @@ export function bindRow(rowId: string, demo: boolean): Promise<Game[]> {
   });
 }
 
-/* The game of a row, or null; again whenever the games change. */
-export function useGame(rowId: string | null | undefined): Game | null {
-  const pick = (l: Game[] | null) => (rowId && l ? (l.find((g) => g.rowId === rowId) ?? null) : null);
+/* The phone's own day of a moment, as a row's day reads (2026-11-26). */
+const dayOf = (ms: number): string => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+/* A game never told its row (owner, 2026-11-26: "Whenever I go to view old
+ * telemetry ones where I played the arcade in, I don't get the arcade
+ * summary"): the one with no row, played on the row's day, whose meters are
+ * the row's within a few percent. */
+const nearOf = (l: Game[], near: { day: string; meters: number }): Game | null =>
+  l.find((g) => g.rowId === null && !g.demo && g.mode === "solo" && !!g.meters && dayOf(g.at) === near.day.slice(0, 10) && Math.abs(g.meters - near.meters) <= Math.max(30, near.meters * 0.03)) ?? null;
+
+/* The game of a row, or null; again whenever the games change. `near`: the
+ * row's day and meters, to find a game that was never told its row (it is
+ * told then). */
+export function useGame(rowId: string | null | undefined, near?: { day: string; meters: number } | null): Game | null {
+  const pick = (l: Game[] | null) => {
+    if (!rowId || !l) return null;
+    const had = l.find((g) => g.rowId === rowId);
+    if (had) return had;
+    const g = near && near.meters > 0 ? nearOf(l, near) : null;
+    if (g) change((list) => list.map((x) => (x.id === g.id && x.rowId === null ? { ...x, rowId } : x))).catch(() => null);
+    return g;
+  };
   const [g, setG] = useState<Game | null>(pick(cache));
   useEffect(() => {
     let on = true;

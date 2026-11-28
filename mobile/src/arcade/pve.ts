@@ -89,6 +89,27 @@ export const BOSS_ATK = 1.2;
 /* After the kick-out, a boss still standing: the hull drains so that a full
  * one lasts this many meters at the rower's pace. */
 export const OVERTIME_M = 300;
+/* A BOSS IS TIMED (owner, 2026-11-26: "we can almost time it to where ...
+ * the player is going to be left with like 5% HP"; bosses felt rushed): its
+ * hits are set as it comes in, off the hull left and how long it takes to
+ * beat at the rower's own pace with what they hit with now, so a rower who
+ * holds their pace beats it with about BOSS_LEFT of the hull to spare. */
+export const BOSS_LEFT = 0.05;
+/* A point a meter is what the kit does with every skill on; a stroke-to-
+ * stroke wobble about the rower's own pace turns red off now and then, and
+ * the boss takes this much longer than that (scripts/pve-check.ts). */
+export const BOSS_SLACK = 1.03;
+/* POWER-UPS (owner, 2026-11-26: "when we defeat a mob, can we get like a
+ * power up ... that makes it a little easier, or makes us more powerful ...
+ * just for this run, or at least until we die"): a monster down (not a boss)
+ * drops one PERK_CHANCE of the time, MIGHT (+PERK_DMG damage) or QUICK (the
+ * skills fill PERK_FILL faster). They stack, and go when the run is done or
+ * lost (and with the row: the next row starts without them). */
+export const PERK_CHANCE = 0.5;
+export const PERK_DMG = 0.12;
+export const PERK_FILL = 0.1;
+export type PerkKind = "might" | "quick";
+export const PERK_WORD: Record<PerkKind, string> = { might: `+${Math.round(PERK_DMG * 100)}% DAMAGE`, quick: `FILLS ${Math.round(PERK_FILL * 100)}% FASTER` };
 /* The row's seconds a KO plays before the rest begins. */
 export const KO_S = 1.2;
 
@@ -156,7 +177,11 @@ const KINDS: Kind[] = [
 /* `i` is the floor in the run, 0 for floor 1; `run` the runs done before. */
 export const stageOf = (i: number): number => Math.floor(i / PER_STAGE);
 export const isBoss = (i: number): boolean => i % PER_STAGE === PER_STAGE - 1;
-export const floorOf = (i: number): number => i + 1;
+/* THE FLOOR NUMBER NEVER GOES BACK (owner, 2026-11-26: "we got that star,
+ * and now we're back to floor 1. We should definitely be at floor 11 ...
+ * continuously increasing the count of those floors"): run 2's first floor
+ * is floor 11. `i` stays the floor in the run for the rooms and the bosses. */
+export const floorOf = (i: number, run = 0): number => run * RUN_FLOORS + i + 1;
 /* The kinds go on run to run: a run's two stages are two kinds. */
 const kindOf = (i: number, run: number): number => (2 * run + stageOf(i)) % KINDS.length;
 export const nameOf = (i: number, run = 0): string => {
@@ -195,7 +220,7 @@ export type Monster = { i: number; n: number; name: string; boss: boolean; stage
 export type PShot = { n: number; at: number; from: string; slot: number; dmg: number; q: number; kill: boolean; monster: number };
 /* A monster's hit on the hull (`dot`: the overtime's drain, no throw). */
 export type PHit = { n: number; at: number; dmg: number; boss: boolean; dot?: boolean };
-export type Ko = { i: number; n: number; name: string; boss: boolean; seed: number; at: number; xp: number; floor: number };
+export type Ko = { i: number; n: number; name: string; boss: boolean; seed: number; at: number; xp: number; floor: number; /* The power-up it dropped. */ perk?: PerkKind };
 /* A floor beaten, a boss beaten (clear), the run done, the run lost. */
 export type PEvent = { kind: "floor" | "clear" | "run" | "wreck"; at: number; stage: number; floor: number };
 export type SkillView = { def: SkillDef; charge: number; q: number; target: number; hit: number };
@@ -227,6 +252,9 @@ export type PveView = {
   best: number;
   /* The run was lost this row: the rest of the row is a rest. */
   lost: boolean;
+  /* This run's power-ups so far, how many of each. */
+  might: number;
+  quick: number;
   wrecks: number;
   /* The kick-out: no new monster; a standing boss drains the hull. */
   out: boolean;
@@ -273,15 +301,30 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
   };
   const spawn = (i: number, run: number, at: number): Monster => {
     const room = roomOf(i, course, run) * scale;
-    return { i, n: artOf(i, run), name: nameOf(i, run), boss: isBoss(i), stage: stageOf(i), floor: floorOf(i), hp: room, max: room, born: at, seed: Math.floor(rnd() * 1e6), atkAt: at + ATK_S, atk: atkOf(i, run), room };
+    const mo: Monster = { i, n: artOf(i, run), name: nameOf(i, run), boss: isBoss(i), stage: stageOf(i), floor: floorOf(i, run), hp: room, max: room, born: at, seed: Math.floor(rnd() * 1e6), atkAt: at + ATK_S, atk: atkOf(i, run), room };
+    if (mo.boss && v) mo.atk = bossAtk(mo);
+    return mo;
   };
+  /* The boss's hit, timed: the meters it takes at the rower's own pace with
+   * what they hit with (the power, the boat, the perks), in seconds; the
+   * hull left less BOSS_LEFT, over that many hits. Never under half a hit of
+   * the stage's clock. */
+  const bossAtk = (mo: Monster): number => {
+    const per = (v.power * mightOf() * fillQuick()) / fillMul;
+    const secs = (BOSS_SLACK * mo.room) / per / speedOwn;
+    const hits = Math.max(1, secs / ATK_S);
+    return Math.max(mo.atk * 0.5 / BOSS_ATK, (v.hull * (1 - BOSS_LEFT)) / hits);
+  };
+  const mightOf = () => 1 + PERK_DMG * (v?.might ?? 0);
+  const fillQuick = () => 1 + PERK_FILL * (v?.quick ?? 0);
   const at0 = Math.max(0, Math.min(RUN_FLOORS - 1, Math.floor(from.at)));
   let last = t0;
   let lastM = m0;
   /* When the rest ends: the meters, and a KO's beat first (the row's
    * second). */
   let readyAt = t0;
-  let v: PveView = {
+  let v: PveView = null as unknown as PveView;
+  v = {
     t: t0,
     pace: 0,
     own: ownW,
@@ -290,7 +333,7 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
     near: 0,
     hull: hullMax,
     hullMax,
-    monster: spawn(at0, from.run, t0),
+    monster: null,
     restFrom: 0,
     restTo: 0,
     at: at0,
@@ -300,8 +343,10 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
     power: dmgMul(boat.dmg) * (1 + STAR_DMG * stars),
     kills: 0,
     bosses: 0,
-    best: at0 + 1,
+    best: floorOf(at0, from.run),
     lost: false,
+    might: 0,
+    quick: 0,
     wrecks: 0,
     out: false,
     overtime: false,
@@ -314,11 +359,12 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
     event: null,
     events: 0,
   };
+  v.monster = spawn(at0, from.run, t0);
 
   const shoot = (at: number, m: number, sv: SkillView) => {
     const mo = v.monster;
     if (!mo) return;
-    const want = sv.hit * v.power;
+    const want = sv.hit * v.power * mightOf();
     v.dealt += Math.min(mo.hp, want);
     mo.hp = Math.max(0, mo.hp - want);
     const kill = mo.hp <= 1e-6;
@@ -327,7 +373,10 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
     if (!kill) return;
     const xp = killXp(mo.i, mo.boss);
     v.xp += xp;
-    v.kos = [...v.kos.slice(-20), { i: mo.i, n: mo.n, name: mo.name, boss: mo.boss, seed: mo.seed, at, xp, floor: mo.floor }];
+    const perk: PerkKind | undefined = !mo.boss && rnd() < PERK_CHANCE ? (rnd() < 0.5 ? "might" : "quick") : undefined;
+    if (perk === "might") v.might++;
+    if (perk === "quick") v.quick++;
+    v.kos = [...v.kos.slice(-20), { i: mo.i, n: mo.n, name: mo.name, boss: mo.boss, seed: mo.seed, at, xp, floor: mo.floor, perk }];
     v.loot = [...v.loot, { kind: mo.boss ? "boss" : "box", floor: mo.floor, at }];
     v.kills++;
     v.events++;
@@ -346,6 +395,8 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
       v.event = { kind: "run", at, stage: mo.stage, floor: mo.floor };
       v.run++;
       v.at = 0;
+      v.might = 0;
+      v.quick = 0;
     } else {
       v.event = { kind: mo.boss ? "clear" : "floor", at, stage: mo.stage, floor: mo.floor };
       v.at = mo.i + 1;
@@ -364,7 +415,9 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
     v.wrecks++;
     v.lost = true;
     v.overtime = false;
-    v.event = { kind: "wreck", at, stage: v.stage, floor: v.at + 1 };
+    v.event = { kind: "wreck", at, stage: v.stage, floor: floorOf(v.at, v.run) };
+    v.might = 0;
+    v.quick = 0;
     v.monster = null;
     v.restFrom = 0;
     v.restTo = 0;
@@ -415,7 +468,7 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
         const mo = v.monster;
         let step = dt;
         for (const s of v.skills) {
-          const rate = (s.q * mps) / (s.def.fillM * fillMul);
+          const rate = (s.q * mps * fillQuick()) / (s.def.fillM * fillMul);
           if (rate > 0) step = Math.min(step, (1 - s.charge) / rate);
         }
         if (!v.overtime) step = Math.min(step, Math.max(0, mo.atkAt - now));
@@ -424,7 +477,7 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
         dt -= step;
         const mNow = m - dt * mps;
         for (const s of v.skills) {
-          s.charge = Math.min(1, s.charge + ((s.q * mps) / (s.def.fillM * fillMul)) * step);
+          s.charge = Math.min(1, s.charge + ((s.q * mps * fillQuick()) / (s.def.fillM * fillMul)) * step);
           if (s.charge >= 1 - 1e-9 && v.monster) {
             shoot(now, mNow, s);
             s.charge = 0;

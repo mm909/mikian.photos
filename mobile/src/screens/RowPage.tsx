@@ -296,7 +296,7 @@ export function RowPage({
       {/* THE ROW'S GAME (owner, 2026-11-24: "after the stickers/reels and
           before the analytics. It shows the XP he got, the items he just
           got, and lets him equip them"). Only where this phone played one. */}
-      {r.mine ? <GameSummary rowId={r.id} /> : null}
+      {r.mine ? <GameSummary rowId={r.id} day={r.day} meters={r.meters ?? 0} /> : null}
 
       {/* THE MONITOR'S AVERAGES, on ONE line, and only where the read
           below is not shown: the read's own NUMBERS carry the same figures
@@ -807,8 +807,8 @@ function Slice({ rows, at, meters, word, onRower }: { rows: BoardRow[]; at: numb
  * A press opens the viewer, where one is shared or copied. */
 /* What the row's game gave: the XP and the level it left, how it went, and
  * the items out of its chest, each with EQUIP. */
-function GameSummary({ rowId }: { rowId: string }) {
-  const g = useGame(rowId);
+function GameSummary({ rowId, day, meters }: { rowId: string; day: string; meters: number }) {
+  const g = useGame(rowId, { day, meters });
   const { me } = useSession();
   return g && arcadeFor(me) ? <GameLines g={g} /> : null;
 }
@@ -834,7 +834,30 @@ function GameLines({ g }: { g: Game }) {
       <View style={{ height: 8, backgroundColor: C.line, marginTop: 6 }}>
         <View style={{ width: `${Math.round((100 * now.into) / now.need)}%`, height: 8, backgroundColor: C.accent }} />
       </View>
-      {line ? <Text style={[mono(10, true, C.gray, 0.1), { marginTop: 8 }]}>{line.toUpperCase()}</Text> : null}
+      {/* THE RUN IN BIG FIGURES (owner, 2026-11-26: "a summary for bosses and
+          enemies and damage and loot gained and XP gained"), read from a
+          few feet away; a game from before round four keeps its line. */}
+      {g.mode === "solo" && g.dealt !== undefined ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 12, rowGap: 12 }}>
+          {(
+            [
+              ["Enemies", `${g.kills - (g.bosses ?? 0)}`],
+              ["Bosses", `${g.bosses ?? 0}`],
+              ["Damage", fmtInt(g.dealt ?? 0)],
+              ["Loot", `${g.boxes ?? g.kills} ${(g.boxes ?? g.kills) === 1 ? "box" : "boxes"}`],
+              [g.lost ? "Run lost on" : "Floor", `${g.floor ?? 1}`],
+              g.perks !== undefined ? ["Power-ups", `${g.perks}`] : ["Stars", `${g.stars ?? 0}`],
+            ] as [string, string][]
+          ).map(([k, v]) => (
+            <View key={k} style={{ width: "33.3%" }}>
+              <Text style={mono(11, true, C.gray, 0.1)}>{k.toUpperCase()}</Text>
+              <Text style={{ fontFamily: F.black, fontSize: 28, color: C.ink, fontVariant: ["tabular-nums"] }}>{v}</Text>
+            </View>
+          ))}
+        </View>
+      ) : line ? (
+        <Text style={[mono(10, true, C.gray, 0.1), { marginTop: 8 }]}>{line.toUpperCase()}</Text>
+      ) : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 10, rowGap: 10, marginTop: 14 }}>
         {g.items.map((id, i) => {
           const s = SKIN_BY_ID[id];

@@ -9,7 +9,7 @@ import { MonsterG } from "../arcade/Monster";
 import { useBoat } from "../arcade/boat";
 import { useLocker } from "../arcade/locker";
 import { FILL_S, type MShot } from "../arcade/match";
-import { KIT, SKILL_COLOR, TARGET, easeOf, skillAt, type SkillView } from "../arcade/pve";
+import { KIT, PERK_DMG, PERK_FILL, PERK_WORD, RUN_FLOORS, SKILL_COLOR, TARGET, artOf, easeOf, floorOf, isBoss, nameOf, skillAt, type SkillView } from "../arcade/pve";
 import { useRun } from "../arcade/run";
 import { useProgress } from "../arcade/progress";
 import { useRating } from "../arcade/rating";
@@ -858,7 +858,7 @@ const SLOT_R = [4.5, 7, 11];
 
 /* A bar with a name over it, centred: what is left in its colour, what was
  * just lost a moment longer in yellow. Never shakes, never a number. */
-function LifeBar({ h, max, color, width, height, wall, name, nameColor, size = 20 }: { h: number; max: number; color: string; width: number; height: number; wall: number; name?: string; nameColor?: string; size?: number }) {
+function LifeBar({ h, max, color, width, height, wall, name, nameColor, size = 20, nameW }: { h: number; max: number; color: string; width: number; height: number; wall: number; name?: string; nameColor?: string; size?: number; /* The room for the name; it is sized to fit there whole, never cut. */ nameW?: number }) {
   const lag = useRef({ v: h, max });
   const L = lag.current;
   if (max !== L.max) {
@@ -871,16 +871,21 @@ function LifeBar({ h, max, color, width, height, wall, name, nameColor, size = 2
   const m = Math.max(1, max);
   const now = clamp(h / m);
   const ghost = clamp(L.v / m) - now;
+  /* THE MOB'S NAME WHOLE (owner, 2026-11-26: "I want to be able to see the
+   * title of the mob"): Archivo Black's capitals run under a full size each,
+   * so a size of the room over the letters always fits. */
+  const room = nameW ?? width + 80;
+  const fs = name ? Math.max(12, Math.min(size, Math.floor(room / (name.length * 0.9)))) : size;
   return (
-    <View style={{ width, alignItems: "center" }}>
+    <View style={{ width: Math.max(width, room), alignItems: "center" }}>
       {name ? (
-        <View style={{ position: "relative", height: Math.round(size * 1.3), width: width + 80, alignItems: "center" }}>
+        <View style={{ position: "relative", height: Math.round(fs * 1.3), width: room, alignItems: "center" }}>
           {RING8.map(([dx, dy], i) => (
-            <Text key={i} numberOfLines={1} style={{ position: "absolute", top: dy, left: dx, right: -dx, textAlign: "center", fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.3), color: C.paper }}>
+            <Text key={i} style={{ position: "absolute", top: dy, left: dx, right: -dx, textAlign: "center", fontFamily: F.black, fontSize: fs, lineHeight: Math.round(fs * 1.3), color: C.paper }}>
               {name}
             </Text>
           ))}
-          <Text numberOfLines={1} style={{ position: "absolute", top: 0, left: 0, right: 0, textAlign: "center", fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.3), color: nameColor ?? C.ink }}>
+          <Text style={{ position: "absolute", top: 0, left: 0, right: 0, textAlign: "center", fontFamily: F.black, fontSize: fs, lineHeight: Math.round(fs * 1.3), color: nameColor ?? C.ink }}>
             {name}
           </Text>
         </View>
@@ -1138,14 +1143,27 @@ function Battle(p: P) {
         ? { big: "RUN COMPLETE", small: "★ A STAR: MORE DAMAGE FOR GOOD", c: C.accent }
         : { big: "RUN LOST", small: "ROW ON · A NEW RUN NEXT ROW", c: BEST }
     : ko && koE >= 0 && koE < 1.6
-      ? { big: `${ko.name} DOWN`, small: `+${ko.xp} XP`, c: C.good }
+      ? { big: `${ko.name} DOWN`, small: ko.perk ? `+${ko.xp} XP · POWER-UP: ${PERK_WORD[ko.perk]}` : `+${ko.xp} XP`, c: C.good }
       : null;
   const hp = m ? Math.min(m.max, m.hp + inAir) : 0;
   const resting = !m && !b.lost && !b.out && !(ko && koE < KO_W);
-  const floorNow = m ? m.floor : b.at + 1;
+  const floorNow = m ? m.floor : floorOf(b.at, b.run);
   const zone = zoneOf(floorNow);
   /* Inside the path: the room for words. */
   const innerW = Math.max(120, geo.rx * 1.6 - 16);
+  /* The mob's name may run wider, over the water inside the bands. */
+  const nameW = Math.max(innerW, Math.min(g.W - SIDE_L - SIDE_R - 16, geo.rx * 2.2));
+  /* WHAT IS COMING (owner, 2026-11-26: "a little timeline of small circles
+   * ... or maybe even the icons of the mobs that we're going to be fighting
+   * over the next however many floors"), on the rest only: the next five
+   * floors, the boss bigger and in the red, each with its floor under it. */
+  const nextUp = Array.from({ length: 5 }, (_, j) => {
+    const i = b.at + j;
+    const run2 = b.run + Math.floor(i / RUN_FLOORS);
+    const ii = i % RUN_FLOORS;
+    return { ii, run2, floor: floorOf(ii, run2), boss: isBoss(ii), n: artOf(ii, run2), name: nameOf(ii, run2) };
+  });
+  const perks = [b.might ? `DMG +${Math.round(100 * PERK_DMG * b.might)}%` : "", b.quick ? `FILL +${Math.round(100 * PERK_FILL * b.quick)}%` : ""].filter(Boolean).join("  ");
   /* THE REST'S COUNTDOWN (owner, 2026-11-26: "The rest felt a little long";
    * a timer on it). The rest is in meters (pve.ts); its seconds are the
    * meters left at the rower's own pace, so it only ever counts down. */
@@ -1163,7 +1181,12 @@ function Battle(p: P) {
     </View>
   );
   const hullW = wide ? SIDE_L - PAD * 2 : width - PAD * 2;
-  const hullBar = <LifeBar h={b.hull} max={b.hullMax} color={b.hull / Math.max(1, b.hullMax) < 0.3 ? BEST : C.accent} width={hullW} height={HULL_H} wall={wall} />;
+  const hullBar = (
+    <View style={{ flexDirection: wide ? "column" : "row", alignItems: wide ? "flex-start" : "center", columnGap: 8, rowGap: 4 }}>
+      <LifeBar h={b.hull} max={b.hullMax} color={b.hull / Math.max(1, b.hullMax) < 0.3 ? BEST : C.accent} width={perks && !wide ? hullW - 150 : hullW} height={HULL_H} wall={wall} />
+      {perks ? <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 15, color: C.good, width: wide ? undefined : 142 }}>{perks}</Text> : null}
+    </View>
+  );
   const badge = <FloorBadge floor={floorNow} boss={!!m?.boss || (resting && isBossFloor(b.at))} stars={run.stars + b.runsDone} size={wide ? Math.round(Math.min(46, height * 0.11)) : Math.round(Math.min(32, figSize * 0.8))} />;
   const veil = { backgroundColor: C.paper };
   return (
@@ -1174,8 +1197,8 @@ function Battle(p: P) {
           {shots}
         </Board>
         {m && !(ko && koE < KO_W && wallAt(m.born) > wall - 0.05) ? (
-          <View pointerEvents="none" style={{ position: "absolute", left: mx - (barW + 80) / 2, top: barTop, width: barW + 80, alignItems: "center", opacity: inBars }}>
-            <LifeBar name={m.name} nameColor={m.boss ? BEST : C.ink} size={nameSize} h={Math.ceil(hp)} max={m.max} color={m.boss ? BEST : C.ink} width={barW} height={16} wall={wall} />
+          <View pointerEvents="none" style={{ position: "absolute", left: mx - nameW / 2, top: barTop, width: nameW, alignItems: "center", opacity: inBars }}>
+            <LifeBar name={m.name} nameColor={m.boss ? BEST : C.ink} size={nameSize} nameW={nameW} h={Math.ceil(hp)} max={m.max} color={m.boss ? BEST : C.ink} width={barW} height={16} wall={wall} />
             {b.overtime ? <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.8), color: BEST, marginTop: 2 }}>OVERTIME</Text> : null}
           </View>
         ) : null}
@@ -1196,7 +1219,21 @@ function Battle(p: P) {
                 <View style={{ width: Math.min(innerW * 0.8, 200), height: 12, borderWidth: 2, borderColor: C.ink, borderRadius: 4, overflow: "hidden", backgroundColor: C.paper, marginTop: 4 }}>
                   <View style={{ width: `${(100 * clamp(restLeftM / restAll)).toFixed(1)}%`, height: "100%", backgroundColor: C.ink }} />
                 </View>
-                <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.75), color: C.soft, marginTop: 6 }}>{isBossFloor(b.at) ? `THE BOSS IS NEXT` : `FLOOR ${b.at + 1} NEXT`}</Text>
+                <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.75), color: C.soft, marginTop: 6 }}>{isBossFloor(b.at) ? `THE BOSS IS NEXT` : `FLOOR ${floorOf(b.at, b.run)} NEXT`}</Text>
+                <View style={{ flexDirection: "row", columnGap: 4, marginTop: 8, alignItems: "flex-end" }}>
+                  {nextUp.map((f, j) => {
+                    const S = Math.floor(Math.min(56, (innerW - 16) / 5)) * (f.boss ? 1.15 : 0.9);
+                    return (
+                      <View key={f.floor} style={{ alignItems: "center", width: Math.floor(Math.min(56, (innerW - 16) / 5)) * (f.boss ? 1.15 : 0.9) }}>
+                        <Svg width={S} height={S}>
+                          <Circle cx={S / 2} cy={S / 2} r={S / 2 - 2} fill={C.paper} stroke={f.boss ? BEST : j === 0 ? C.ink : C.line} strokeWidth={f.boss || j === 0 ? 3 : 2} />
+                          <MonsterG x={S / 2} y={S / 2 + S * 0.04} r={S * 0.3} n={f.n} boss={f.boss} seed={f.floor * 13} t={wall} />
+                        </Svg>
+                        <Text style={{ fontFamily: F.black, fontSize: 14, color: f.boss ? BEST : C.ink, fontVariant: ["tabular-nums"] }}>{`${f.floor}`}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             ) : null}
             {b.lost && !evOn ? (
@@ -1294,7 +1331,8 @@ function SoloIntro({ v, width, height, wall, myM, paint, hop, showed }: P) {
   const ds = Math.min(artH * 0.5, 90);
   const throws: ReactElement[] = [];
   let hurt = 0;
-  beats.forEach((beat, slot) => {
+  KIT.map((d) => d.slot).forEach((slot) => {
+    const beat = beats[slot];
     const ph = ((e + slot * 0.37) % beat) / beat;
     const fly = 0.42 / beat;
     const u = ph / fly;
@@ -1328,8 +1366,8 @@ function SoloIntro({ v, width, height, wall, myM, paint, hop, showed }: P) {
           <Num size={wide ? 40 : 34}>{`${prog.level}`}</Num>
         </View>
         <View>
-          <Eyebrow>{run.at ? "Back to" : "Run"}</Eyebrow>
-          <Num size={wide ? 40 : 34}>{run.at ? `FLOOR ${run.at + 1}` : `${run.run + 1}`}</Num>
+          <Eyebrow>{run.at || run.run ? "Floor" : "Run"}</Eyebrow>
+          <Num size={wide ? 40 : 34}>{run.at || run.run ? `${floorOf(run.at, run.run)}` : "1"}</Num>
         </View>
         {run.stars ? (
           <View>
@@ -1676,7 +1714,7 @@ function EndScreen({ v, width, height, wall, paint, showed, logIt }: P) {
   const life = ctx.lifetime + v.m * ease((e - 1) / 2.5);
   const fade = (i: number) => ({ opacity: clamp((e - 0.2 - i * 0.3) / 0.4) });
   const b = v.battle;
-  const line = b ? (b.lost ? `RUN LOST ON FLOOR ${b.at + 1}` : b.runsDone ? `RUN COMPLETE · ★ ${b.runsDone}` : `ON TO FLOOR ${b.at + 1} NEXT ROW`) : "";
+  const line = b ? (b.lost ? `RUN LOST ON FLOOR ${floorOf(b.at, b.run)}` : b.runsDone ? `RUN COMPLETE · ★ ${b.runsDone}` : `ON TO FLOOR ${floorOf(b.at, b.run)} NEXT ROW`) : "";
   return (
     <View style={{ width, height, paddingHorizontal: 18, paddingTop: 10, overflow: "hidden" }}>
       <View style={[{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, fade(0)]}>
