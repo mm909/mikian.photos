@@ -489,7 +489,7 @@ function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, onHold, ga
  * we'll make the exact same Instagram grid with just a photo ... none of
  * the stats"). Each tile is the first photo of a row, three by four, and
  * opens that row's page. A row with no photo (an old one, or a hidden one)
- * is a quiet tile with its day. Thirty to begin with, and the next thirty
+ * is its summary (NoPhoto: the day, the meters, the pace). Thirty to begin with, and the next thirty
  * as the end of the page comes near (owner, 2026-11-23: "there's a button
  * down there that says more rows. I don't want that. I want that continuous
  * loading page"): the page that holds the grid counts `more` up while its
@@ -501,6 +501,25 @@ function Strip({ it, onRower, onRow, onMenu, onTalk, onShare, onLike, onHold, ga
  * scroll it, it like flashes, it highlights for a little bit. We can get
  * rid of that"): a finger that lands on the grid is nearly always there to
  * scroll it, and every scroll lit a photo. */
+/* A ROW WITH NO PHOTO IS ITS SUMMARY (owner, 2026-11-27: "the summary we
+ * just need is the date, the meters, the pace. I think that that's it"):
+ * the day small, the meters big, the pace under them. A hidden row keeps
+ * only its day. */
+function NoPhoto({ it }: { it: FeedItem }) {
+  const day = it.rowed?.dayStr ?? it.dayStr;
+  if (it.masked || !it.metersStr) return <Text style={mono(10, false, C.gray, 0.1)}>{day}</Text>;
+  const raw = wholeSplit(it.splitStr);
+  const pace = /^[1-9]\d*:\d{2}$/.test(raw) ? raw : "";
+  return (
+    <View style={{ alignItems: "center", paddingHorizontal: 6 }}>
+      <Text numberOfLines={1} style={mono(9, false, C.gray, 0.1)}>{day}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: F.black, fontSize: 22, lineHeight: 26, color: C.ink, marginTop: 8, fontVariant: ["tabular-nums"] }}>{it.metersStr.replace(/\s*m$/, "")}</Text>
+      <Text style={mono(8.5, true, C.gray, 0.14)}>M</Text>
+      {pace ? <Text numberOfLines={1} style={[mono(11, true, C.accent, 0.04), { marginTop: 8, fontVariant: ["tabular-nums"] }]}>{pace}<Text style={mono(8.5, false, C.gray, 0.08)}> /500</Text></Text> : null}
+    </View>
+  );
+}
+
 export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boolean; onRow: (id: string) => void; more?: number }) {
   const rows = useRows(`${PATH}?rower=${num}`, []);
   const { items, older, error, first, next, touch } = rows;
@@ -571,7 +590,7 @@ export function RowGrid({ num, mine, onRow, more = 0 }: { num: number; mine: boo
                 collapsable={false}
                 style={{ width: "100%", aspectRatio: 3 / 4, backgroundColor: C.pale, alignItems: "center", justifyContent: "center" }}
               >
-                {photo ? <Thumb key={photo.full} photo={photo} style={{ width: "100%", height: "100%" }} /> : <Text style={mono(10, false, C.gray, 0.1)}>{it.dayStr}</Text>}
+                {photo ? <Thumb key={photo.full} photo={photo} style={{ width: "100%", height: "100%" }} /> : <NoPhoto it={it} />}
               </View>
             </Pressable>
           );
