@@ -69,6 +69,22 @@ export const forget = (): void => seen.clear();
 /* Counts what the rower has changed about themselves (the photo, the bio),
  * so their own profile, mounted under the settings, reads again. */
 export const edits = { n: 0 };
+/* A ROW WAS SAVED: every open list of rows (the feed, a profile's grid)
+ * reads again (owner, 2026-11-27: "I went back into it and edited and
+ * added the photos. And then when I went back to my gallery homepage, the
+ * photo doesn't show up"). The grid stays mounted under the row's page, so
+ * nothing else would tell it. */
+const rowWatchers = new Set<() => void>();
+export function onRowsChanged(f: () => void): () => void {
+  rowWatchers.add(f);
+  return () => {
+    rowWatchers.delete(f);
+  };
+}
+export function rowsChanged(): void {
+  edits.n++;
+  for (const f of [...rowWatchers]) f();
+}
 /* Read these now, quietly, so they are there when their screen is opened. */
 export function warm(paths: string[]): void {
   for (const p of paths) api(p).catch(() => null);

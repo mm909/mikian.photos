@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { api, type Photo } from "../api";
+import { api, rowsChanged, type Photo } from "../api";
 import { CloseIcon } from "../icons";
 import { mono } from "../site";
 import { forgetStickers } from "../stickers";
@@ -116,6 +116,7 @@ export function EditRow({ row, onClose, onSaved }: { row: Editable; onClose: () 
         setBusy("Saving");
         await api("/api/row100k/app/row", { body: { id: row.id, caption: text } });
       }
+      rowsChanged();
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "That did not save. Try again.");

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, Text, View } from "react-native";
-import { api, edits, peek, type FeedItem, type FeedPage } from "../api";
+import { api, edits, onRowsChanged, peek, type FeedItem, type FeedPage } from "../api";
 import { buzz } from "../buzz";
 import { ROW_URL, shareLink } from "../files";
 import { DotsIcon, ExpandIcon, LinkIcon, StickerIcon, SwapIcon, VerifiedIcon } from "../icons";
@@ -100,6 +100,8 @@ function useRows(path: string, deps: unknown[]) {
     first();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [first, ...deps]);
+  /* A row saved anywhere (its photos, its figures): read the list again. */
+  useEffect(() => onRowsChanged(() => void first()), [first]);
   const next = async () => {
     if (!older || more.current) return;
     more.current = true;

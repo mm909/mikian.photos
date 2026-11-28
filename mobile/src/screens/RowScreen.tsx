@@ -9,7 +9,7 @@ import { arcadeFor } from "../arcade/gate";
 import { useSession } from "../session";
 import { panelOff, panelOn } from "../panelTime";
 import { mono } from "../site";
-import { ApiError, api } from "../api";
+import { ApiError, api, rowsChanged } from "../api";
 import { autoOf, onAuto, sendPiece, type Saved } from "../autolog";
 import { PENDING_MIN_M, dropPending, loadPending, loadPendingDoc, onPending, type Pending } from "../store";
 import { C, F, MONTHS, fmtClock, fmtInt, fmtPace, onLook } from "../theme";
@@ -1385,6 +1385,7 @@ function LogForm({
             setError("");
             try {
               await api(`/api/row100k/rows/${logged.rowId}`, { method: "DELETE" });
+              rowsChanged();
               onGone();
             } catch (err) {
               /* Gone already is gone. */

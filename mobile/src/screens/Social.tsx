@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, FlatList, Keyboard, Modal, Platform, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
 import { pulled } from "../buzz";
-import { api, peek, type Counts, type FollowState, type Notice, type Person, type Rel } from "../api";
+import { api, peek, rowsChanged, type Counts, type FollowState, type Notice, type Person, type Rel } from "../api";
 import { SearchIcon } from "../icons";
 import { useSession } from "../session";
 import { Ctl, mono } from "../site";
@@ -618,6 +618,7 @@ export function RowMenu({ row, onClose, onRower, onRow, onShare, onEdit, onChang
         onClose={onClose}
         onYes={async () => {
           await api(`/api/row100k/rows/${row.id}`, { method: "DELETE" });
+          rowsChanged();
           onChange("row-gone");
         }}
       />
