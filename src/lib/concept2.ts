@@ -484,3 +484,48 @@ export async function syncUser(userId: string, opts: { tz?: string; budgetMs?: n
   }
   return await statusFor(userId).catch(() => ({ configured: !!cfg, server: null, connected: false, revoked: false, name: "", connectedAt: null, lastPushAt: null, counts: { sent: 0, already: 0, pending: 0, failed: 0 }, failed: [] }));
 }
+
+/* ---- what is in the Logbook ----------------------------------------- */
+
+/* WHAT CONCEPT2 HAS (owner, 2026-11-28: "I want to be able to see what's in
+ * my concept2 logbook ... these are logged here, right? And then obviously
+ * like a link"). The rower's own Logbook, read back as Concept2 keeps it:
+ * every RowErg row of the last 60 days, newest first, each with its page
+ * on the Logbook site, and which of them ROW sent. Read on demand, never
+ * stored. */
+export type C2LogRow = { id: number; date: string; meters: number; tenths: number; source: string; fromRow: boolean; url: string };
+export type C2Logbook = { url: string; since: string; meters: number; rows: C2LogRow[] };
+
+export async function logbookFor(userId: string): Promise<C2Logbook | null> {
+  const cfg = c2Config();
+  const link = await db.concept2Link.findUnique({ where: { userId } });
+  if (!cfg || !link || link.status !== "ok" || link.base !== cfg.base) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  let listed: Listed[];
+  try {
+    listed = await listResults(cfg, { link }, shiftDay(today, -60), shiftDay(today, 1));
+  } catch (err) {
+    if (err instanceof Revoked) {
+      await db.concept2Link.update({ where: { userId }, data: { status: "revoked" } }).catch(() => null);
+      return null;
+    }
+    throw err;
+  }
+  const ours = new Set(
+    (await db.concept2Push.findMany({ where: { userId, state: "sent", c2ResultId: { not: null } }, select: { c2ResultId: true } })).map((p) => p.c2ResultId as number),
+  );
+  const rows = listed
+    .filter((r) => typeof r.distance === "number" && typeof r.time === "number" && typeof r.date === "string")
+    .sort((a, b) => (b.date as string).localeCompare(a.date as string))
+    .map((r) => ({
+      id: r.id,
+      date: r.date as string,
+      meters: r.distance as number,
+      tenths: r.time as number,
+      source: r.source ?? "",
+      fromRow: ours.has(r.id),
+      url: `${cfg.base}/profile/${link.c2UserId}/log/${r.id}`,
+    }));
+  const meters = rows.filter((r) => r.date.slice(0, 10) >= M2D_FIRST).reduce((n, r) => n + r.meters, 0);
+  return { url: `${cfg.base}/log`, since: M2D_FIRST, meters, rows: rows.slice(0, 60) };
+}

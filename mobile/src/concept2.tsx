@@ -1,9 +1,9 @@
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, Text, View } from "react-native";
 import { ApiError, api } from "./api";
 import { Ctl, mono } from "./site";
-import { C, F, fmtInt } from "./theme";
+import { C, F, fmtClock, fmtInt } from "./theme";
 
 /* THE ROWER'S CONCEPT2 LOGBOOK (2026-11-26; owner, of every M2D row being
  * logged twice: "is there a way for us to auto write to the log book?" then
@@ -116,6 +116,66 @@ export function useConcept2(): { s: C2Status | null; error: string } {
   return { s, error };
 }
 
+/* WHAT IS IN THE LOGBOOK (owner, 2026-11-28: "I just need to see like, oh,
+ * hey, look, these are logged here, right? And then obviously like a link").
+ * Concept2's own record, read back through the site
+ * (api/row100k/app/concept2/logbook): the RowErg rows of the last 60 days,
+ * newest first, a tap opens that row on the Logbook site, and the head
+ * opens the whole Logbook. */
+export type C2LogRow = { id: number; date: string; meters: number; tenths: number; source: string; fromRow: boolean; url: string };
+export type C2Logbook = { url: string; since: string; meters: number; rows: C2LogRow[] };
+
+const open = (url: string) => Linking.openURL(url).catch(() => null);
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/* "2026-11-27 15:06:00" → "Nov 27". */
+const shortDay = (d: string): string => `${MON[Number(d.slice(5, 7)) - 1] ?? ""} ${Number(d.slice(8, 10))}`;
+
+function LogbookList({ stamp }: { stamp: string | null }) {
+  const [book, setBook] = useState<C2Logbook | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    setError("");
+    api<{ logbook: C2Logbook | null }>(`${PATH}/logbook`)
+      .then((r) => live && setBook(r.logbook))
+      .catch((e) => live && setError(e instanceof Error ? e.message : "Concept2 did not answer just now."));
+    return () => {
+      live = false;
+    };
+  }, [stamp]);
+  const link = (label: string, url: string) => (
+    <Text accessibilityRole="link" suppressHighlighting onPress={() => open(url)} style={[mono(11, true, C.ink, 0.12), { textDecorationLine: "underline" }]}>
+      {label}
+    </Text>
+  );
+  if (error) return <Text style={[mono(11, false, C.accent, 0.1), { marginTop: 12 }]}>{error}</Text>;
+  if (!book) return <ActivityIndicator color={C.ink} style={{ marginTop: 14, alignSelf: "flex-start" }} />;
+  return (
+    <View style={{ marginTop: 18 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
+        <Text style={mono(11, true, C.ink, 0.12)}>In your Logbook</Text>
+        {link("Open the Logbook →", book.url)}
+      </View>
+      <Text style={{ fontFamily: F.sans, fontSize: 13.5, lineHeight: 19, color: C.gray, marginTop: 6 }}>
+        {fmtInt(book.meters)} m since {shortDay(`${book.since} 00:00:00`)}, as Concept2 counts it.
+      </Text>
+      <View style={{ height: 2, backgroundColor: C.ink, marginTop: 10 }} />
+      {book.rows.length ? (
+        book.rows.map((r) => (
+          <Pressable key={r.id} accessibilityRole="link" accessibilityLabel={`${shortDay(r.date)}, ${fmtInt(r.meters)} meters, open on Concept2`} onPress={() => open(r.url)} style={{ flexDirection: "row", alignItems: "baseline", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.line, columnGap: 10 }}>
+            <Text style={[mono(11, false, C.gray, 0.08), { width: 54 }]}>{shortDay(r.date)}</Text>
+            <Text style={{ fontFamily: F.black, fontSize: 16, color: C.ink, flex: 1 }}>{fmtInt(r.meters)} m</Text>
+            <Text style={[mono(12, false, C.ink, 0.04)]}>{fmtClock(r.tenths / 10)}</Text>
+            <Text style={[mono(9.5, true, r.fromRow ? C.good : C.gray, 0.12), { width: 44, textAlign: "right" }]}>{r.fromRow ? "ROW" : r.source.toLowerCase() === "web" ? "Typed" : r.source || "—"}</Text>
+          </Pressable>
+        ))
+      ) : (
+        <Text style={{ fontFamily: F.sans, fontSize: 13.5, color: C.gray, marginTop: 10 }}>Nothing in the last 60 days yet.</Text>
+      )}
+    </View>
+  );
+}
+
 /* "14 rows sent · 3 were already there · 2 waiting". */
 function tally(s: C2Status): string {
   const bits = [`${fmtInt(s.counts.sent)} ${s.counts.sent === 1 ? "row" : "rows"} sent`];
@@ -161,6 +221,7 @@ export function Concept2Card({ full }: { full?: boolean }) {
       <>
         <Text style={[mono(11, true, C.good, 0.12), { marginTop: 6 }]}>Connected{s.name ? ` · ${s.name}` : ""}</Text>
         {body(`Your rows off the monitor go there by themselves. ${tally(s)}.`)}
+        {full ? <LogbookList stamp={s.lastPushAt} /> : null}
         {full && s.failed.length
           ? s.failed.map((f, i) => (
               <Text key={i} style={[mono(10, false, C.accent, 0.08), { marginTop: 6, lineHeight: 15 }]}>
