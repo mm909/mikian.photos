@@ -49,7 +49,7 @@ function row(own: number, pace: number, seed: number, from = { at: 0, run: 0 }) 
 
 const own = 118;
 console.log("paces at own 1:58:", pacesOf(own).map((p) => `${Math.floor(p / 60)}:${String(p % 60).padStart(2, "0")}`).join(" "));
-console.log("rooms run 0:", Array.from({ length: 10 }, (_, i) => roomOf(i, 1)).join(" "), "rests:", Array.from({ length: 10 }, (_, i) => Math.round(restOf(roomOf(i, 1)))).join(" "));
+console.log("rooms run 0:", Array.from({ length: 10 }, (_, i) => roomOf(i, 1)).join(" "), "rests:", Array.from({ length: 10 }, (_, i) => Math.round(restOf(roomOf(i, 1), 1, i % 5 === 4))).join(" "));
 for (const pace of [121, 120, 119, 118, 117, 116]) {
   const r = row(own, pace, 7);
   const v = r.v;

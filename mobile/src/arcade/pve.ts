@@ -26,14 +26,16 @@ import { prng } from "./rng";
  * with a full hull. Out of hull is the run lost: the rest of the row is a
  * rest, and the next row starts a new run at floor 1.
  *
- * THE SKILLS, three, told apart by colour (green, blue, red; the names stay
- * in the code). Each has a pace: the rower's own (their median 5K, whole
- * seconds) plus its SLOW (green 2 s slower, blue 1, red 0), plus whole
+ * THE SKILLS, two since 2026-11-26 (owner, after a row: "Let's experiment
+ * with just 2 skills instead of the 3"), told apart by colour: blue and red
+ * (the green JAB is kept in SKILLS, out of the KIT). Each has a pace: the
+ * rower's own (their median 5K, whole seconds) plus its SLOW (blue 2 s
+ * slower, red 0), plus whole
  * seconds of EASE bought. It fills only at its pace or faster, by the
  * METERS rowed: FILL_M of them at its pace, quicker the more the pace beats
  * it (RISE_S, Q_MAX). Slower than its pace it stands still.
  *
- * DAMAGE IN METERS: with all three filling at their paces the skills do one
+ * DAMAGE IN METERS: with every skill filling at their paces the skills do one
  * point a meter between them (SHARE), so a monster's health is the meters it
  * takes at that rate (its ROOM). Its hits on the hull come on a clock while
  * it stands, never in a rest, so the hull is a budget of time from boss to
@@ -70,11 +72,15 @@ const BOSS_B = 1300;
  * rower this much harder hitting (a STAR). */
 export const RUN_GROW = 1.12;
 export const STAR_DMG = 0.1;
-/* THE REST after a fight, in meters: a share of the fight's room, between
- * the least and the most (scaled with the piece). */
+/* THE REST after a fight, in meters (owner, 2026-11-26: "this amount of
+ * rest is good for like after a boss, but ... in between the normal ones, we
+ * want to keep it pretty short"). After a boss: a share of its room, between
+ * the least and the most (scaled with the piece); after any other floor a
+ * short REST_FLOOR, about six seconds at 2:00. */
 const REST_SHARE = 0.35;
 const REST_LEAST = 25;
 const REST_MOST = 120;
+export const REST_FLOOR = 25;
 /* The hull, and the monsters' hits: one every ATK_S seconds of a fight. */
 export const HULL0 = 500;
 export const ATK_S = 3;
@@ -95,8 +101,11 @@ export const RUN_XP = 500;
 export type SkillDef = {
   id: string;
   name: string;
-  /* 0 green (quick), 1 blue, 2 red (heavy). */
+  /* 0 green (quick), 1 blue, 2 red (heavy): its look on the board. */
   slot: 0 | 1 | 2;
+  /* Its share of the damage: the kit's add up to 1 (a point a meter with
+   * every skill filling at its pace). */
+  share: number;
   /* Meters to fill at its pace. */
   fillM: number;
   /* Seconds to fill at 2:00 (the swarm's clock). */
@@ -106,19 +115,21 @@ export type SkillDef = {
   /* Its colour: what the screen calls it. */
   color: string;
 };
-/* Of the damage, each slot's share. */
-const SHARE = [0.25, 0.35, 0.4];
 const M_AT_200 = 500 / 120;
-const skill = (id: string, name: string, slot: 0 | 1 | 2, seconds: number, slow: number, color: string): SkillDef => ({ id, name, slot, fillM: Math.round(seconds * M_AT_200), fill: seconds, slow, color });
+const skill = (id: string, name: string, slot: 0 | 1 | 2, seconds: number, slow: number, color: string, share: number): SkillDef => ({ id, name, slot, share, fillM: Math.round(seconds * M_AT_200), fill: seconds, slow, color });
 export const SKILL_COLOR = ["#2BB673", "#0077B6", "#E2725B"];
+/* SLOWER TO FILL (owner, 2026-11-26: "It's still going so fast. It's really
+ * hard to see when a thing is filling up or what percentage it's at"): blue
+ * about 8 s of rowing at 2:00 (33 m), red about 16 s (67 m); they were 2, 5
+ * and 10 s. */
 export const SKILLS: SkillDef[] = [
-  skill("jab", "JAB", 0, 2, 2, SKILL_COLOR[0]),
-  skill("spear", "SPEAR", 1, 5, 1, SKILL_COLOR[1]),
-  skill("anchor", "ANCHOR", 2, 10, 0, SKILL_COLOR[2]),
+  skill("jab", "JAB", 0, 2, 2, SKILL_COLOR[0], 0.25),
+  skill("spear", "SPEAR", 1, 8, 2, SKILL_COLOR[1], 0.45),
+  skill("anchor", "ANCHOR", 2, 16, 0, SKILL_COLOR[2], 0.55),
 ];
 export const SKILL_BY_ID: Record<string, SkillDef> = Object.fromEntries(SKILLS.map((s) => [s.id, s]));
-/* THE KIT EVERY ROW PLAYS: green, blue, red. */
-export const KIT: SkillDef[] = SKILLS;
+/* THE KIT EVERY ROW PLAYS: blue and red. */
+export const KIT: SkillDef[] = SKILLS.filter((s) => s.id !== "jab");
 /* Kept for the swarm: one a slot. */
 export const rollSkills = (_rnd: () => number): SkillDef[] => KIT;
 
@@ -130,7 +141,7 @@ export const dmgMul = (lv: number): number => 1 + 0.12 * lv;
 export const hullOf = (lv: number): number => Math.round(HULL0 * (1 + 0.15 * lv));
 export const quickMul = (lv: number): number => Math.max(0.5, 1 - 0.06 * lv);
 export const easeOf = (lv: number): number => Math.floor(0.5 * (lv || 0));
-/* The rower's three paces, whole seconds: green, blue, red. */
+/* The rower's paces, whole seconds, one a skill of the kit: blue, red. */
 export const pacesOf = (own: number, ease = 0): number[] => KIT.map((d) => Math.round(own) + d.slow + easeOf(ease));
 
 /* ---- the monsters ---- */
@@ -166,7 +177,7 @@ export const roomOf = (i: number, seed: number, run = 0): number => {
   const base = (st ? ROOM_B : ROOM_A)[i % PER_STAGE];
   return Math.round(base * (0.88 + 0.24 * r) * grow);
 };
-export const restOf = (room: number, scale = 1): number => Math.max(REST_LEAST * Math.max(0.5, scale), Math.min(REST_MOST * scale, room * REST_SHARE));
+export const restOf = (room: number, scale = 1, boss = true): number => (boss ? Math.max(REST_LEAST * Math.max(0.5, scale), Math.min(REST_MOST * scale, room * REST_SHARE)) : REST_FLOOR * Math.max(0.5, Math.min(1, scale)));
 
 /* How fast a skill fills against its pace: none slower than it, 1 on it,
  * up to Q_MAX faster. */
@@ -176,7 +187,7 @@ export const fillOf = (pace: number, target: number): number => {
   return Math.min(Q_MAX, 1 + Math.max(0, target + 0.5 - pace) / RISE_S);
 };
 /* What one hit of a skill does: its share of a point a meter. */
-export const hitOf = (d: SkillDef): number => SHARE[d.slot] * d.fillM;
+export const hitOf = (d: SkillDef): number => d.share * d.fillM;
 /* A skill's view at the rower's red pace `base`. */
 export const skillAt = (def: SkillDef, base: number, charge = 0): SkillView => ({ def, charge, q: 0, target: base + def.slow, hit: hitOf(def) });
 
@@ -342,7 +353,7 @@ export function createPve({ t0, m0 = 0, seed, own = TARGET, boat = NO_UPGRADES, 
     v.stage = stageOf(v.at);
     v.best = Math.max(v.best, mo.floor + 1);
     /* The rest, after the KO's beat. */
-    const rest = restOf(mo.room, scale) * (v.event.kind === "run" ? 2 : 1);
+    const rest = restOf(mo.room, scale, mo.boss) * (v.event.kind === "run" ? 2 : 1);
     v.restFrom = m;
     v.restTo = m + rest;
     readyAt = at + KO_S;

@@ -776,7 +776,11 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
   return (
     <View style={{ flex: 1 }}>
       {/* THE BAR: the way back, the name of the page in view, and what is
-          rowing. */}
+          rowing. Not over the arcade while rowing (owner, 2026-11-26: "Let's
+          make the map fill the whole screen", the strip of "app and arcade
+          and ... the rower ID" first to go): a swipe to another page, or the
+          row stopping, brings it back. */}
+      {dotsOff ? null : (
       <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: padX, paddingTop: wide ? 2 : 12 }}>
         <View style={{ flex: 1, alignItems: "flex-start" }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Back to the app. The row keeps recording." onPress={onLeave} hitSlop={10} style={{ minHeight: wide ? 34 : 40, justifyContent: "center" }}>
@@ -790,6 +794,7 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
           <Eyebrow style={{ color: error ? C.accent : undefined }}>{who}</Eyebrow>
         </View>
       </View>
+      )}
 
       <View style={{ flex: 1 }} onLayout={onLayout}>
         {w ? (
@@ -807,7 +812,7 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
         <DemoBar ctl={erg.demoCtl} meters={live.meters} wide padX={padX} lead={dots} />
       ) : (
         <>
-          <View style={{ alignItems: "center", paddingVertical: wide ? 5 : 10 }}>{dots}</View>
+          {dotsOff ? null : <View style={{ alignItems: "center", paddingVertical: wide ? 5 : 10 }}>{dots}</View>}
           {erg.demoCtl ? <DemoBar ctl={erg.demoCtl} meters={live.meters} wide={wide} padX={padX} /> : null}
         </>
       )}
@@ -816,7 +821,7 @@ function Monitor({ erg, arcade, startPage, onPage, onLog, onAdd, onDone, onRead,
           The buttons come up by themselves once the piece is over or the
           handle has been down a few seconds. */}
       {/* The arcade's finish screen has LOG IT of its own, upright. */}
-      {over && page !== last && !(showOn && !wide && order[Math.min(page, last)] === "show" && auto?.state === "saved" && !!showed.view.current?.battle) ? <View style={{ paddingHorizontal: padX, paddingBottom: wide ? 6 : 16 }}>{wide ? <View style={{ width: Math.min(520, w - padX * 2), alignSelf: "center" }}>{ends}</View> : ends}</View> : <View style={{ height: wide ? 4 : 8 }} />}
+      {over && page !== last && !(showOn && !wide && order[Math.min(page, last)] === "show" && auto?.state === "saved" && !!showed.view.current?.battle) ? <View style={{ paddingHorizontal: padX, paddingBottom: wide ? 6 : 16 }}>{wide ? <View style={{ width: Math.min(520, w - padX * 2), alignSelf: "center" }}>{ends}</View> : ends}</View> : dotsOff ? null : <View style={{ height: wide ? 4 : 8 }} />}
     </View>
   );
 }

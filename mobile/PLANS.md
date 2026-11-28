@@ -144,3 +144,7 @@ Testing the app and giving UX notes all day is work too. That happens anyway, so
 **Tomorrow's game goal, in his words.** "Try and make several games for the rower", 1K / 4-minute games, single player first.
 
 **Research.** Done (Nov 24): `mobile/ARCADE-RESEARCH.md`. Its pick to build first is The Wake (the red-boat chase), Undertow (stay afloat, driven by strokes) and Stone Skip (one minute, every stroke scores). It covers prior art (the PM5's own games, Ergatta, Aviron, Peloton Lanebreak and others), controls and lag, the force curve as an input, ghosts, and 8 to 12 game concepts.
+
+**The theme, open (Nov 26).** After a row he said: "We don't have to be like a boat that's going around the lake. It could be something else." The course stays the boat on the lake for now; two ideas for him to pick from (or neither):
+- **A climb.** The piece goes up a mountain or a tower, a floor at a time, the boss at the top of each stage. The path winds up the screen instead of round it, so the meters read as height.
+- **A night ride.** A rider on a road through a dark city, the monsters as rivals pulling alongside; each floor is a stretch of road, the rest a red light that counts down.

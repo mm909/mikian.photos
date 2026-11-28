@@ -53,6 +53,9 @@ export type BoardGeo = {
   unit: number;
   cx: number;
   cy: number;
+  /* The path's oval's radii. */
+  rx: number;
+  ry: number;
 };
 
 const cache = new Map<string, BoardGeo>();
@@ -77,16 +80,26 @@ function blob(x: number, y: number, rx: number, ry: number, seed: number, n = 14
   return `${d}Z`;
 }
 
-export function boardOf(W: number, H: number): BoardGeo {
-  const key = `${Math.round(W)}x${Math.round(H)}`;
+/* Room kept clear of the path at each edge (the course's figures and
+ * skills sit there): the water and the land still fill the whole board, and
+ * the path and the island keep inside what is left. */
+export type Inset = { t: number; b: number; l: number; r: number };
+/* The path winds out to this much of its oval's radius at most. */
+const WIND = 1.11;
+
+export function boardOf(W: number, H: number, inset?: Inset): BoardGeo {
+  const key = `${Math.round(W)}x${Math.round(H)}${inset ? `/${Math.round(inset.t)},${Math.round(inset.b)},${Math.round(inset.l)},${Math.round(inset.r)}` : ""}`;
   const had = cache.get(key);
   if (had) return had;
-  const cx = W / 2;
-  const cy = H / 2;
+  const iw = inset ? Math.max(80, W - inset.l - inset.r) : W;
+  const ih = inset ? Math.max(80, H - inset.t - inset.b) : H;
+  const cx = inset ? inset.l + iw / 2 : W / 2;
+  const cy = inset ? inset.t + ih / 2 : H / 2;
   const m = Math.min(W, H);
-  /* The lazy river: an oval round the island that winds in and out. */
-  const rx = W * 0.36;
-  const ry = H * 0.33;
+  /* The lazy river: an oval round the island that winds in and out; with an
+   * inset, as wide and tall as the room inside it lets it be. */
+  const rx = inset ? iw / 2 / WIND : W * 0.36;
+  const ry = inset ? ih / 2 / WIND : H * 0.33;
   const pts: { x: number; y: number }[] = [];
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2 - Math.PI / 2;
@@ -109,7 +122,7 @@ export function boardOf(W: number, H: number): BoardGeo {
     [0, H],
   ];
   const grass = land.map(([x, y], i) => blob(x, y, rc * 0.78, rc * 0.66, 23 + i * 5, 12));
-  const geo: BoardGeo = { W, H, pts, cum, L: cum[N], island: blob(cx, cy, W * 0.15, H * 0.13, 3), corners, islandGrass: blob(cx + W * 0.008, cy - H * 0.006, W * 0.1, H * 0.082, 9, 12), grass, spaces: "", bigSpaces: "", rc, unit: Math.max(46, Math.min(76, m * 0.18)), cx, cy };
+  const geo: BoardGeo = { W, H, pts, cum, L: cum[N], island: blob(cx, cy, rx * 0.42, ry * 0.39, 3), corners, islandGrass: blob(cx + rx * 0.022, cy - ry * 0.018, rx * 0.28, ry * 0.25, 9, 12), grass, spaces: "", bigSpaces: "", rc, unit: Math.max(46, Math.min(76, m * 0.18)), cx, cy, rx, ry };
   /* The spaces: evenly along the path, about one every 15 points, a whole
    * number of fives round the lap. */
   const count = Math.max(20, Math.round(geo.L / 15 / 5) * 5);
@@ -187,8 +200,8 @@ export function pieceAt(g: BoardGeo, s: number): { x: number; y: number } {
   return { x: p.x, y: p.y - (TOKEN_CY - 44) * (g.unit / TOKEN_U) };
 }
 
-export function Board({ W, H, pieces, t, uid = "bd", fish = true, palm = true, zone = 0, children }: { W: number; H: number; pieces: Piece[]; t: number; uid?: string; fish?: boolean; /* Off when a monster has the island (single player). */ palm?: boolean; /* The course's setting (ZONES). */ zone?: number; children?: ReactNode }) {
-  const g = boardOf(W, H);
+export function Board({ W, H, pieces, t, uid = "bd", fish = true, palm = true, zone = 0, inset, children }: { W: number; H: number; pieces: Piece[]; t: number; uid?: string; fish?: boolean; /* Off when a monster has the island (single player). */ palm?: boolean; /* The course's setting (ZONES). */ zone?: number; /* Room kept clear of the path (boardOf). */ inset?: Inset; children?: ReactNode }) {
+  const g = boardOf(W, H, inset);
   const k = g.unit / TOKEN_U;
   const ink = C.ink;
   const Z = ZONES[zone % ZONES.length] ?? ZONES[0];
@@ -287,9 +300,9 @@ export function Board({ W, H, pieces, t, uid = "bd", fish = true, palm = true, z
       ))}
       {Z.tower ? <Lighthouse x={lx} y={ly} s={ls} t={t} /> : null}
       {/* The island: a pebble or two on its sand, and its palm. */}
-      <Ellipse cx={g.cx - W * 0.1} cy={g.cy + H * 0.045} rx={3.4} ry={2.4} fill={C.gray} fillOpacity={0.55} stroke={ink} strokeWidth={1} />
-      <Ellipse cx={g.cx + W * 0.085} cy={g.cy - H * 0.075} rx={2.6} ry={1.9} fill={C.gray} fillOpacity={0.55} stroke={ink} strokeWidth={1} />
-      {palm ? <Palm x={g.cx + W * 0.02} y={g.cy + H * 0.05} s={g.unit / 60} t={t} /> : null}
+      <Ellipse cx={g.cx - g.rx * 0.278} cy={g.cy + g.ry * 0.136} rx={3.4} ry={2.4} fill={C.gray} fillOpacity={0.55} stroke={ink} strokeWidth={1} />
+      <Ellipse cx={g.cx + g.rx * 0.236} cy={g.cy - g.ry * 0.227} rx={2.6} ry={1.9} fill={C.gray} fillOpacity={0.55} stroke={ink} strokeWidth={1} />
+      {palm ? <Palm x={g.cx + g.rx * 0.056} y={g.cy + g.ry * 0.15} s={g.unit / 60} t={t} /> : null}
       {school.map((f) => (
         <G key={f.i} transform={`translate(${f.x.toFixed(1)} ${f.y.toFixed(1)}) rotate(${f.a.toFixed(0)}) scale(0.85)`} opacity={0.62}>
           <Path d={`M-4.5 0 L-9 ${(-3.4 + Math.sin(t * 9 + f.i) * 1.6).toFixed(1)} L-9 ${(3.4 + Math.sin(t * 9 + f.i) * 1.6).toFixed(1)} Z`} fill={water} />

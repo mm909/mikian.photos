@@ -171,6 +171,9 @@ const stripOf = (width: number) => {
 
 /* The page or the overlay: the headline and the stage beside or under it. */
 function Framed({ showed, erg, width, height, active, logIt }: { showed: Showed; erg: Erg; width: number; height: number; active: boolean; logIt?: (() => void) | null }) {
+  /* THE COURSE IS THE WHOLE SCREEN (owner, 2026-11-26): it draws its own
+   * two figures in a band over the board (Battle). */
+  if (showed.view.current?.phase === "battle") return <Stage showed={showed} erg={erg} width={width} height={height} active={active} logIt={logIt} />;
   const wide = width >= 520 && width > height;
   if (wide) {
     const SIDE = Math.round(Math.min(230, width * 0.24));
@@ -932,19 +935,111 @@ function FloorBadge({ floor, boss, stars, size }: { floor: number; boss: boolean
   );
 }
 
+/* A SKILL, READ FROM THE SEAT (owner, 2026-11-26: "It's really hard to see
+ * when a thing is filling up or what percentage it's at ... hard to tell how
+ * close I am to turning it on or turning it off"). A wide bar that fills left
+ * to right in the skill's colour, ticks at the quarters, the percent big in
+ * it; over it the pace it fills at and ON or OFF; under it how far the pace
+ * is from the switch: the seconds to spare while it fills, the seconds
+ * faster to row while it does not. */
+function SkillBar({ s, k, width, pace, live }: { s: SkillView; k: number; width: number; pace: number; /* A fight is on. */ live: boolean }) {
+  const col = s.def.color;
+  const on = live && s.q > 0;
+  /* The switch: the pace counts as on up to half a second over the target
+   * (pve.ts fillOf). */
+  const gap = Number.isFinite(pace) && pace > 40 && pace < 600 ? s.target + 0.5 - pace : NaN;
+  const d = skillDims(width);
+  const pct = `${Math.floor(100 * clamp(k))}%`;
+  const foot = !live ? "" : !Number.isFinite(gap) ? "ROW" : on ? `${Math.max(0, gap).toFixed(1)} S SPARE` : `${Math.max(0.1, -gap).toFixed(1)} S FASTER`;
+  const pctLine = Math.round(d.pct * 1.2);
+  return (
+    <View style={{ width }}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
+        <Text style={{ fontFamily: F.black, fontSize: d.head, lineHeight: Math.round(d.head * 1.15), color: on ? C.ink : C.gray, fontVariant: ["tabular-nums"] }}>{whole(Math.round(s.target))}</Text>
+        <Text style={{ fontFamily: F.black, fontSize: Math.round(d.head * 0.8), color: on ? col : C.gray }}>{live ? (on ? "ON" : "OFF") : ""}</Text>
+      </View>
+      <View style={{ width, height: d.bar, borderWidth: 3, borderColor: on ? C.ink : C.gray, borderRadius: 6, overflow: "hidden", backgroundColor: C.paper }}>
+        <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(100 * clamp(k)).toFixed(1)}%`, backgroundColor: col, opacity: on ? 1 : 0.35 }} />
+        {[0.25, 0.5, 0.75].map((q) => (
+          <View key={q} style={{ position: "absolute", left: `${q * 100}%`, top: 0, bottom: 0, width: 2, marginLeft: -1, backgroundColor: C.ink, opacity: 0.25 }} />
+        ))}
+        <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, justifyContent: "center" }}>
+          <View style={{ height: pctLine }}>
+            {RING8.map(([dx, dy], i) => (
+              <Text key={i} style={{ position: "absolute", top: dy, left: dx, right: -dx, textAlign: "center", fontFamily: F.black, fontSize: d.pct, lineHeight: pctLine, color: C.paper, fontVariant: ["tabular-nums"] }}>
+                {pct}
+              </Text>
+            ))}
+            <Text style={{ position: "absolute", top: 0, left: 0, right: 0, textAlign: "center", fontFamily: F.black, fontSize: d.pct, lineHeight: pctLine, color: on ? C.ink : C.soft, fontVariant: ["tabular-nums"] }}>{pct}</Text>
+          </View>
+        </View>
+      </View>
+      <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: d.foot, lineHeight: Math.round(d.foot * 1.3), marginTop: 2, color: on ? col : C.ink, textAlign: "center", fontVariant: ["tabular-nums"] }}>
+        {foot}
+      </Text>
+    </View>
+  );
+}
+/* A skill's sizes by its width, and its whole height. */
+const skillDims = (width: number) => {
+  const head = Math.round(Math.min(40, width * 0.22));
+  const bar = Math.round(Math.min(56, Math.max(38, width * 0.28)));
+  const foot = Math.round(Math.min(22, Math.max(16, width * 0.11)));
+  return { head, bar, foot, pct: Math.round(bar * 0.62), h: Math.round(head * 1.15) + bar + Math.round(foot * 1.3) + 2 };
+};
+
+/* One of the two figures over the course: a small word and the number. */
+function Fig({ k, v, size, align = "left" }: { k: string; v: string; size: number; align?: "left" | "right" }) {
+  return (
+    <View style={{ alignItems: align === "left" ? "flex-start" : "flex-end" }}>
+      <Eyebrow style={{ color: C.ink }}>{k}</Eyebrow>
+      <Num size={size}>{v}</Num>
+    </View>
+  );
+}
+
+/* ---- THE COURSE, round five (owner, 2026-11-26, after a row: "Let's make
+ * the map fill the whole screen"; "The UI for those skills is covering the
+ * path and the player a little bit, so that shouldn't happen"). The board is
+ * the whole stage, edge to edge (the app's bar and the strip of figures over
+ * it are gone while the course is on: RowScreen, Framed). What is read sits
+ * in bands at its edges, over the water and the land, and the path and the
+ * island are laid out inside what is left (boardOf's inset), with room for
+ * the piece and its tag, so nothing is drawn on the path:
+ *
+ *   upright   pace, the floor and the finish across the top; the hull and
+ *             the two skills across the foot;
+ *   on its    pace, finish, the floor and the hull down the left; the two
+ *   side      skills down the right.
+ *
+ * THE REST is REST and a countdown in the middle, the seconds left at the
+ * rower's own pace, and a bar running down. */
 function Battle(p: P) {
-  const { v, width, height, wall, rt, myM, paint, hop } = p;
+  const { v, erg, width, height, wall, rt, myM, paint, hop } = p;
   const tag = useTag(v);
   const shown = useShown(v.battle?.skills ?? [], wall);
   const run = useRun();
   const b = v.battle;
   if (!b) return null;
   const wide = width > height * 1.1;
-  /* The rings: as big as the stage lets them be. */
-  const RING = Math.round(wide ? Math.min(96, height * 0.22) : Math.min(84, width * 0.2));
-  const FOOT = wide ? 0 : Math.round(RING * 1.42 + 34);
-  const g = { W: width, H: Math.max(120, height - FOOT) };
-  const geo = boardOf(g.W, g.H);
+  const g = { W: width, H: height };
+  const unit0 = Math.max(46, Math.min(76, Math.min(g.W, g.H) * 0.18));
+  const k0 = unit0 / 64;
+  /* Room the piece takes round its point on the path: its box and tag over
+   * it, its trail under it, half its width to each side. */
+  const CLR = { t: Math.round(48 * k0 + 22), b: Math.round(16 * k0 + 4), s: Math.round(34 * k0 + 4) };
+  const PAD = 10;
+  const figs = figures(erg);
+  const SIDE_L = wide ? Math.round(Math.min(240, width * 0.24)) : 0;
+  const SIDE_R = wide ? Math.round(Math.min(250, width * 0.26)) : 0;
+  const figSize = wide ? Math.max(26, Math.min(48, Math.floor((height - 40) / 6.4), Math.floor((SIDE_L - 24) / 4.1))) : Math.max(26, Math.min(42, Math.floor((width - 150) / 2 / 4.1)));
+  const skillW = wide ? SIDE_R - PAD * 2 : Math.floor((width - PAD * 3) / 2);
+  const skillH = skillDims(skillW).h;
+  const TOP = wide ? 0 : Math.round(figSize * 1.12 + 24);
+  const HULL_H = 18;
+  const FOOT = wide ? 0 : skillH + HULL_H + PAD * 2 + 8;
+  const inset = { t: TOP + CLR.t, b: FOOT + CLR.b, l: SIDE_L + CLR.s, r: SIDE_R + CLR.s };
+  const geo = boardOf(g.W, g.H, inset);
   const k = geo.unit / 64;
   const rate = Math.max(0.2, v.rate);
   const wallAt = (at: number) => wall - (rt - at) / rate;
@@ -1013,11 +1108,11 @@ function Battle(p: P) {
     }
   }
   const m = b.monster;
-  const barW = Math.round(Math.min(g.W * 0.5, Math.max(150, mr * 3.2)));
+  const barW = Math.round(Math.min(g.W * 0.5, geo.rx * 1.4, Math.max(150, mr * 3.2)));
   const nameSize = Math.round(Math.min(30, Math.max(18, g.W / 22)));
   const barTop = my - mr * 1.3 - 24 - nameSize * 1.3;
   /* Your hits: the newest five, one to a column, over the monster's bar. */
-  const colW = Math.min(70, (g.W - 40) / 5);
+  const colW = Math.min(70, (geo.rx * 1.6) / 5);
   for (const d of mine.sort((a, z) => a.kb - z.kb).slice(0, 5)) {
     const c = (d.n % 5) - 2;
     pops.push(<DmgPop key={`p${d.n}`} x={mx + c * colW} y={Math.max(24, barTop - 6 - (d.n % 2) * 16)} text={`−${d.dmg}`} size={[24, 30, 40][d.slot]} color={SLOT_COLOR[d.slot]} e={d.kb} />);
@@ -1032,7 +1127,7 @@ function Battle(p: P) {
     const born = clamp((wall - wallAt(m.born)) / 0.5);
     monster = <MonsterG x={mx} y={my} r={mr} n={m.n} boss={m.boss} seed={m.seed} t={wall} hurt={hurt} born={born} lookX={(at.x - mx) / (geo.W * 0.4)} />;
   }
-  /* The word over the board. */
+  /* The word in the middle, inside the path. */
   const ev = b.event;
   const evE = ev ? wall - wallAt(ev.at) - FLY : 99;
   const evOn = !!ev && ev.kind !== "floor" && evE >= 0 && evE < 3.4;
@@ -1049,74 +1144,99 @@ function Battle(p: P) {
   const resting = !m && !b.lost && !b.out && !(ko && koE < KO_W);
   const floorNow = m ? m.floor : b.at + 1;
   const zone = zoneOf(floorNow);
+  /* Inside the path: the room for words. */
+  const innerW = Math.max(120, geo.rx * 1.6 - 16);
+  /* THE REST'S COUNTDOWN (owner, 2026-11-26: "The rest felt a little long";
+   * a timer on it). The rest is in meters (pve.ts); its seconds are the
+   * meters left at the rower's own pace, so it only ever counts down. */
+  const restLeftM = resting && b.restTo > 0 ? Math.max(0, b.restTo - myM) : 0;
+  const restAll = Math.max(1, b.restTo - b.restFrom);
+  const restS = restLeftM / (500 / Math.max(60, b.own || TARGET));
   /* EASED IN after the intro: the board rises and the bars come after. */
   const inE = ease((wall - v.sinceWall) / 1.1);
   const inBars = ease((wall - v.sinceWall - 0.7) / 0.6);
-  const ringOn = (s: SkillView) => !!m && s.q > 0;
-  const rings = (
-    <View style={{ flexDirection: "row", columnGap: Math.round(RING * 0.22), alignItems: "flex-end" }}>
+  const skillsUi = (
+    <View style={{ flexDirection: wide ? "column" : "row", columnGap: PAD, rowGap: 14 }}>
       {b.skills.map((s) => (
-        <SkillRing key={s.def.id} s={s} k={shown(s)} size={RING} on={ringOn(s)} />
+        <SkillBar key={s.def.id} s={s} k={shown(s)} width={skillW} pace={b.pace} live={!!m} />
       ))}
     </View>
   );
-  const hullW = wide ? Math.round(Math.min(g.W * 0.36, 300)) : g.W - 28;
-  const hullBar = <LifeBar h={b.hull} max={b.hullMax} color={b.hull / Math.max(1, b.hullMax) < 0.3 ? BEST : C.accent} width={hullW} height={wide ? 20 : 18} wall={wall} />;
-  const board = (
-    <View style={{ width: g.W, height: g.H, opacity: inE, transform: [{ translateY: (1 - inE) * 40 }, { scale: 0.94 + 0.06 * inE }] }}>
-      <Board W={g.W} H={g.H} pieces={pieces} t={wall} uid="isle" palm={false} zone={zone}>
-        {monster}
-        {shots}
-      </Board>
-      {m && !(ko && koE < KO_W && wallAt(m.born) > wall - 0.05) ? (
-        <View pointerEvents="none" style={{ position: "absolute", left: mx - (barW + 80) / 2, top: barTop, width: barW + 80, alignItems: "center", opacity: inBars }}>
-          <LifeBar name={m.name} nameColor={m.boss ? BEST : C.ink} size={nameSize} h={Math.ceil(hp)} max={m.max} color={m.boss ? BEST : C.ink} width={barW} height={16} wall={wall} />
-          {b.overtime ? <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.8), color: BEST, marginTop: 2 }}>OVERTIME</Text> : null}
-        </View>
-      ) : null}
-      {resting ? (
-        <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: my - mr * 0.6, alignItems: "center" }}>
-          <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 1.5), color: C.ink, opacity: 0.55 + 0.45 * Math.abs(Math.sin(wall * 1.6)) }}>REST</Text>
-          <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.8), color: C.soft }}>{isBossFloor(b.at) ? `THE BOSS IS NEXT` : `FLOOR ${b.at + 1} NEXT`}</Text>
-        </View>
-      ) : null}
-      {b.lost && !evOn ? (
-        <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: my - mr * 0.6, alignItems: "center" }}>
-          <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 1.3), color: BEST }}>RUN LOST</Text>
-          <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.7), color: C.soft }}>A NEW RUN NEXT ROW</Text>
-        </View>
-      ) : null}
-      <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, opacity: inBars }}>
-        <FloorBadge floor={floorNow} boss={!!m?.boss || (resting && isBossFloor(b.at))} stars={run.stars + b.runsDone} size={wide ? Math.round(Math.min(52, height * 0.12)) : 40} />
-      </View>
-      {word ? (
-        <View pointerEvents="none" style={{ position: "absolute", top: 8, alignSelf: "center", alignItems: "center", backgroundColor: C.paper, paddingHorizontal: 14, paddingVertical: 4, borderWidth: 2.5, borderColor: C.ink, borderCurve: "continuous", borderRadius: 6, maxWidth: g.W - 140 }}>
-          <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: evOn ? 30 : 24, color: word.c }}>
-            {word.big}
-          </Text>
-          <Text numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 13, letterSpacing: 1, color: C.soft }}>
-            {word.small}
-          </Text>
-        </View>
-      ) : null}
-      {wide && !b.lost ? (
-        <>
-          <View pointerEvents="none" style={{ position: "absolute", left: 12, bottom: 12, opacity: inBars, padding: 6, backgroundColor: C.paper, borderCurve: "continuous", borderRadius: 6 }}>{hullBar}</View>
-          <View pointerEvents="none" style={{ position: "absolute", right: 10, bottom: 8, opacity: inBars, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: C.paper, borderCurve: "continuous", borderRadius: 10 }}>{rings}</View>
-        </>
-      ) : null}
-    </View>
-  );
+  const hullW = wide ? SIDE_L - PAD * 2 : width - PAD * 2;
+  const hullBar = <LifeBar h={b.hull} max={b.hullMax} color={b.hull / Math.max(1, b.hullMax) < 0.3 ? BEST : C.accent} width={hullW} height={HULL_H} wall={wall} />;
+  const badge = <FloorBadge floor={floorNow} boss={!!m?.boss || (resting && isBossFloor(b.at))} stars={run.stars + b.runsDone} size={wide ? Math.round(Math.min(46, height * 0.11)) : Math.round(Math.min(32, figSize * 0.8))} />;
+  const veil = { backgroundColor: C.paper };
   return (
     <View style={{ width, height, overflow: "hidden" }}>
-      {board}
+      <View style={{ width: g.W, height: g.H, opacity: inE, transform: [{ translateY: (1 - inE) * 40 }, { scale: 0.94 + 0.06 * inE }] }}>
+        <Board W={g.W} H={g.H} pieces={pieces} t={wall} uid="isle" palm={false} zone={zone} inset={inset}>
+          {monster}
+          {shots}
+        </Board>
+        {m && !(ko && koE < KO_W && wallAt(m.born) > wall - 0.05) ? (
+          <View pointerEvents="none" style={{ position: "absolute", left: mx - (barW + 80) / 2, top: barTop, width: barW + 80, alignItems: "center", opacity: inBars }}>
+            <LifeBar name={m.name} nameColor={m.boss ? BEST : C.ink} size={nameSize} h={Math.ceil(hp)} max={m.max} color={m.boss ? BEST : C.ink} width={barW} height={16} wall={wall} />
+            {b.overtime ? <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.8), color: BEST, marginTop: 2 }}>OVERTIME</Text> : null}
+          </View>
+        ) : null}
+        {!m && (word || resting || b.lost) ? (
+          <View pointerEvents="none" style={{ position: "absolute", left: mx - innerW / 2, width: innerW, top: geo.cy - geo.ry * 0.78, height: geo.ry * 1.56, alignItems: "center", justifyContent: "center" }}>
+            {word ? (
+              <View style={{ alignItems: "center", marginBottom: 8 }}>
+                <Big text={word.big} width={innerW} max={30} color={word.c} />
+                <Text numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 14, letterSpacing: 1, color: C.soft }}>
+                  {word.small}
+                </Text>
+              </View>
+            ) : null}
+            {resting ? (
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 1.1), color: C.ink }}>REST</Text>
+                <Num size={Math.round(Math.min(64, innerW * 0.3))}>{clockS(Math.ceil(restS))}</Num>
+                <View style={{ width: Math.min(innerW * 0.8, 200), height: 12, borderWidth: 2, borderColor: C.ink, borderRadius: 4, overflow: "hidden", backgroundColor: C.paper, marginTop: 4 }}>
+                  <View style={{ width: `${(100 * clamp(restLeftM / restAll)).toFixed(1)}%`, height: "100%", backgroundColor: C.ink }} />
+                </View>
+                <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.75), color: C.soft, marginTop: 6 }}>{isBossFloor(b.at) ? `THE BOSS IS NEXT` : `FLOOR ${b.at + 1} NEXT`}</Text>
+              </View>
+            ) : null}
+            {b.lost && !evOn ? (
+              <View style={{ alignItems: "center" }}>
+                <Big text="RUN LOST" width={innerW} max={Math.round(nameSize * 1.3)} color={BEST} />
+                <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.7), color: C.soft }}>A NEW RUN NEXT ROW</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
       {pops}
-      {!wide ? (
-        <View style={{ height: FOOT, paddingHorizontal: 14, paddingTop: 6, alignItems: "center", rowGap: 4, opacity: inBars }}>
-          {b.lost ? null : hullBar}
-          {rings}
-        </View>
-      ) : null}
+      {wide ? (
+        <>
+          <View pointerEvents="none" style={[{ position: "absolute", left: 0, top: 0, bottom: 0, width: SIDE_L, padding: PAD, justifyContent: "space-between", opacity: inBars }, veil]}>
+            <View style={{ rowGap: 8 }}>
+              {figs.map(([kk, vv]) => (
+                <Fig key={kk} k={kk} v={vv} size={figSize} />
+              ))}
+            </View>
+            <View style={{ alignItems: "flex-start", rowGap: 10 }}>
+              {badge}
+              {b.lost ? null : hullBar}
+            </View>
+          </View>
+          <View pointerEvents="none" style={[{ position: "absolute", right: 0, top: 0, bottom: 0, width: SIDE_R, paddingHorizontal: PAD, justifyContent: "center", opacity: inBars }, veil]}>{skillsUi}</View>
+        </>
+      ) : (
+        <>
+          <View pointerEvents="none" style={[{ position: "absolute", left: 0, right: 0, top: 0, height: TOP, paddingHorizontal: PAD + 4, paddingTop: 4, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", opacity: inBars }, veil]}>
+            <Fig k={figs[0][0]} v={figs[0][1]} size={figSize} />
+            <View style={{ marginTop: -4 }}>{badge}</View>
+            <Fig k={figs[1][0]} v={figs[1][1]} size={figSize} align="right" />
+          </View>
+          <View pointerEvents="none" style={[{ position: "absolute", left: 0, right: 0, bottom: 0, height: FOOT, paddingHorizontal: PAD, paddingTop: PAD, rowGap: 8, opacity: inBars }, veil]}>
+            {b.lost ? <View style={{ height: HULL_H + 4 }} /> : hullBar}
+            {skillsUi}
+          </View>
+        </>
+      )}
     </View>
   );
 }
