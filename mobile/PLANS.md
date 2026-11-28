@@ -68,6 +68,13 @@ Testing the app and giving UX notes all day is work too. That happens anyway, so
 - **Race or not:** it does not have to be a race. People can race, take it easy, or do whatever they like. One way he put it: "Rowing starts 7:00, the race starts 7:05. If you can keep up."
 - **Launch:** maybe December 1. iPhone first; Android can wait.
 - **The name:** "Maybe that's what we could call the app: Row Club." That means a real logo instead of the ROW wordmark. He thought of a hexagon (like the lights on the Strip, or a barbell plate); he hasn't decided.
+- **His spec, Nov 28 night** (after a Concept2 ErgData "Loop" post with everyone's pins on one course):
+  - **The goal:** "row and see people that are around me", at the same time every week, so more people come over time.
+  - **A lobby:** he makes a Row Club lobby, and the people in it have the app open on their phone, connected to their PM5.
+  - **The start:** he presses START ROW CLUB, a countdown of about 10 seconds runs on everyone's phone, then the row starts.
+  - **While it is live:** the plus (log a row) button in the bar shows that Row Club is live, so anyone can tap in.
+  - **What you see:** the race screen (THE RACE, the lanes and boats; `mobile/src/screens/GhostRace.tsx`) with live rowers in the lanes instead of past rows.
+  - **Built so far:** nothing. The race screen with past rows exists; the live part (everyone's position on a server) does not.
 - **To decide with him:**
   - how long a row is (a set distance, a set time, or anything);
   - whether only he can post a time, or anyone can start a club row;
