@@ -9,7 +9,7 @@ import { MonsterG } from "../arcade/Monster";
 import { useBoat } from "../arcade/boat";
 import { useLocker } from "../arcade/locker";
 import { FILL_S, type MShot } from "../arcade/match";
-import { KIT, PERK_DMG, PERK_FILL, PERK_WORD, RUN_FLOORS, SKILL_COLOR, TARGET, artOf, easeOf, floorOf, isBoss, nameOf, skillAt, type SkillView } from "../arcade/pve";
+import { ITEMS, ITEM_SLOTS, KIT, RUN_FLOORS, SKILL_COLOR, TARGET, artOf, easeOf, floorOf, isBoss, nameOf, skillAt, type ItemKind, type SkillView } from "../arcade/pve";
 import { useRun } from "../arcade/run";
 import { useProgress } from "../arcade/progress";
 import { useRating } from "../arcade/rating";
@@ -856,9 +856,8 @@ const SLOT_R = [4.5, 7, 11];
  *   THE REST between fights: no bars, REST and the floor that is next;
  *   the course EASES IN after the intro instead of popping in. */
 
-/* A bar with a name over it, centred: what is left in its colour, what was
- * just lost a moment longer in yellow. Never shakes, never a number. */
-function LifeBar({ h, max, color, width, height, wall, name, nameColor, size = 20, nameW }: { h: number; max: number; color: string; width: number; height: number; wall: number; name?: string; nameColor?: string; size?: number; /* The room for the name; it is sized to fit there whole, never cut. */ nameW?: number }) {
+/* What was just lost stays a moment longer, in yellow: the bar's lag. */
+function useLag(h: number, max: number): number {
   const lag = useRef({ v: h, max });
   const L = lag.current;
   if (max !== L.max) {
@@ -867,19 +866,56 @@ function LifeBar({ h, max, color, width, height, wall, name, nameColor, size = 2
   }
   if (h >= L.v) L.v = h;
   else L.v += (h - L.v) * 0.07;
-  void wall;
+  return L.v;
+}
+const pctOf = (k: number) => `${(100 * clamp(k)).toFixed(1)}%` as const;
+
+/* EVERY BAR READ FROM THE SEAT (owner, 2026-11-28, of the skill bars: "this
+ * is the best iteration of these bars that we have so far ... my health bar
+ * and the enemy's health bar can almost look like my skill bars ... That way
+ * I get a percentage number as well, or like a raw number, either or"): a
+ * wide bar that fills left to right in its colour, ticks at the quarters, its
+ * figure big in it. The skills say a percent, the hull and the monster their
+ * points. */
+function Meter({ k, ghost = 0, text, color, width, height, faded = false, edge }: { k: number; ghost?: number; text: string; color: string; width: number; height: number; faded?: boolean; edge?: string }) {
+  const fs = Math.round(height * 0.58);
+  const line = Math.round(fs * 1.2);
+  return (
+    <View style={{ width, height, borderWidth: 3, borderColor: edge ?? (faded ? C.gray : C.ink), borderRadius: 6, overflow: "hidden", backgroundColor: C.paper }}>
+      <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: pctOf(k), backgroundColor: color, opacity: faded ? 0.35 : 1 }} />
+      {ghost > 0.002 ? <View style={{ position: "absolute", left: pctOf(k), top: 0, bottom: 0, width: pctOf(ghost), backgroundColor: DOT_ON }} /> : null}
+      {[0.25, 0.5, 0.75].map((q) => (
+        <View key={q} style={{ position: "absolute", left: `${q * 100}%`, top: 0, bottom: 0, width: 2, marginLeft: -1, backgroundColor: C.ink, opacity: 0.25 }} />
+      ))}
+      <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, justifyContent: "center" }}>
+        <View style={{ height: line }}>
+          {RING8.map(([dx, dy], i) => (
+            <Text key={i} style={{ position: "absolute", top: dy, left: dx, right: -dx, textAlign: "center", fontFamily: F.black, fontSize: fs, lineHeight: line, color: C.paper, fontVariant: ["tabular-nums"] }}>
+              {text}
+            </Text>
+          ))}
+          <Text style={{ position: "absolute", top: 0, left: 0, right: 0, textAlign: "center", fontFamily: F.black, fontSize: fs, lineHeight: line, color: faded ? C.soft : C.ink, fontVariant: ["tabular-nums"] }}>{text}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/* A life: a name over it, centred, and its points in a Meter. */
+function LifeBar({ h, max, color, width, height, name, nameColor, size = 20, nameW }: { h: number; max: number; color: string; width: number; height: number; name?: string; nameColor?: string; size?: number; /* The room for the name; it is sized to fit there whole, never cut. */ nameW?: number }) {
+  const lag = useLag(h, max);
   const m = Math.max(1, max);
   const now = clamp(h / m);
-  const ghost = clamp(L.v / m) - now;
+  const ghost = clamp(lag / m) - now;
   /* THE MOB'S NAME WHOLE (owner, 2026-11-26: "I want to be able to see the
    * title of the mob"): Archivo Black's capitals run under a full size each,
    * so a size of the room over the letters always fits. */
-  const room = nameW ?? width + 80;
+  const room = nameW ?? width;
   const fs = name ? Math.max(12, Math.min(size, Math.floor(room / (name.length * 0.9)))) : size;
   return (
     <View style={{ width: Math.max(width, room), alignItems: "center" }}>
       {name ? (
-        <View style={{ position: "relative", height: Math.round(fs * 1.3), width: room, alignItems: "center" }}>
+        <View style={{ position: "relative", height: Math.round(fs * 1.3), width: room, alignItems: "center", marginBottom: 2 }}>
           {RING8.map(([dx, dy], i) => (
             <Text key={i} style={{ position: "absolute", top: dy, left: dx, right: -dx, textAlign: "center", fontFamily: F.black, fontSize: fs, lineHeight: Math.round(fs * 1.3), color: C.paper }}>
               {name}
@@ -890,10 +926,90 @@ function LifeBar({ h, max, color, width, height, wall, name, nameColor, size = 2
           </Text>
         </View>
       ) : null}
-      <View style={{ width, height, borderWidth: 2.5, borderColor: C.ink, borderRadius: 4, overflow: "hidden", flexDirection: "row", backgroundColor: C.paper, marginTop: 2 }}>
-        <View style={{ width: `${(100 * now).toFixed(1)}%`, backgroundColor: color }} />
-        <View style={{ width: `${(100 * ghost).toFixed(1)}%`, backgroundColor: DOT_ON }} />
-      </View>
+      <Meter k={now} ghost={ghost} text={`${Math.max(0, Math.ceil(h))}`} color={color} width={width} height={height} />
+    </View>
+  );
+}
+
+/* AN ITEM, drawn: a hook, a sail, a life ring, an oar, a patch kit. */
+function ItemIcon({ kind, size }: { kind: ItemKind; size: number }) {
+  const ink = C.ink;
+  const col = ITEMS[kind].color;
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      {kind === "hook" ? (
+        <G>
+          <Path d="M30 9 V27 A9 9 0 1 1 12 27 L17 23" fill="none" stroke={ink} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M30 9 V27 A9 9 0 1 1 12 27 L17 23" fill="none" stroke="#C9D3DA" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+          <Circle cx={30} cy={7} r={4.5} fill={col} stroke={ink} strokeWidth={2.4} />
+        </G>
+      ) : kind === "sail" ? (
+        <G>
+          <Line x1={22} y1={5} x2={22} y2={38} stroke={ink} strokeWidth={3} strokeLinecap="round" />
+          <Path d="M24.5 7 Q38 18 40 33 H24.5 Z" fill={col} stroke={ink} strokeWidth={2.4} strokeLinejoin="round" />
+          <Path d="M19 11 L8 32 H19 Z" fill={C.paper} stroke={ink} strokeWidth={2.4} strokeLinejoin="round" />
+          <Path d="M6 37 H42 L37 44 H11 Z" fill="#B5793F" stroke={ink} strokeWidth={2.4} strokeLinejoin="round" />
+        </G>
+      ) : kind === "ring" ? (
+        <G>
+          <Circle cx={24} cy={24} r={15} fill="none" stroke={ink} strokeWidth={13} />
+          <Circle cx={24} cy={24} r={15} fill="none" stroke="#FFFFFF" strokeWidth={9} />
+          <Circle cx={24} cy={24} r={15} fill="none" stroke={col} strokeWidth={9} strokeDasharray="11.78 11.78" />
+        </G>
+      ) : kind === "pet" ? (
+        <PetG x={24} y={26} s={2.1} t={0} />
+      ) : kind === "oar" ? (
+        <G>
+          <Line x1={9} y1={41} x2={30} y2={18} stroke={ink} strokeWidth={6.5} strokeLinecap="round" />
+          <Line x1={9} y1={41} x2={30} y2={18} stroke={col} strokeWidth={3} strokeLinecap="round" />
+          <Ellipse cx={35} cy={12.5} rx={10} ry={5} transform="rotate(-47 35 12.5)" fill={C.paper} stroke={ink} strokeWidth={2.6} />
+        </G>
+      ) : (
+        <G>
+          <Rect x={7} y={13} width={34} height={27} rx={5} fill={C.paper} stroke={ink} strokeWidth={2.6} />
+          <Path d="M18 13 V9 H30 V13" fill="none" stroke={ink} strokeWidth={2.6} strokeLinejoin="round" />
+          <Path d="M21 19 H27 V24 H32 V30 H27 V35 H21 V30 H16 V24 H21 Z" fill={col} stroke={ink} strokeWidth={1.8} strokeLinejoin="round" />
+        </G>
+      )}
+    </Svg>
+  );
+}
+
+/* THE PET: a puffin, round and small, its wings beating. */
+function PetG({ x, y, s, t, flip = false }: { x: number; y: number; s: number; t: number; flip?: boolean }) {
+  const ink = C.ink;
+  const flap = Math.sin(t * 18) * 4;
+  return (
+    <G transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${(flip ? -s : s).toFixed(3)} ${s.toFixed(3)})`}>
+      <Path d={`M-3 -2 L-12 ${(-6 - flap).toFixed(1)} L-6 3 Z`} fill="#1B1B1B" stroke={ink} strokeWidth={1.4} strokeLinejoin="round" />
+      <Ellipse cx={0} cy={0} rx={8} ry={7.5} fill="#1B1B1B" stroke={ink} strokeWidth={1.6} />
+      <Ellipse cx={1.5} cy={2.5} rx={5} ry={4.5} fill="#FFFFFF" />
+      <Circle cx={3} cy={-3} r={3.2} fill="#FFFFFF" />
+      <Circle cx={3.6} cy={-3} r={1.3} fill={ink} />
+      <Path d="M7 -3.5 L13 -1 L7 1.5 Z" fill="#F28C28" stroke={ink} strokeWidth={1.2} strokeLinejoin="round" />
+    </G>
+  );
+}
+
+/* THE ITEMS HELD, two slots: each a card with its picture and what it does;
+ * an empty one dashed. The one just picked up swells a moment. */
+function ItemSlots({ items, w, fresh, freshK }: { items: ItemKind[]; w: number; fresh?: ItemKind; freshK: number }) {
+  const icon = Math.round(Math.min(52, w * 0.6));
+  return (
+    <View style={{ flexDirection: "row", columnGap: 8 }}>
+      {Array.from({ length: ITEM_SLOTS }, (_, j) => {
+        const it = items[j];
+        if (!it) return <View key={j} style={{ width: w, height: icon + 26, borderWidth: 2.5, borderStyle: "dashed", borderColor: C.ink, borderRadius: 8, opacity: 0.35, backgroundColor: C.paper }} />;
+        const d = ITEMS[it];
+        const fs = Math.max(11, Math.min(15, Math.floor((w - 8) / (d.short.length * 0.78))));
+        const k = it === fresh ? freshK : 0;
+        return (
+          <View key={j} style={{ width: w, height: icon + 26, alignItems: "center", paddingTop: 2, borderWidth: 2.5, borderColor: k > 0 ? C.good : C.ink, borderRadius: 8, backgroundColor: C.paper, transform: [{ scale: 1 + 0.22 * k }] }}>
+            <ItemIcon kind={it} size={icon} />
+            <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: fs, color: C.ink }}>{d.short}</Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -929,68 +1045,40 @@ function SkillRing({ s, k, size, on }: { s: SkillView; k: number; size: number; 
   );
 }
 
-/* THE FLOOR, big, in the corner; the stars of the runs done under it. */
-function FloorBadge({ floor, boss, stars, size }: { floor: number; boss: boolean; stars: number; size: number }) {
+/* THE FLOOR, big, up top (owner, 2026-11-28: "the floor number here needs to
+ * be up top"; "we can remove the stars. We can just have the number"). */
+function FloorBadge({ floor, boss, size }: { floor: number; boss: boolean; size: number }) {
   return (
     <View pointerEvents="none" style={{ marginLeft: 10, marginTop: 8, alignItems: "center", minWidth: size * 1.3, paddingHorizontal: 8, paddingBottom: 4, backgroundColor: C.paper, borderWidth: 2.5, borderColor: boss ? BEST : C.ink, borderCurve: "continuous", borderRadius: 6 }}>
       <Text style={{ fontFamily: F.monoBold, fontSize: Math.max(10, Math.round(size * 0.2)), letterSpacing: 1.5, color: boss ? BEST : C.soft, marginTop: 3 }}>{boss ? "BOSS" : "FLOOR"}</Text>
       <Text style={{ fontFamily: F.black, fontSize: size, lineHeight: Math.round(size * 1.08), color: boss ? BEST : C.ink, fontVariant: ["tabular-nums"] }}>{`${floor}`}</Text>
-      {stars > 0 ? <Text style={{ fontFamily: F.black, fontSize: Math.round(size * 0.26), color: DOT_ON }}>{"★".repeat(Math.min(5, stars))}</Text> : null}
     </View>
   );
 }
 
 /* A SKILL, READ FROM THE SEAT (owner, 2026-11-26: "It's really hard to see
- * when a thing is filling up or what percentage it's at ... hard to tell how
- * close I am to turning it on or turning it off"). A wide bar that fills left
- * to right in the skill's colour, ticks at the quarters, the percent big in
- * it; over it the pace it fills at and ON or OFF; under it how far the pace
- * is from the switch: the seconds to spare while it fills, the seconds
- * faster to row while it does not. */
-function SkillBar({ s, k, width, pace, live }: { s: SkillView; k: number; width: number; pace: number; /* A fight is on. */ live: boolean }) {
-  const col = s.def.color;
+ * when a thing is filling up or what percentage it's at"): its pace over a
+ * Meter in its colour with the percent big in it, bright while it fills and
+ * faded while it does not. The ON or OFF over it and the seconds to spare or
+ * to find under it went on 2026-11-28 ("We can remove those"; "remove the on
+ * and off things there. I like that ... the coloring of the bar is good"). */
+function SkillBar({ s, k, width, live }: { s: SkillView; k: number; width: number; /* A fight is on. */ live: boolean }) {
   const on = live && s.q > 0;
-  /* The switch: the pace counts as on up to half a second over the target
-   * (pve.ts fillOf). */
-  const gap = Number.isFinite(pace) && pace > 40 && pace < 600 ? s.target + 0.5 - pace : NaN;
   const d = skillDims(width);
-  const pct = `${Math.floor(100 * clamp(k))}%`;
-  const foot = !live ? "" : !Number.isFinite(gap) ? "ROW" : on ? `${Math.max(0, gap).toFixed(1)} S SPARE` : `${Math.max(0.1, -gap).toFixed(1)} S FASTER`;
-  const pctLine = Math.round(d.pct * 1.2);
   return (
     <View style={{ width }}>
-      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
+      <View style={{ alignSelf: "flex-start", paddingHorizontal: 6, marginBottom: 3, backgroundColor: C.paper, borderRadius: 5 }}>
         <Text style={{ fontFamily: F.black, fontSize: d.head, lineHeight: Math.round(d.head * 1.15), color: on ? C.ink : C.gray, fontVariant: ["tabular-nums"] }}>{whole(Math.round(s.target))}</Text>
-        <Text style={{ fontFamily: F.black, fontSize: Math.round(d.head * 0.8), color: on ? col : C.gray }}>{live ? (on ? "ON" : "OFF") : ""}</Text>
       </View>
-      <View style={{ width, height: d.bar, borderWidth: 3, borderColor: on ? C.ink : C.gray, borderRadius: 6, overflow: "hidden", backgroundColor: C.paper }}>
-        <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(100 * clamp(k)).toFixed(1)}%`, backgroundColor: col, opacity: on ? 1 : 0.35 }} />
-        {[0.25, 0.5, 0.75].map((q) => (
-          <View key={q} style={{ position: "absolute", left: `${q * 100}%`, top: 0, bottom: 0, width: 2, marginLeft: -1, backgroundColor: C.ink, opacity: 0.25 }} />
-        ))}
-        <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, justifyContent: "center" }}>
-          <View style={{ height: pctLine }}>
-            {RING8.map(([dx, dy], i) => (
-              <Text key={i} style={{ position: "absolute", top: dy, left: dx, right: -dx, textAlign: "center", fontFamily: F.black, fontSize: d.pct, lineHeight: pctLine, color: C.paper, fontVariant: ["tabular-nums"] }}>
-                {pct}
-              </Text>
-            ))}
-            <Text style={{ position: "absolute", top: 0, left: 0, right: 0, textAlign: "center", fontFamily: F.black, fontSize: d.pct, lineHeight: pctLine, color: on ? C.ink : C.soft, fontVariant: ["tabular-nums"] }}>{pct}</Text>
-          </View>
-        </View>
-      </View>
-      <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: d.foot, lineHeight: Math.round(d.foot * 1.3), marginTop: 2, color: on ? col : C.ink, textAlign: "center", fontVariant: ["tabular-nums"] }}>
-        {foot}
-      </Text>
+      <Meter k={k} text={`${Math.floor(100 * clamp(k))}%`} color={s.def.color} width={width} height={d.bar} faded={!on} />
     </View>
   );
 }
 /* A skill's sizes by its width, and its whole height. */
 const skillDims = (width: number) => {
-  const head = Math.round(Math.min(40, width * 0.22));
+  const head = Math.round(Math.min(36, width * 0.2));
   const bar = Math.round(Math.min(56, Math.max(38, width * 0.28)));
-  const foot = Math.round(Math.min(22, Math.max(16, width * 0.11)));
-  return { head, bar, foot, pct: Math.round(bar * 0.62), h: Math.round(head * 1.15) + bar + Math.round(foot * 1.3) + 2 };
+  return { head, bar, h: Math.round(head * 1.15) + 3 + bar };
 };
 
 /* One of the two figures over the course: a small word and the number. */
@@ -1020,10 +1108,9 @@ function Fig({ k, v, size, align = "left" }: { k: string; v: string; size: numbe
  * THE REST is REST and a countdown in the middle, the seconds left at the
  * rower's own pace, and a bar running down. */
 function Battle(p: P) {
-  const { v, erg, width, height, wall, rt, myM, paint, hop } = p;
+  const { v, width, height, wall, rt, myM, paint, hop } = p;
   const tag = useTag(v);
   const shown = useShown(v.battle?.skills ?? [], wall);
-  const run = useRun();
   const b = v.battle;
   if (!b) return null;
   const wide = width > height * 1.1;
@@ -1034,14 +1121,17 @@ function Battle(p: P) {
    * it, its trail under it, half its width to each side. */
   const CLR = { t: Math.round(48 * k0 + 22), b: Math.round(16 * k0 + 4), s: Math.round(34 * k0 + 4) };
   const PAD = 10;
-  const figs = figures(erg);
   const SIDE_L = wide ? Math.round(Math.min(240, width * 0.24)) : 0;
   const SIDE_R = wide ? Math.round(Math.min(250, width * 0.26)) : 0;
-  const figSize = wide ? Math.max(26, Math.min(48, Math.floor((height - 40) / 6.4), Math.floor((SIDE_L - 24) / 4.1))) : Math.max(26, Math.min(42, Math.floor((width - 150) / 2 / 4.1)));
   const skillW = wide ? SIDE_R - PAD * 2 : Math.floor((width - PAD * 3) / 2);
   const skillH = skillDims(skillW).h;
-  const TOP = wide ? 0 : Math.round(figSize * 1.12 + 24);
-  const HULL_H = 18;
+  /* The floor and the items over the course: their sizes. */
+  const badgeSize = wide ? Math.round(Math.min(46, height * 0.11)) : 36;
+  const badgeH = Math.round(badgeSize * 1.08) + Math.max(10, Math.round(badgeSize * 0.2)) + 16;
+  const slotW = wide ? Math.floor((SIDE_L - PAD * 2 - 8) / 2) : Math.min(88, Math.floor((width - PAD * 2 - 100) / 2));
+  const slotH = Math.round(Math.min(52, slotW * 0.6)) + 26;
+  const TOP = wide ? 0 : Math.max(badgeH, slotH) + PAD + 8;
+  const HULL_H = 40;
   const FOOT = wide ? 0 : skillH + HULL_H + PAD * 2 + 8;
   const inset = { t: TOP + CLR.t, b: FOOT + CLR.b, l: SIDE_L + CLR.s, r: SIDE_R + CLR.s };
   const geo = boardOf(g.W, g.H, inset);
@@ -1064,6 +1154,11 @@ function Battle(p: P) {
   const mine: { n: number; kb: number; slot: number; dmg: number }[] = [];
   let hurt = 0;
   let inAir = 0;
+  /* THE PET, while it is held: it flies round the boat. */
+  const petOn = b.items.includes("pet");
+  const petA = wall * 2.1;
+  const petR = geo.unit * 0.78;
+  const petAt = { x: at.x + Math.cos(petA) * petR, y: at.y - geo.unit * 0.25 + Math.sin(petA) * petR * 0.45 };
   for (const s of b.shots) {
     const e = (wall - wallAt(s.at)) / FLY;
     if (e < 0) {
@@ -1075,9 +1170,10 @@ function Battle(p: P) {
     const R0 = SLOT_R[s.slot] * k + 1.5;
     const col = SLOT_COLOR[s.slot];
     if (e < 1) {
-      const x = at.x + (mx - at.x) * e;
-      const y = at.y + (my - at.y) * e - Math.sin(e * Math.PI) * (18 + 10 * s.slot) * k;
-      shots.push(<Ellipse key={`w${s.n}`} cx={x} cy={at.y + (my - at.y) * e + 9 * k} rx={R0 * 0.8} ry={R0 * 0.28} fill={C.ink} fillOpacity={0.15} />);
+      const o = s.from === "pet" ? petAt : at;
+      const x = o.x + (mx - o.x) * e;
+      const y = o.y + (my - o.y) * e - Math.sin(e * Math.PI) * (18 + 10 * s.slot) * k;
+      shots.push(<Ellipse key={`w${s.n}`} cx={x} cy={o.y + (my - o.y) * e + 9 * k} rx={R0 * 0.8} ry={R0 * 0.28} fill={C.ink} fillOpacity={0.15} />);
       shots.push(<Circle key={`s${s.n}`} cx={x} cy={y} r={R0} fill={col} stroke={C.ink} strokeWidth={1.6} />);
     } else {
       const kb = (e - 1) * FLY;
@@ -1115,7 +1211,8 @@ function Battle(p: P) {
   const m = b.monster;
   const barW = Math.round(Math.min(g.W * 0.5, geo.rx * 1.4, Math.max(150, mr * 3.2)));
   const nameSize = Math.round(Math.min(30, Math.max(18, g.W / 22)));
-  const barTop = my - mr * 1.3 - 24 - nameSize * 1.3;
+  const MOB_H = 34;
+  const barTop = my - mr * 1.3 - 6 - MOB_H - nameSize * 1.3;
   /* Your hits: the newest five, one to a column, over the monster's bar. */
   const colW = Math.min(70, (geo.rx * 1.6) / 5);
   for (const d of mine.sort((a, z) => a.kb - z.kb).slice(0, 5)) {
@@ -1140,13 +1237,13 @@ function Battle(p: P) {
     ? ev.kind === "clear"
       ? { big: "BOSS DOWN", small: `ON TO ${ZONES[zoneOf(ev.floor + 1)].name}`, c: C.good }
       : ev.kind === "run"
-        ? { big: "RUN COMPLETE", small: "★ A STAR: MORE DAMAGE FOR GOOD", c: C.accent }
-        : { big: "RUN LOST", small: "ROW ON · A NEW RUN NEXT ROW", c: BEST }
-    : ko && koE >= 0 && koE < 1.6
-      ? { big: `${ko.name} DOWN`, small: ko.perk ? `+${ko.xp} XP · POWER-UP: ${PERK_WORD[ko.perk]}` : `+${ko.xp} XP`, c: C.good }
+        ? { big: "RUN COMPLETE", small: "MORE DAMAGE FOR GOOD", c: C.accent }
+        : { big: "RUN LOST", small: b.out ? "THE ROW IS NEARLY DONE" : `BACK TO FLOOR ${floorOf(0, b.run)} · HULL FULL`, c: BEST }
+    : ko && koE >= 0 && koE < (ko.item ? 2.4 : 1.6)
+      ? { big: `${ko.name} DOWN`, small: ko.item ? `GOT THE ${ITEMS[ko.item].name}: ${ITEMS[ko.item].word}${ko.out ? ` · THE ${ITEMS[ko.out].name} GOES` : ""}` : `+${ko.xp} XP`, c: C.good }
       : null;
   const hp = m ? Math.min(m.max, m.hp + inAir) : 0;
-  const resting = !m && !b.lost && !b.out && !(ko && koE < KO_W);
+  const resting = !m && !b.out && !(ko && koE < KO_W);
   const floorNow = m ? m.floor : floorOf(b.at, b.run);
   const zone = zoneOf(floorNow);
   /* Inside the path: the room for words. */
@@ -1163,7 +1260,9 @@ function Battle(p: P) {
     const ii = i % RUN_FLOORS;
     return { ii, run2, floor: floorOf(ii, run2), boss: isBoss(ii), n: artOf(ii, run2), name: nameOf(ii, run2) };
   });
-  const perks = [b.might ? `DMG +${Math.round(100 * PERK_DMG * b.might)}%` : "", b.quick ? `FILL +${Math.round(100 * PERK_FILL * b.quick)}%` : ""].filter(Boolean).join("  ");
+  /* The item just picked up swells in its slot for a second and a half. */
+  const fresh = ko && ko.item && koE >= 0 && koE < 1.5 ? ko.item : undefined;
+  const freshK = fresh ? 1 - clamp(koE / 1.5) : 0;
   /* THE REST'S COUNTDOWN (owner, 2026-11-26: "The rest felt a little long";
    * a timer on it). The rest is in meters (pve.ts); its seconds are the
    * meters left at the rower's own pace, so it only ever counts down. */
@@ -1176,38 +1275,40 @@ function Battle(p: P) {
   const skillsUi = (
     <View style={{ flexDirection: wide ? "column" : "row", columnGap: PAD, rowGap: 14 }}>
       {b.skills.map((s) => (
-        <SkillBar key={s.def.id} s={s} k={shown(s)} width={skillW} pace={b.pace} live={!!m} />
+        <SkillBar key={s.def.id} s={s} k={shown(s)} width={skillW} live={!!m} />
       ))}
     </View>
   );
   const hullW = wide ? SIDE_L - PAD * 2 : width - PAD * 2;
-  const hullBar = (
-    <View style={{ flexDirection: wide ? "column" : "row", alignItems: wide ? "flex-start" : "center", columnGap: 8, rowGap: 4 }}>
-      <LifeBar h={b.hull} max={b.hullMax} color={b.hull / Math.max(1, b.hullMax) < 0.3 ? BEST : C.accent} width={perks && !wide ? hullW - 150 : hullW} height={HULL_H} wall={wall} />
-      {perks ? <Text numberOfLines={1} style={{ fontFamily: F.black, fontSize: 15, color: C.good, width: wide ? undefined : 142 }}>{perks}</Text> : null}
-    </View>
-  );
-  const badge = <FloorBadge floor={floorNow} boss={!!m?.boss || (resting && isBossFloor(b.at))} stars={run.stars + b.runsDone} size={wide ? Math.round(Math.min(46, height * 0.11)) : Math.round(Math.min(32, figSize * 0.8))} />;
-  const veil = { backgroundColor: C.paper };
+  const hullBar = <LifeBar h={b.hull} max={b.hullMax} color={b.hull / Math.max(1, b.hullMax) < 0.3 ? BEST : C.accent} width={hullW} height={HULL_H} />;
+  const badge = <FloorBadge floor={floorNow} boss={!!m?.boss || (resting && isBossFloor(b.at))} size={badgeSize} />;
+  const slots = <ItemSlots items={b.items} w={slotW} fresh={fresh} freshK={freshK} />;
+  /* THE MAP UNDER ALL OF IT (owner, 2026-11-28: "there's no reason why we
+   * should have the white background on the left and the right ... it should
+   * fill the entire space"): the bands are clear, and what is read in them
+   * stands on the water as cards of its own. His pace and the finish are off
+   * the course ("let's experiment with removing my pace and finish from the
+   * screen and just having it be the UI elements of the game"). */
   return (
     <View style={{ width, height, overflow: "hidden" }}>
       <View style={{ width: g.W, height: g.H, opacity: inE, transform: [{ translateY: (1 - inE) * 40 }, { scale: 0.94 + 0.06 * inE }] }}>
         <Board W={g.W} H={g.H} pieces={pieces} t={wall} uid="isle" palm={false} zone={zone} inset={inset}>
           {monster}
+          {petOn ? <PetG x={petAt.x} y={petAt.y} s={k} t={wall} flip={Math.sin(petA) < 0} /> : null}
           {shots}
         </Board>
         {m && !(ko && koE < KO_W && wallAt(m.born) > wall - 0.05) ? (
           <View pointerEvents="none" style={{ position: "absolute", left: mx - nameW / 2, top: barTop, width: nameW, alignItems: "center", opacity: inBars }}>
-            <LifeBar name={m.name} nameColor={m.boss ? BEST : C.ink} size={nameSize} nameW={nameW} h={Math.ceil(hp)} max={m.max} color={m.boss ? BEST : C.ink} width={barW} height={16} wall={wall} />
+            <LifeBar name={m.name} nameColor={m.boss ? BEST : C.ink} size={nameSize} nameW={nameW} h={Math.ceil(hp)} max={m.max} color={m.boss ? BEST : C.gray} width={barW} height={MOB_H} />
             {b.overtime ? <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.8), color: BEST, marginTop: 2 }}>OVERTIME</Text> : null}
           </View>
         ) : null}
-        {!m && (word || resting || b.lost) ? (
+        {!m && (word || resting) ? (
           <View pointerEvents="none" style={{ position: "absolute", left: mx - innerW / 2, width: innerW, top: geo.cy - geo.ry * 0.78, height: geo.ry * 1.56, alignItems: "center", justifyContent: "center" }}>
             {word ? (
               <View style={{ alignItems: "center", marginBottom: 8 }}>
                 <Big text={word.big} width={innerW} max={30} color={word.c} />
-                <Text numberOfLines={1} style={{ fontFamily: F.monoBold, fontSize: 14, letterSpacing: 1, color: C.soft }}>
+                <Text numberOfLines={2} style={{ fontFamily: F.monoBold, fontSize: 14, letterSpacing: 1, color: C.ink, textAlign: "center" }}>
                   {word.small}
                 </Text>
               </View>
@@ -1236,40 +1337,29 @@ function Battle(p: P) {
                 </View>
               </View>
             ) : null}
-            {b.lost && !evOn ? (
-              <View style={{ alignItems: "center" }}>
-                <Big text="RUN LOST" width={innerW} max={Math.round(nameSize * 1.3)} color={BEST} />
-                <Text style={{ fontFamily: F.black, fontSize: Math.round(nameSize * 0.7), color: C.soft }}>A NEW RUN NEXT ROW</Text>
-              </View>
-            ) : null}
           </View>
         ) : null}
       </View>
       {pops}
       {wide ? (
         <>
-          <View pointerEvents="none" style={[{ position: "absolute", left: 0, top: 0, bottom: 0, width: SIDE_L, padding: PAD, justifyContent: "space-between", opacity: inBars }, veil]}>
-            <View style={{ rowGap: 8 }}>
-              {figs.map(([kk, vv]) => (
-                <Fig key={kk} k={kk} v={vv} size={figSize} />
-              ))}
+          <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: SIDE_L, padding: PAD, justifyContent: "space-between", opacity: inBars }}>
+            <View style={{ alignItems: "flex-start", rowGap: 12 }}>
+              <View style={{ marginLeft: -10, marginTop: -8 }}>{badge}</View>
+              {slots}
             </View>
-            <View style={{ alignItems: "flex-start", rowGap: 10 }}>
-              {badge}
-              {b.lost ? null : hullBar}
-            </View>
+            {hullBar}
           </View>
-          <View pointerEvents="none" style={[{ position: "absolute", right: 0, top: 0, bottom: 0, width: SIDE_R, paddingHorizontal: PAD, justifyContent: "center", opacity: inBars }, veil]}>{skillsUi}</View>
+          <View pointerEvents="none" style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: SIDE_R, paddingHorizontal: PAD, justifyContent: "center", opacity: inBars }}>{skillsUi}</View>
         </>
       ) : (
         <>
-          <View pointerEvents="none" style={[{ position: "absolute", left: 0, right: 0, top: 0, height: TOP, paddingHorizontal: PAD + 4, paddingTop: 4, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", opacity: inBars }, veil]}>
-            <Fig k={figs[0][0]} v={figs[0][1]} size={figSize} />
-            <View style={{ marginTop: -4 }}>{badge}</View>
-            <Fig k={figs[1][0]} v={figs[1][1]} size={figSize} align="right" />
+          <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 0, height: TOP, paddingHorizontal: PAD, paddingTop: 2, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", opacity: inBars }}>
+            <View style={{ marginLeft: -10 }}>{badge}</View>
+            <View style={{ marginTop: 8 }}>{slots}</View>
           </View>
-          <View pointerEvents="none" style={[{ position: "absolute", left: 0, right: 0, bottom: 0, height: FOOT, paddingHorizontal: PAD, paddingTop: PAD, rowGap: 8, opacity: inBars }, veil]}>
-            {b.lost ? <View style={{ height: HULL_H + 4 }} /> : hullBar}
+          <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: FOOT, paddingHorizontal: PAD, paddingTop: PAD, rowGap: 8, opacity: inBars }}>
+            {hullBar}
             {skillsUi}
           </View>
         </>
@@ -1369,12 +1459,6 @@ function SoloIntro({ v, width, height, wall, myM, paint, hop, showed }: P) {
           <Eyebrow>{run.at || run.run ? "Floor" : "Run"}</Eyebrow>
           <Num size={wide ? 40 : 34}>{run.at || run.run ? `${floorOf(run.at, run.run)}` : "1"}</Num>
         </View>
-        {run.stars ? (
-          <View>
-            <Eyebrow>Stars</Eyebrow>
-            <Num size={wide ? 40 : 34} color={C.ink}>{`★${run.stars}`}</Num>
-          </View>
-        ) : null}
       </View>
       <View style={[{ flexDirection: "row", columnGap: 14, flexWrap: "wrap" }, fade(1)]}>
         {ups.map(([n, lv]) => (

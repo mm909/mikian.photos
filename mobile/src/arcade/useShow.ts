@@ -171,7 +171,7 @@ export function useShow(erg: Erg, on: boolean): Showed {
         if (b) addCoins(v.coins).catch(() => null);
         /* The floor reached, the stars won, a box for every monster down. */
         if (b) endRow({ at: b.at, run: b.run, lost: b.lost, stars: b.runsDone, box: b.loot.filter((l) => l.kind === "box").length, boss: b.loot.filter((l) => l.kind === "boss").length }).catch(() => null);
-        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: b ? [] : v.final.chest.items, coins: b ? v.coins : 0, fish: sw.kills, bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m), dealt: b ? Math.round(b.dealt) : 0, floor: b ? floorOf(b.at, b.run) : 0, boxes: b ? b.loot.length : 0, perks: b ? b.might + b.quick : 0, stars: b?.runsDone ?? 0, lost: !!b?.lost }).catch(() => null);
+        saveGame({ id: `${Date.now()}`, at: Date.now(), demo, mode: b ? "solo" : "match", xp: v.xpRow, xpBefore: Math.max(0, v.xpStart), kills: b?.kills ?? 0, matches: v.matches, items: b ? [] : v.final.chest.items, coins: b ? v.coins : 0, fish: sw.kills, bosses: b?.bosses ?? 0, best: b?.best ?? 0, wrecks: b?.wrecks ?? 0, meters: Math.round(v.m), dealt: b ? Math.round(b.dealt) : 0, floor: b ? floorOf(b.at, b.run) : 0, boxes: b ? b.loot.length : 0, perks: b ? b.got : 0, stars: b?.runsDone ?? 0, lost: !!b?.lost }).catch(() => null);
       }
     };
     const tick = () => {

@@ -1152,3 +1152,18 @@ His words, not able to tell whether his phone had the newest code: "Maybe if I c
 - JUST ROW: checked through `createShow` with no target: intro, the course with no kick-out, the end screen as the row stops.
 - OLD ROWS: a game never told its row is found by the row's day and meters (within 3%) and bound then (`useGame(rowId, near)`); the row page's arcade block shows enemies, bosses, damage, loot (boxes), the floor and the power-ups in big figures. Games from now on keep `boxes` and `perks`.
 - NOT SEEN on a screen this round: the local preview would not start, so the layout was checked by type and by the pure checks only.
+
+## Round 64 (2026-11-28): the arcade after watching the demo, round six of the course
+
+His notes, watching the demo, and what was done:
+
+- "there's no reason why we should have the white background on the left and the right ... it should fill the entire space": the bands over the course are clear; the map runs under all of it, and what is read stands on the water as cards (Battle in `screens/Show.tsx`). The path still keeps clear of them (`boardOf`'s inset).
+- "let's experiment with removing my pace and finish from the screen and just having it be the UI elements of the game": gone from the course.
+- "We can remove those" (the seconds to spare or to find under a skill) and "remove the on and off things": gone. A skill is its pace and a bar, bright while it fills, faded while it does not.
+- "my health bar and the enemy's health bar can almost look like my skill bars ... a percentage number ... or like a raw number, either or": one `Meter` for all three; skills say a percent, the hull and the monster their points.
+- "the floor number here needs to be up top"; "we can remove the stars": the floor badge sits top left, no stars (on the intro too). A finished run still adds its damage.
+- "when we lose, we should restart the run ... from floor 1, but with our same power-ups ... don't say that you can't do it until next run": out of hull, the run goes back to its own first floor (11 on run 2) with a full hull and the items kept, after a boss's rest (`wreck` in `arcade/pve.ts`).
+- "We should be getting items instead of like just raw stat bonuses ... only 2 items active at a time, and when we get a new one, it like removes the other one": six items, two slots, the oldest pushed out; half the monsters drop one, every boss does, never one held. Sharp hook (+20% damage), sail (fills 20% faster), life ring (hits on you 25% softer), light oar (skill paces a second easier), patch kit (10% hull back a knockout), and his companion: "one of the items we could get is a companion ... the pet just does 10% of our damage ... the pet also just circles around us": a puffin that circles the boat and throws a shot a tenth of each of yours. Items last the row.
+- "the map changes every 5 and the types of mobs you're facing changes every 10": the map's zone still turns every five floors; a run of ten floors is one kind of monster now, eight skins and two bosses (KINDS).
+
+Open: not yet seen on a screen; the boss at his own pace now leaves 12–30% hull, more with items.
