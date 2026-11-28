@@ -226,7 +226,7 @@ const nameplate: Mod = {
     const dm = paint.metricsOf(ctx, dfont, tk.datel);
     let dateline = datelineOf(d);
     const key = paint.format.key;
-    if ((key === "post" || key === "square") && d.rank && d.rank !== "ELITE") {
+    if ((key === "post" || key === "post34" || key === "square") && d.rank && d.rank !== "ELITE") {
       dateline += ` · #${d.rank.place} OF ${d.rank.of}`;
     }
     const lines: { text: string; color: string; track: number }[] = [];
@@ -321,7 +321,7 @@ const headline: Mod = {
     // possible"); the hours and the sessions follow it in gray, and the
     // community line is the run that falls off the end if anything must.
     const key = paint.format.key;
-    const card = key === "post" || key === "square";
+    const card = key === "post" || key === "post34" || key === "square";
     // A rower who never times a row has "0.0 h" of erg time in the payload;
     // the sessions are the honest bold run then.
     const hours = d.totals.seconds !== null && d.totals.seconds > 0 ? d.totals.hours : null;
@@ -478,7 +478,7 @@ function monthOpts(paint: PosterPaint, d: RowerPoster, w: number) {
     // the month still grows past the cap on any day the bests are gone —
     // at FINAL the post is the month alone, made as big as the sheet
     // allows (monthLayout's maxH branch).
-    cellCap: key === "story" ? 44 : key === "post" ? 50 : undefined,
+    cellCap: key === "story" ? 44 : key === "post" || key === "post34" ? 50 : undefined,
   };
 }
 

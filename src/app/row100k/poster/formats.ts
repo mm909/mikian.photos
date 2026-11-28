@@ -169,12 +169,17 @@ export const FORMATS: Record<PosterFormatKey, PosterFormat> = {
     { top: STORY_SAFE.top, right: 36, bottom: STORY_SAFE.bottom, left: 36 },
   ),
   post: instagram("post", "Post 4:5", "post", { w: 1080, h: 1350 }, same(36)),
+  /* 3:4 BESIDE THE 4:5 (owner, 2026-11-27: "I need all those posters to
+   * be 3x4"; "we can have both of them"): the tallest feed post Instagram
+   * takes, 1080 by 1440, the grid tile's own shape. A carousel takes its
+   * first slide's shape. Drawn on the 4:5's plan with the extra height. */
+  post34: instagram("post34", "Post 3:4", "post", { w: 1080, h: 1440 }, same(36)),
   square: instagram("square", "Square 1:1", "square", { w: 1080, h: 1080 }, same(36)),
 };
 
 /* The studio's chip order: PRINT then INSTAGRAM. */
 export const PRINT_KEYS: PosterFormatKey[] = ["24x36", "18x24", "16x20"];
-export const INSTAGRAM_KEYS: PosterFormatKey[] = ["story", "post", "square"];
+export const INSTAGRAM_KEYS: PosterFormatKey[] = ["story", "post34", "post", "square"];
 export const FORMAT_KEYS: PosterFormatKey[] = [...PRINT_KEYS, ...INSTAGRAM_KEYS];
 
 export function isFormatKey(v: unknown): v is PosterFormatKey {

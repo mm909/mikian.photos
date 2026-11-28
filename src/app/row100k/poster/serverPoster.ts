@@ -63,7 +63,7 @@ export async function posterColors(): Promise<PosterColor[]> {
 
 /* The formats in the studio's order: the three phone frames first here,
  * since a phone is where they are shared from, then the wall sizes. */
-export const APP_FORMAT_KEYS: PosterFormatKey[] = ["story", "post", "square", ...FORMAT_KEYS.filter((k) => FORMATS[k].kind === "print")];
+export const APP_FORMAT_KEYS: PosterFormatKey[] = ["story", "post34", "post", "square", ...FORMAT_KEYS.filter((k) => FORMATS[k].kind === "print")];
 
 export type PosterSubjectData =
   | { layout: PosterLayout<CommunityPoster>; data: CommunityPoster }

@@ -34,7 +34,7 @@
  * 2026-09-16: "remove options for 11x17, A3, letter, and A4"). */
 export type PosterFamily = "printL" | "phone";
 
-export type PosterFormatKey = "24x36" | "18x24" | "16x20" | "story" | "post" | "square";
+export type PosterFormatKey = "24x36" | "18x24" | "16x20" | "story" | "post" | "post34" | "square";
 
 /* A plan is one fully specified composition (SPEC.md §7). A format names
  * the first plan of its cascade; when a plan cannot fit its rows even
