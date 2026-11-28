@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { api } from "../api";
+import { clubRowing, useClub } from "../club";
 import type { Ghost } from "./ghosts";
 import type { Erg } from "./useErg";
 
@@ -52,6 +53,10 @@ import type { Erg } from "./useErg";
 type Said = { on: boolean; rowers?: { id: string; name: string; numStr: string; t: number; m: number; spm: number; marks: number[]; ended: boolean; /* How many seconds old that word is. */ age?: number }[] };
 
 const EVERY_MS = 3000;
+/* ROW CLUB (club.ts): while the club row is on and this phone is in it,
+ * the word goes to the club, once a second, and the boats are the club's
+ * rowers (and the host's pretend rowers), not whoever else is out there. */
+const CLUB_MS = 1000;
 const STEP = 100;
 
 let rowers: Ghost[] = [];
@@ -129,6 +134,7 @@ export function useLiveRaceFeed(erg: Erg): void {
   }
 
   const target = erg.phase === "live" ? l.targetM : 0;
+  const inClub = clubRowing(useClub());
   useEffect(() => {
     if (!(target > 0)) return;
     let alive = true;
@@ -137,7 +143,7 @@ export function useLiveRaceFeed(erg: Erg): void {
     let last = false;
     /* Who the site last said is on the water. */
     let told: Ghost[] = [];
-    const tell = () => put(now.current.demo && sample.boat ? [...told, sample.boat] : told);
+    const tell = () => put(now.current.demo && sample.boat && !inClub ? [...told, sample.boat] : told);
     const say = async () => {
       if (off || busy || last || !alive) return;
       const e = now.current;
@@ -146,8 +152,16 @@ export function useLiveRaceFeed(erg: Erg): void {
       const marks = v.ended && lines.current.marks.length < Math.ceil(target / STEP) ? [...lines.current.marks, v.elapsedS] : lines.current.marks;
       busy = true;
       try {
-        const r = await api<Said>("/api/row100k/app/live", { body: { meters: target, t: v.elapsedS, m: v.meters, spm: v.spm, marks, ended: v.ended, demo: e.demo } });
+        const r = inClub
+          ? await api<Said>("/api/row100k/app/club/position", { body: { t: v.elapsedS, m: v.meters, spm: v.spm, marks, ended: v.ended, demo: e.demo } })
+          : await api<Said>("/api/row100k/app/live", { body: { meters: target, t: v.elapsedS, m: v.meters, spm: v.spm, marks, ended: v.ended, demo: e.demo } });
         if (!alive) return;
+        /* The club row not started yet, or over: nobody, and ask again. */
+        if (!r.on && inClub) {
+          told = [];
+          tell();
+          return;
+        }
         if (!r.on) {
           off = true;
           told = [];
@@ -170,7 +184,7 @@ export function useLiveRaceFeed(erg: Erg): void {
     const sample = { marks: [] as number[], m: 0, t: 0, boat: null as Ghost | null };
     const row = () => {
       const e = now.current;
-      if (!alive || !e.demo) return;
+      if (!alive || !e.demo || inClub) return;
       const v = e.live;
       if (v.meters + 5 < sample.m - 40) {
         sample.marks = [];
@@ -188,7 +202,7 @@ export function useLiveRaceFeed(erg: Erg): void {
       put([...told, ...(sample.boat ? [sample.boat] : [])]);
     };
     say();
-    const timer = setInterval(say, EVERY_MS);
+    const timer = setInterval(say, inClub ? CLUB_MS : EVERY_MS);
     const sampler = setInterval(row, SAMPLE_MS);
     return () => {
       alive = false;
@@ -197,5 +211,5 @@ export function useLiveRaceFeed(erg: Erg): void {
       aheads.clear();
       put([]);
     };
-  }, [target]);
+  }, [target, inClub]);
 }

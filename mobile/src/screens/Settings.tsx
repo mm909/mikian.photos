@@ -62,7 +62,7 @@ const KIND: Record<string, [string, string]> = {
 const WEB_NO_RING = (Platform.OS === "web" ? { outlineStyle: "none" } : {}) as object;
 const PATH = "/api/row100k/app/settings";
 
-export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, onLocker }: { page?: SettingsPage; onPage: (p: SettingsPage) => void; onPeople: (list: PeopleList) => void; onSignedOut: () => void; /* The owner's wiki (screens/Wiki.tsx), for an admin only. */ onWiki?: () => void; /* The skins won from the arcade's chests (screens/Locker.tsx), for an admin only while the arcade is his. */ onLocker?: () => void }) {
+export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, onLocker, onClub }: { page?: SettingsPage; /* Row Club's lobby (screens/RowClub.tsx), for an admin to open one. */ onClub?: () => void; onPage: (p: SettingsPage) => void; onPeople: (list: PeopleList) => void; onSignedOut: () => void; /* The owner's wiki (screens/Wiki.tsx), for an admin only. */ onWiki?: () => void; /* The skins won from the arcade's chests (screens/Locker.tsx), for an admin only while the arcade is his. */ onLocker?: () => void }) {
   const { refresh, signOut, me } = useSession();
   const look = useLookSwitch();
   const { data, error, reload } = useLoad(() => api<{ settings: SocialSettings }>(PATH), [], PATH);
@@ -105,6 +105,9 @@ export function SettingsScreen({ page, onPage, onPeople, onSignedOut, onWiki, on
         <Go label="Appearance" sub={look.dark ? "Dark" : "Light"} onPress={() => onPage("appearance")} />
         {/* THE CONCEPT2 LOGBOOK (2026-11-26, ../concept2.tsx): in
             development, an admin only until the owner says it goes live. */}
+        {/* ROW CLUB (owner, 2026-11-28): the host opens a lobby from here;
+            a rower finds an open one on the plus at the top. */}
+        {me.isAdmin && onClub ? <Go label="Row Club" sub="Open a lobby and start a row for everyone. In development." onPress={onClub} /> : null}
         {me.isAdmin ? <Go label="Concept2 Logbook" sub="Send your rows there by themselves" onPress={() => onPage("concept2")} /> : null}
         {/* THE WIKI, the owner's plans, for him alone (owner, 2026-11-24:
             "put it in the settings page"). */}

@@ -74,7 +74,7 @@ Testing the app and giving UX notes all day is work too. That happens anyway, so
   - **The start:** he presses START ROW CLUB, a countdown of about 10 seconds runs on everyone's phone, then the row starts.
   - **While it is live:** the plus (log a row) button in the bar shows that Row Club is live, so anyone can tap in.
   - **What you see:** the race screen (THE RACE, the lanes and boats; `mobile/src/screens/GhostRace.tsx`) with live rowers in the lanes instead of past rows.
-  - **Built so far:** nothing. The race screen with past rows exists; the live part (everyone's position on a server) does not.
+  - **Built so far (v1, Nov 28, in development):** Settings → Row Club (admin) opens a lobby at 1K/2K/5K/10K, with an optional three PRETEND ROWERS (1:52, 1:58, 2:05). Anyone signed in sees a dot on the plus while a lobby is open (red waiting, green live); the plus opens the lobby, JOIN, then CONNECT YOUR PM5. The host presses START ROW CLUB: every phone in it gets a 10-second count over the whole app, then ROW. While the club row is on, the race page's lanes carry the club's rowers marked LIVE, posted once a second (api/row100k/app/club, club/position; lobby in RowSetting under "row-club", positions in RowLive). Each rower sets the monitor to the lobby's distance by hand (the app cannot program the PM5). Not yet: weekly schedule, reminders, a set time to start, results page, racing a recording later.
 - **To decide with him:**
   - how long a row is (a set distance, a set time, or anything);
   - whether only he can post a time, or anyone can start a club row;

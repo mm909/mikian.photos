@@ -8,6 +8,8 @@ import { useCallback, useEffect, useRef, useState, type ComponentRef, type Compo
 import { Animated, Easing, PanResponder, Platform, Pressable, SafeAreaView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { api, warm } from "./src/api";
 import { useLiveRaceFeed } from "./src/erg/liveRace";
+import { useClub, useClubFeed } from "./src/club";
+import { ClubCountdown, RowClubScreen } from "./src/screens/RowClub";
 import { useErg } from "./src/erg/useErg";
 import { BackIcon, BellIcon, DotsIcon, FeedIcon, M2dIcon, MenuIcon, PlusIcon, ProfileIcon, QuestionIcon, SearchIcon, StatsIcon, VerifiedIcon } from "./src/icons";
 import { BadgeSlot, Mark, type MarkKind } from "./src/mark";
@@ -116,6 +118,8 @@ type Over = { k: number } & (
   | { kind: "rankings"; period: string; rec: string }
   | { kind: "erg"; id: string }
   | { kind: "bests"; num: number; best: string }
+  /* ROW CLUB'S LOBBY (owner, 2026-11-28): screens/RowClub.tsx. */
+  | { kind: "club" }
 );
 type Push = Over extends infer O ? (O extends { k: number } ? Omit<O, "k"> : never) : never;
 
@@ -265,6 +269,11 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
 
   const logOn = log === "shown";
   const top = logOn ? undefined : stack[stack.length - 1];
+  /* ROW CLUB (src/club.ts): the lobby read now and then, every two seconds
+   * while it is in front; the plus lights while one is open. */
+  useClubFeed(!!me.me, top?.kind === "club");
+  const club = useClub();
+  const clubOpen = !!club.lobby;
   const over = logOn || top !== undefined;
   /* ONE PAGE A PRESS (owner, 2026-11-26: "If I spam click on m2d exposure
    * it opens a row"): a second press while a page is still sliding in is
@@ -562,7 +571,7 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
   /* Every screen's name is set in the mark's own face with one letter in
    * the blue (owner, 2026-11-22: "let's try and have that always have one
    * item blue in it ... and we should also retain that same font"). */
-  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : top.page === "m2d" ? "M2D" : top.page === "usage" ? "App usage" : top.page === "analytics" ? "Analytics" : top.page === "costs" ? "Costs" : top.page === "churn" ? "Churn" : top.page === "concept2" ? "Concept2" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : top.kind === "m2dshare" ? "Shareables" : top.kind === "posters" ? "Posters" : "Row").toUpperCase();
+  if (top && !mark) mark = (top.kind === "news" ? "Notifications" : top.kind === "settings" ? (top.page === "planner" ? "Exposure" : top.page === "return" ? "M2D return" : top.page === "m2d" ? "M2D" : top.page === "usage" ? "App usage" : top.page === "analytics" ? "Analytics" : top.page === "costs" ? "Costs" : top.page === "churn" ? "Churn" : top.page === "concept2" ? "Concept2" : (top.page ?? "Settings")) : top.kind === "stories" || top.kind === "story" || top.kind === "metric" ? "FAQs" : top.kind === "people" ? PEOPLE[top.list] : top.kind === "rankings" ? "Rankings" : top.kind === "erg" || top.kind === "demo" ? "Telemetry" : top.kind === "bests" ? "Bests" : top.kind === "club" ? "Row Club" : top.kind === "wiki" ? "Wiki" : top.kind === "locker" ? "Locker" : top.kind === "m2dfaq" ? "M2D" : top.kind === "m2dshare" ? "Shareables" : top.kind === "posters" ? "Posters" : "Row").toUpperCase();
   const searchBar = !over && tab === "search";
   const wide = win.width > win.height;
   const side = { width: 64, height: 54, justifyContent: "center" as const };
@@ -581,7 +590,9 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
     ) : o.kind === "rankings" ? (
       <RankingsScreen period={o.period} rec={o.rec} onRower={openRower} onRow={openRow} />
     ) : o.kind === "settings" ? (
-      <SettingsScreen page={o.page} onPage={(page) => push({ kind: "settings", page })} onPeople={openPeople} onSignedOut={() => setStack([])} onWiki={() => push({ kind: "wiki" })} onLocker={() => push({ kind: "locker" })} />
+      <SettingsScreen page={o.page} onPage={(page) => push({ kind: "settings", page })} onPeople={openPeople} onSignedOut={() => setStack([])} onWiki={() => push({ kind: "wiki" })} onLocker={() => push({ kind: "locker" })} onClub={() => push({ kind: "club" })} />
+    ) : o.kind === "club" ? (
+      <RowClubScreen onRow={openLog} />
     ) : o.kind === "locker" ? (
       <LockerScreen />
     ) : o.kind === "m2dfaq" ? (
@@ -653,8 +664,15 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
                   <BackIcon />
                 </Pressable>
               ) : (
-                <Pressable accessibilityRole="button" accessibilityLabel={rowing ? "Back to the row in progress" : "Log a row"} onPress={openLog} hitSlop={8} style={press}>
-                  <PlusIcon color={rowing ? C.accent : C.ink} />
+                /* WHILE A ROW CLUB IS OPEN THE PLUS SAYS SO (owner,
+                   2026-11-28: "When row club's live, we probably put like
+                   an indicator on that where the log a row button is"): a
+                   dot on it, red while the lobby waits, green once the row
+                   is on, and a press opens the lobby. While rowing it goes
+                   back to the row, as ever. */
+                <Pressable accessibilityRole="button" accessibilityLabel={rowing ? "Back to the row in progress" : clubOpen ? "Row Club is open" : "Log a row"} onPress={!rowing && clubOpen ? () => push({ kind: "club" }) : openLog} hitSlop={8} style={press}>
+                  <PlusIcon color={rowing || clubOpen ? C.accent : C.ink} />
+                  {clubOpen ? <View style={{ position: "absolute", top: -2, right: -4, width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderColor: C.paper, backgroundColor: club.lobby?.live ? C.good : C.accent }} /> : null}
                 </Pressable>
               )}
             </View>
@@ -833,6 +851,8 @@ function Shell({ dark, erg, init, onNav }: { dark: boolean; erg: ReturnType<type
         )}
       </View>
       </Padded>
+      {/* Row Club's ten second count, over everything (screens/RowClub.tsx). */}
+      <ClubCountdown />
     </SafeAreaView>
   );
 }
