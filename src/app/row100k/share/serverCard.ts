@@ -77,9 +77,37 @@ export async function renderCardPng(card: ShareCard, data: ShareData): Promise<B
   setCardAccent(cut.accent, capsOn(cut.accent));
   const canvas = createCanvas(card.width, card.height);
   const ctx = canvas.getContext("2d");
-  card.draw(ctx as unknown as CanvasRenderingContext2D, data, SERVER_FONTS);
+  if (SELF_SHADOWED.has(card.id)) {
+    card.draw(ctx as unknown as CanvasRenderingContext2D, data, SERVER_FONTS);
+    return canvas.toBuffer("image/png");
+  }
+  /* EVERY STICKER LIFTS OFF THE PHOTO AS THE BIB DOES (owner, 2026-11-27:
+   * "the bib number 001 looks less flat than the 5,000 meters ... a
+   * backdrop or like a shadow in the back probably looks good regardless"):
+   * the card is drawn on its own, then laid down with the bib's shadow
+   * (cards.ts rowBibCard: black at 55%, blur 16, down 3) cast from
+   * everything it drew. A card that casts its own shadow is left as it is. */
+  const flat = createCanvas(card.width, card.height);
+  card.draw(flat.getContext("2d") as unknown as CanvasRenderingContext2D, data, SERVER_FONTS);
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 3;
+  ctx.drawImage(flat, 0, 0);
   return canvas.toBuffer("image/png");
 }
+/* The cards that already draw the shadow themselves (cards.ts). */
+const SELF_SHADOWED = new Set<string>([
+  "row-bib",
+  "rowtember-bib",
+  "rowtember-logo",
+  "rowtember-club",
+  "rowtember-elite",
+  "rowtember-lights-out",
+  "rowtember-raceday-bill",
+  "rowtember-raceday-name",
+  "rowtember-raceday-wave",
+  "rowtember-community-hours-tall",
+]);
 
 /* WHAT A VIEWER MAY SHARE. The site mounts a share surface on a rower's
  * page for the rower and for an admin, nobody else, so the same two get a
